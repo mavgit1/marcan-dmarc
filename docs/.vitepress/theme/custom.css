@@ -1,0 +1,93 @@
+/*
+ * Marcan docs: the default theme, tuned with CSS variables only.
+ * Brand = the web UI's info blue (--status-info in web/src/routes/layout.css;
+ * the same blue as the logo's middle bar): Tailwind blue-600 in light, blue-400 in dark.
+ */
+
+:root {
+  /* Brand: links and text use -1, buttons -3, hover -2. */
+  --vp-c-brand-1: #155dfc; /* blue-600 */
+  --vp-c-brand-2: #1447e6; /* blue-700 */
+  --vp-c-brand-3: #155dfc;
+  --vp-c-brand-soft: rgba(21, 93, 252, 0.12);
+
+  /* Neutral, slightly warmer greys like the UI's oklch(… 0 0) scale. */
+  --vp-c-bg-alt: #fafafa;
+  --vp-c-bg-soft: #f5f5f5;
+
+  /* Hero name: gradient within the brand hue. */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #1447e6 10%, #51a2ff 90%);
+
+  /* Code blocks: subtle rounding everywhere (the default only rounds from 640px). */
+  --vp-code-block-bg: var(--vp-c-bg-alt);
+  --docs-radius: 10px;
+}
+
+.dark {
+  --vp-c-brand-1: #51a2ff; /* blue-400 */
+  --vp-c-brand-2: #8ec5ff; /* blue-300 */
+  --vp-c-brand-3: #155dfc; /* button fill keeps white text readable */
+  --vp-c-brand-soft: rgba(81, 162, 255, 0.16);
+
+  --vp-c-bg: #171717; /* the UI's dark background */
+  --vp-c-bg-alt: #121212;
+  --vp-c-bg-soft: #202020;
+
+  --vp-home-hero-name-background: linear-gradient(120deg, #51a2ff 10%, #bedbff 90%);
+}
+
+/* Typography: the UI also uses Inter; tighter headings, alternate digits/glyphs for legibility. */
+body {
+  font-feature-settings: 'cv11', 'ss01';
+}
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.VPHero .name,
+.VPHero .text {
+  letter-spacing: -0.02em;
+}
+
+/* Rounded code blocks and custom containers at every width. */
+.vp-doc div[class*='language-'],
+.vp-doc .custom-block {
+  border-radius: var(--docs-radius);
+}
+.vp-doc div[class*='language-'] {
+  border: 1px solid var(--vp-c-divider);
+}
+
+/* Feature cards: a hint of the brand on hover. */
+.VPFeature {
+  transition: border-color 0.2s;
+}
+.VPFeature:hover {
+  border-color: var(--vp-c-brand-soft);
+}
+
+/* App screenshots (<Screenshot>): the one matching the docs' theme, framed. */
+.screenshot {
+  margin: 20px 0;
+}
+.screenshot img {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--docs-radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.08);
+}
+.dark .screenshot .light-only,
+html:not(.dark) .screenshot .dark-only {
+  display: none;
+}
+
+/* The home page's screenshot, under the feature cards. */
+.home-screenshot {
+  max-width: 1152px;
+  margin: 48px auto 0;
+  padding: 0 24px;
+}
+@media (min-width: 640px) {
+  .home-screenshot {
+    padding: 0 48px;
+  }
+}

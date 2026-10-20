@@ -1,0 +1,46 @@
+# Authelia configuration for Marcan (Authelia 4.39).
+# Host names come from the environment (see ../.env.example) through Authelia's
+# template filter, so there is normally nothing to edit here. Secrets are also
+# read from the environment (AUTHELIA_* variables in ../docker-compose.yml).
+# Reference: https://www.authelia.com/configuration/
+
+theme: auto
+
+server:
+  address: 'tcp://:9091/'
+  endpoints:
+    authz:
+      forward-auth:
+        implementation: 'ForwardAuth'
+
+log:
+  level: info
+
+authentication_backend:
+  file:
+    path: /config/users.yml
+
+access_control:
+  default_policy: deny
+  rules:
+    # Marcan: password plus a second factor (TOTP or WebAuthn).
+    # Use one_factor instead if you do not want 2FA.
+    - domain: '{{ env "MARCAN_DOMAIN" }}'
+      policy: two_factor
+
+session:
+  cookies:
+    # The cookie domain must be a parent of both the Marcan and the Authelia host.
+    - domain: '{{ env "COOKIE_DOMAIN" }}'
+      authelia_url: 'https://{{ env "AUTH_DOMAIN" }}'
+      default_redirection_url: 'https://{{ env "MARCAN_DOMAIN" }}'
+
+storage:
+  local:
+    path: /config/db.sqlite3
+
+# No mail server needed: one-time codes (for example when you register a 2FA
+# device) are written to this file instead of being e-mailed.
+notifier:
+  filesystem:
+    filename: /config/notification.txt

@@ -1,0 +1,74 @@
+# Marcan + Caddy + OAuth2-Proxy (OIDC single sign-on). Guide: https://marcan.kaitiaki.tech/deployment
+# Run from this directory with a .env based on .env.example.
+services:
+  marcan:
+    image: ghcr.io/mavgit1/marcan:${MARCAN_VERSION:-0.2.0}
+    # To run your own build instead, replace the line above with:  build: ../..
+    container_name: marcan-app
+    restart: unless-stopped
+    # Marcan finishes in-flight requests and stops its mailbox pass between
+    # batches before exiting; Docker's default 10 s would cut that short.
+    stop_grace_period: 30s
+    volumes:
+      # The database, in the named volume marcan_data (Docker creates it as
+      # <project>_marcan_data, writable for the container's user; the project
+      # is this directory's name by default). For a directory next to this file
+      # instead, slower on Docker Desktop and some NAS filesystems, use
+      #   - ./data:/data   after  mkdir -p data && sudo chown 10001:10001 data
+      - marcan_data:/data
+    networks:
+      - marcan-net
+    # No "ports:" on purpose: reachable only through Caddy / OAuth2-Proxy.
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
+    container_name: marcan-oauth2-proxy
+    restart: unless-stopped
+    environment:
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:41880"
+      OAUTH2_PROXY_UPSTREAMS: "http://marcan:8080/"
+      # Every signed-in user can change every setting: allow only your own domain(s).
+      OAUTH2_PROXY_EMAIL_DOMAINS: "${ALLOWED_EMAIL_DOMAINS:?set ALLOWED_EMAIL_DOMAINS in .env (e.g. yourcompany.com)}"
+      OAUTH2_PROXY_COOKIE_SECRET: "${COOKIE_SECRET:?set COOKIE_SECRET in .env (openssl rand -base64 32)}"
+      OAUTH2_PROXY_CLIENT_ID: "${OIDC_CLIENT_ID:?set OIDC_CLIENT_ID in .env}"
+      OAUTH2_PROXY_CLIENT_SECRET: "${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}"
+      OAUTH2_PROXY_OIDC_ISSUER_URL: "${OIDC_ISSUER_URL:?set OIDC_ISSUER_URL in .env}"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+      # Not sent on requests started by other sites.
+      OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
+    depends_on:
+      - marcan
+    networks:
+      - marcan-net
+    # Port 41880 is internal to the Docker network; reached via Caddy.
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: marcan-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      MARCAN_DOMAIN: "${MARCAN_DOMAIN:?set MARCAN_DOMAIN in .env (e.g. dmarc.example.com)}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - marcan
+      - oauth2-proxy
+    networks:
+      - marcan-net
+
+volumes:
+  marcan_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  marcan-net:
+    driver: bridge

@@ -1,0 +1,4 @@
+﻿report_id,record_id,date_begin,date_end,reporter,organization,domain,source_ip,messages,dmarc_pass,spf_aligned_pass,dkim_aligned_pass,outcome,issue,disposition,delivered,header_from,envelope_from,spf_domain,dkim_domain,dkim_selector,reporter_spf_verdict,reporter_dkim_verdict,policy_override
+r3,5,2024-01-03T00:00:00Z,2024-01-03T23:59:59Z,yahoo.com,Beta,other.org,192.0.2.99,20,false,false,false,blocked,both_failed,reject,false,other.org,,other.org,other.org,,fail,fail,
+r1,3,2024-01-03T00:00:00Z,2024-01-03T23:59:59Z,'=1+2,Acme,example.com,192.0.2.1,50,true,false,true,passed,spf_failed,none,true,example.com,,example.com,example.com,s1,fail,pass,
+r1,2,2024-01-01T00:00:00Z,2024-01-01T23:59:59Z,google.com,Acme,example.com,192.0.2.2,10,false,false,false,forwarded,both_failed,none,true,"foo,bar.example",,"foo,bar.example","foo,bar.example",,fail,fail,"forwarded: said ""hello, world"""

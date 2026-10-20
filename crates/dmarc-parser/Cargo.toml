@@ -1,0 +1,18 @@
+[package]
+name = "dmarc-parser"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+description = "Parse DMARC aggregate report XML (plain, gzip, or zip)"
+
+[dependencies]
+dmarc-domain = { path = "../dmarc-domain" }
+serde = { workspace = true }
+quick-xml = { workspace = true }
+flate2 = { workspace = true }
+zip = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

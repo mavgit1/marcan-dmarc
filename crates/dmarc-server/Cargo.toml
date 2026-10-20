@@ -1,0 +1,58 @@
+[package]
+name = "dmarc-server"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+description = "axum REST API and binary for Marcan"
+
+[[bin]]
+name = "dmarc-server"
+path = "src/main.rs"
+
+[dependencies]
+dmarc-store = { path = "../dmarc-store" }
+dmarc-imap = { path = "../dmarc-imap" }
+dmarc-assess = { path = "../dmarc-assess" }
+dmarc-identity = { path = "../dmarc-identity" }
+dmarc-dns = { path = "../dmarc-dns" }
+dmarc-domain = { path = "../dmarc-domain" }
+dmarc-parser = { path = "../dmarc-parser" }
+sqlx = { workspace = true }
+tokio = { workspace = true, features = ["sync", "signal"] }
+tokio-util = { workspace = true }
+axum = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tower-http = { workspace = true }
+futures = { workspace = true }
+chrono = { workspace = true }
+csv = { workspace = true }
+rust-embed = "8"
+mime_guess = "2"
+ts-rs = { workspace = true }
+lettre = { workspace = true }
+ring = { workspace = true }
+base64 = { workspace = true }
+# The implicit-TLS (port 465) handshake, staged before lettre takes the stream.
+tokio-native-tls = "0.3"
+
+[features]
+# Trust the test keypair in `license::test_keys` instead of the steward's key.
+# Only the tests enable it (the dev-dependency on this crate below).
+test-keys = []
+
+[dev-dependencies]
+dmarc-server = { path = ".", features = ["test-keys"] }
+dmarc-imap = { path = "../dmarc-imap", features = ["test-support"] }
+tokio = { workspace = true, features = ["test-util"] }
+tempfile = { workspace = true }
+tower = { workspace = true }
+http-body-util = { workspace = true }
+
+[lints]
+workspace = true

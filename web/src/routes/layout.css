@@ -1,0 +1,238 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn-svelte/tailwind.css';
+@import '@fontsource-variable/inter';
+@import 'layerchart/shadcn-svelte.css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	--background: oklch(0.985 0 0);
+	--foreground: oklch(0.205 0 0);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.205 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.205 0 0);
+	--primary: oklch(0.205 0 0);
+	--primary-foreground: oklch(0.985 0 0);
+	--secondary: oklch(0.97 0 0);
+	--secondary-foreground: oklch(0.205 0 0);
+	--muted: oklch(0.97 0 0);
+	--muted-foreground: oklch(0.5 0 0);
+	--accent: oklch(0.97 0 0);
+	--accent-foreground: oklch(0.205 0 0);
+	--destructive: oklch(0.577 0.245 27.325);
+	--border: oklch(0.91 0 0);
+	--input: oklch(0.91 0 0);
+	--ring: oklch(0.708 0 0);
+
+	/* Series colours — used via chart wrappers, not at page call sites. */
+	--chart-1: oklch(0.488 0.114 264.376);
+	--chart-2: oklch(0.596 0.145 163.225);
+	--chart-3: oklch(0.577 0.245 27.325);
+	--chart-4: oklch(0.769 0.188 70.08);
+	--chart-5: oklch(0.556 0 0);
+
+	--radius: 0.5rem;
+	--sidebar: oklch(0.975 0 0);
+	--sidebar-foreground: oklch(0.205 0 0);
+	--sidebar-primary: oklch(0.205 0 0);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.945 0 0);
+	--sidebar-accent-foreground: oklch(0.205 0 0);
+	--sidebar-border: oklch(0.91 0 0);
+	--sidebar-ring: oklch(0.708 0 0);
+
+	/* Semantic status tokens — pass/fail/warn/neutral/info. Use bg-status-*-bg + text-status-*-fg. */
+	--status-pass: oklch(0.627 0.17 149.214);
+	--status-pass-fg: oklch(0.396 0.095 166.913);
+	--status-pass-bg: oklch(0.962 0.044 156.743);
+	--status-pass-border: oklch(0.845 0.143 164.978);
+
+	--status-fail: oklch(0.637 0.237 25.331);
+	--status-fail-fg: oklch(0.444 0.177 26.899);
+	--status-fail-bg: oklch(0.971 0.013 17.38);
+	--status-fail-border: oklch(0.885 0.062 18.334);
+
+	--status-warn: oklch(0.769 0.188 70.08);
+	--status-warn-fg: oklch(0.473 0.137 46.201);
+	--status-warn-bg: oklch(0.987 0.022 95.277);
+	--status-warn-border: oklch(0.924 0.12 95.746);
+
+	--status-neutral: oklch(0.552 0.016 285.938);
+	--status-neutral-fg: oklch(0.37 0.013 285.805);
+	--status-neutral-bg: oklch(0.967 0.001 286.375);
+	--status-neutral-border: oklch(0.92 0.004 286.32);
+
+	--status-info: oklch(0.546 0.215 262.881);
+	--status-info-fg: oklch(0.424 0.199 265.638);
+	--status-info-bg: oklch(0.97 0.014 254.604);
+	--status-info-border: oklch(0.882 0.059 254.128);
+	/* Forwarded: failed in transit, receiver trusted the forward. Not a warning, not a pass. */
+	--status-forward: oklch(0.558 0.288 302.321);
+	--status-forward-fg: oklch(0.496 0.265 301.924);
+	--status-forward-bg: oklch(0.977 0.014 308.299);
+	--status-forward-border: oklch(0.902 0.063 306.703);
+}
+
+.dark {
+	--background: oklch(0.16 0 0);
+	--foreground: oklch(0.96 0 0);
+	--card: oklch(0.195 0 0);
+	--card-foreground: oklch(0.96 0 0);
+	--popover: oklch(0.195 0 0);
+	--popover-foreground: oklch(0.96 0 0);
+	--primary: oklch(0.96 0 0);
+	--primary-foreground: oklch(0.205 0 0);
+	--secondary: oklch(0.26 0 0);
+	--secondary-foreground: oklch(0.96 0 0);
+	--muted: oklch(0.26 0 0);
+	--muted-foreground: oklch(0.72 0 0);
+	--accent: oklch(0.26 0 0);
+	--accent-foreground: oklch(0.96 0 0);
+	--destructive: oklch(0.704 0.191 22.216);
+	--border: oklch(1 0 0 / 10%);
+	--input: oklch(1 0 0 / 15%);
+	--ring: oklch(0.556 0 0);
+
+	--chart-1: oklch(0.62 0.14 264.376);
+	--chart-2: oklch(0.72 0.15 163.225);
+	--chart-3: oklch(0.704 0.191 22.216);
+	--chart-4: oklch(0.828 0.189 84.429);
+	--chart-5: oklch(0.708 0 0);
+
+	--sidebar: oklch(0.175 0 0);
+	--sidebar-foreground: oklch(0.96 0 0);
+	--sidebar-primary: oklch(0.96 0 0);
+	--sidebar-primary-foreground: oklch(0.205 0 0);
+	--sidebar-accent: oklch(0.26 0 0);
+	--sidebar-accent-foreground: oklch(0.96 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.556 0 0);
+
+	--status-pass: oklch(0.765 0.177 163.223);
+	--status-pass-fg: oklch(0.845 0.143 164.978);
+	--status-pass-bg: oklch(0.3 0.07 155.6 / 0.45);
+	--status-pass-border: oklch(0.596 0.145 163.225 / 0.45);
+
+	--status-fail: oklch(0.704 0.191 22.216);
+	--status-fail-fg: oklch(0.808 0.114 19.571);
+	--status-fail-bg: oklch(0.3 0.08 25 / 0.45);
+	--status-fail-border: oklch(0.577 0.245 27.325 / 0.4);
+
+	--status-warn: oklch(0.828 0.189 84.429);
+	--status-warn-fg: oklch(0.879 0.169 91.605);
+	--status-warn-bg: oklch(0.32 0.07 70 / 0.45);
+	--status-warn-border: oklch(0.769 0.188 70.08 / 0.4);
+
+	--status-neutral: oklch(0.705 0.015 286.067);
+	--status-neutral-fg: oklch(0.871 0.006 286.286);
+	--status-neutral-bg: oklch(0.274 0.006 286.033 / 0.7);
+	--status-neutral-border: oklch(0.442 0.017 285.786 / 0.5);
+
+	--status-info: oklch(0.707 0.165 254.624);
+	--status-info-fg: oklch(0.809 0.105 251.813);
+	--status-info-bg: oklch(0.3 0.08 254 / 0.45);
+	--status-info-border: oklch(0.546 0.215 262.881 / 0.4);
+	--status-forward: oklch(0.702 0.183 293.541);
+	--status-forward-fg: oklch(0.811 0.111 293.571);
+	--status-forward-bg: oklch(0.3 0.09 300 / 0.45);
+	--status-forward-border: oklch(0.558 0.288 302.321 / 0.4);
+}
+
+@theme inline {
+	--font-sans: 'Inter Variable', sans-serif;
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive: var(--destructive);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--color-foreground: var(--foreground);
+	--color-background: var(--background);
+	--color-status-pass: var(--status-pass);
+	--color-status-pass-fg: var(--status-pass-fg);
+	--color-status-pass-bg: var(--status-pass-bg);
+	--color-status-pass-border: var(--status-pass-border);
+	--color-status-fail: var(--status-fail);
+	--color-status-fail-fg: var(--status-fail-fg);
+	--color-status-fail-bg: var(--status-fail-bg);
+	--color-status-fail-border: var(--status-fail-border);
+	--color-status-warn: var(--status-warn);
+	--color-status-warn-fg: var(--status-warn-fg);
+	--color-status-warn-bg: var(--status-warn-bg);
+	--color-status-warn-border: var(--status-warn-border);
+	--color-status-neutral: var(--status-neutral);
+	--color-status-neutral-fg: var(--status-neutral-fg);
+	--color-status-neutral-bg: var(--status-neutral-bg);
+	--color-status-neutral-border: var(--status-neutral-border);
+	--color-status-info: var(--status-info);
+	--color-status-info-fg: var(--status-info-fg);
+	--color-status-info-bg: var(--status-info-bg);
+	--color-status-info-border: var(--status-info-border);
+	--color-status-forward: var(--status-forward);
+	--color-status-forward-fg: var(--status-forward-fg);
+	--color-status-forward-bg: var(--status-forward-bg);
+	--color-status-forward-border: var(--status-forward-border);
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	html {
+		@apply font-sans;
+	}
+
+	/* LayerChart → shadcn token mapping (library expects --card-background / --card-muted). */
+	.lc-root-container,
+	.lc-tooltip-root {
+		--card-background: var(--card);
+		--card-muted: var(--muted);
+	}
+}
+
+/*
+ * What sticks or scrolls to just below the app header, whose height (it wraps on narrow windows)
+ * the header writes to --app-header-height: a sticky column (the Settings nav) and a section a
+ * link scrolls into view, both 1rem under it.
+ */
+@utility top-below-header {
+	top: calc(var(--app-header-height, 3rem) + 1rem);
+}
+@utility scroll-mt-below-header {
+	scroll-margin-top: calc(var(--app-header-height, 3rem) + 1rem);
+}

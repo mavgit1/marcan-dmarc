@@ -1,0 +1,189 @@
+                     BENEFICIARY COPYLEFT LICENSE
+                            Version 1.0
+
+0. Basis of this License
+
+This License consists of the terms and conditions of the GNU Affero
+General Public License, version 3, as published by the Free Software
+Foundation (the "AGPLv3"; verbatim copy in the file AGPL-3.0.txt and at
+<https://www.gnu.org/licenses/agpl-3.0.txt>), which are incorporated
+into this License by reference, as modified by Sections 1 to 10 below.
+
+The Preamble of the AGPLv3 is not part of this License. Wherever the
+incorporated terms refer to "this License" or to the "GNU Affero General
+Public License", they refer to this Beneficiary Copyleft License,
+Version 1.0, except where Section 13 of the AGPLv3 refers to the GNU
+General Public License. If the incorporated terms conflict with
+Sections 1 to 10, Sections 1 to 10 prevail.
+
+This License is not the AGPLv3 and is not endorsed by the Free Software
+Foundation.
+
+1. Definitions
+
+"Beneficiary" means a natural or legal person for whose benefit the
+Program, or a work based on the Program, processes data about a domain,
+system or other asset that this person owns, controls or uses, as part
+of a service provided to that person by an Operator, whether directly or
+through one or more intermediaries such as resellers, whether paid or
+unpaid, and whether or not that person interacts with the Program. An
+asset counts as the person's even where the Operator registers, holds or
+controls it on the person's behalf.
+
+The following are not Beneficiaries:
+  (i)   the Operator itself;
+  (ii)  third parties that only appear in the data the Program
+        processes, such as organizations that send reports to it, or
+        the senders, servers and networks named in those reports;
+  (iii) individual employees or users of a Beneficiary or of the
+        Operator; the notice under Section 2 reaches them through the
+        Beneficiary or the Operator; and
+  (iv)  persons that control, are controlled by, or are under common
+        control with the Operator ("Affiliates"), such as a parent
+        company or subsidiaries served by a group's own IT department.
+
+"Steward" means Marvin Huber, trading as Kaitiaki Huber, Switzerland,
+or any successor to whom the copyright in the Program is assigned.
+
+"Operator" means any person who runs the Program, modified or not, or a
+work based on the Program, to provide a service to one or more
+Beneficiaries. A person who installs, configures or administers the
+Program for another person, on that person's systems, to monitor that
+person's assets, also provides a service to that person and is an
+Operator. A person who only resells or arranges such a service without
+running or administering the Program is an intermediary, not an
+Operator.
+
+2. Beneficiary Notice and Source Access
+
+If you are an Operator, then, whether or not you have modified the
+Program, you must:
+
+  a) inform each Beneficiary, no later than when the Beneficiary agrees
+     to the service or when its first domain or other asset is added to
+     the service, whether manually or automatically, whichever is
+     earlier, that:
+       (i)   the service is based on software whose source code is
+             freely available, and which the Beneficiary may run
+             itself;
+       (ii)  that software is licensed under this License, which grants
+             the Beneficiary the rights described in it; and
+       (iii) where the Corresponding Source can be obtained;
+
+  b) deliver that notice directly to the Beneficiary in a clear and
+     conspicuous way, for example in the registration confirmation,
+     the service agreement, or the service's user interface. Publishing
+     it only in a location the Beneficiary is not directed to is not
+     sufficient;
+
+  c) keep that information continuously accessible to the Beneficiary
+     for as long as you provide the service to it; and
+
+  d) make the Corresponding Source of the version you actually run,
+     including all of your modifications, available to each
+     Beneficiary at no charge, through some standard or customary means
+     of facilitating copying of software, and keep it current with the
+     version you run.
+
+You may not charge a fee for, or make the service conditional on the
+Beneficiary waiving, any of the information or rights under this
+Section.
+
+If a Beneficiary receives the service through an intermediary, you may
+have the intermediary deliver the notice, but you remain responsible
+for it reaching the Beneficiary.
+
+This Section applies in addition to Section 13 of the AGPLv3.
+
+3. No Attribution Required
+
+The notice required by Section 2 need not name the authors or copyright
+holders of the Program. The Appropriate Legal Notices displayed by
+interactive user interfaces under Section 5(d) of the AGPLv3 need not
+include copyright notices or author names, provided they include the
+information required by Section 2(a).
+
+4. Conditions and Acceptance
+
+The requirements of Section 2 are conditions of this License. They are
+not "further restrictions" or removable "additional permissions" or
+"additional terms" within the meaning of Sections 7 and 10 of the
+AGPLv3, and the permission in Section 7 of the AGPLv3 to remove such
+terms does not apply to them.
+
+Running the Program as an Operator is permitted only under this
+License. The statements in Section 2 of the AGPLv3 that affirm
+unlimited permission to run the unmodified Program, and in Section 9 of
+the AGPLv3 that you are not required to accept this License in order to
+run the Program, do not apply to running it as an Operator. By running
+the Program as an Operator, you accept this License.
+
+5. Revised Versions
+
+Section 14 of the AGPLv3 does not apply. The Steward may publish revised
+versions of this License. If the Program specifies that a certain
+numbered version of this License "or any later version" applies to it,
+you may follow the terms of that version or of any later version
+published by the Steward.
+
+6. Name and Origin
+
+"Marcan" and any associated logos are the names and marks of the
+original Program. This License grants no trademark rights in them,
+except as set out in this Section (AGPLv3 Section 7(c) and 7(e)).
+
+  a) Anyone may use the name to truthfully refer to the original
+     Program, for example "based on Marcan" or "a fork of Marcan".
+
+  b) A modified version, or a service running one, may use the name
+     as part of its own name only if it is clearly marked as a modified
+     version and states that it is not the original Program, for
+     example "Marcan (unofficial fork by Example Ltd)", together with a
+     reference to the original Program.
+
+  c) No one may use the name in a way that suggests they are the
+     original author or copyright holder of the Program, or that their
+     version, service or license is endorsed by or is the official
+     version from the original authors.
+
+A modified version that does not use the name is not subject to this
+Section and need not refer to the original Program anywhere except as
+required by the other terms of this License.
+
+7. Other Licenses
+
+The Steward may license the Program on other terms as well, including
+terms without Section 2. Such a license is a separate agreement with its
+holder; it does not change this License for anyone else.
+
+8. Governing Law
+
+This License is governed by the substantive law of Switzerland,
+excluding its conflict-of-law rules and the United Nations Convention on
+Contracts for the International Sale of Goods. The place of jurisdiction
+is the Steward's registered office or domicile in Switzerland, unless
+mandatory law provides otherwise.
+
+9. Severability
+
+If any provision of this License is held invalid or unenforceable, the
+remaining provisions remain in effect, and the invalid provision shall
+be replaced by a valid provision that comes closest to its purpose.
+
+10. Liability
+
+Where the disclaimers in Sections 15 and 16 of the AGPLv3 are not
+permitted by applicable law, liability is excluded to the extent the law
+permits, and in any case except for intent and gross negligence.
+
+
+Example notice
+--------------
+
+An Operator could inform Beneficiaries under Section 2, for example in a
+registration e-mail:
+
+    This service runs on Marcan, software whose source code is freely
+    available under the Beneficiary Copyleft License 1.0: you may run,
+    study, modify and share it yourself. Source code of the version we
+    run: <https://example.com/source>

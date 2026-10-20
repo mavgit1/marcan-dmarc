@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Runs scripts/check.sh before every push. Install once per clone:
+#
+#   git config core.hooksPath .githooks
+#
+# It checks the working tree, so commit or stash unrelated changes first.
+# Skip it in an emergency with `git push --no-verify`.
+set -euo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/check.sh"

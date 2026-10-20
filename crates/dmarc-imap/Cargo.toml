@@ -1,0 +1,30 @@
+[package]
+name = "dmarc-imap"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+description = "IMAP fetch pass and polling loop for DMARC aggregate report attachments"
+
+[dependencies]
+dmarc-parser = { path = "../dmarc-parser" }
+tokio = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true }
+async-imap = { workspace = true }
+async-native-tls = { workspace = true }
+mail-parser = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+base64 = { workspace = true, optional = true }
+
+[features]
+# The scripted in-memory IMAP server and ImapWorker::sync_with_fake_server,
+# for the server's end-to-end import tests.
+test-support = ["dep:base64"]
+
+[dev-dependencies]
+flate2 = { workspace = true }
+base64 = { workspace = true }
+
+[lints]
+workspace = true

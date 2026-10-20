@@ -1,0 +1,12 @@
+.git
+**/target
+web/node_modules
+web/.svelte-kit
+web/build
+deploy
+.env
+*.db
+*.db-shm
+*.db-wal
+*.bak
+*.log

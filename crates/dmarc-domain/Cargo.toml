@@ -1,0 +1,15 @@
+[package]
+name = "dmarc-domain"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+description = "Hostname normalization, organizational domains and the RFC 7489 report authorization rule"
+
+[dependencies]
+thiserror = { workspace = true }
+# Compiled-in Public Suffix List (no runtime fetch) for organizational domains.
+psl = "2"
+
+[lints]
+workspace = true

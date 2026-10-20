@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" shape-rendering="crispEdges">
+  <!-- Marcan "aggregate" mark (web/src/lib/components/logo-mark.svelte), light theme -->
+  <g fill="#171717">
+    <rect x="0" y="2" width="3" height="16"/>
+    <rect x="4" y="5" width="3" height="13"/>
+    <rect x="12" y="5" width="3" height="13"/>
+    <rect x="16" y="2" width="3" height="16"/>
+  </g>
+  <rect x="8" y="10" width="3" height="8" fill="#155DFC"/>
+</svg>

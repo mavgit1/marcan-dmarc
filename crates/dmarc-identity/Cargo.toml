@@ -1,0 +1,17 @@
+[package]
+name = "dmarc-identity"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+description = "Sender identity from reverse DNS and SPF evidence, named by a vendored operator map"
+
+[dependencies]
+dmarc-domain = { path = "../dmarc-domain" }
+csv = { workspace = true }
+ipnet = { workspace = true }
+serde = { workspace = true }
+ts-rs = { workspace = true }
+
+[lints]
+workspace = true

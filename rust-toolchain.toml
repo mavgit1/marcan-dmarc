@@ -1,0 +1,4 @@
+# One toolchain for local builds, CI and the Dockerfile's rust image: keep them equal.
+[toolchain]
+channel = "1.98"
+components = ["clippy", "rustfmt"]

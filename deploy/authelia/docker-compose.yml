@@ -1,0 +1,71 @@
+# Marcan + Caddy + Authelia (own user file, 2FA). Guide: https://marcan.kaitiaki.tech/deployment
+# Run from this directory:
+#   cp .env.example .env  &&  cp config/users.yml.example config/users.yml  (edit both)
+#   docker compose up -d
+services:
+  marcan:
+    image: ghcr.io/mavgit1/marcan:${MARCAN_VERSION:-0.2.0}
+    # To run your own build instead, replace the line above with:  build: ../..
+    container_name: marcan-app
+    restart: unless-stopped
+    # Marcan finishes in-flight requests and stops its mailbox pass between
+    # batches before exiting; Docker's default 10 s would cut that short.
+    stop_grace_period: 30s
+    volumes:
+      # The database, in the named volume marcan_data (Docker creates it as
+      # <project>_marcan_data, writable for the container's user; the project
+      # is this directory's name by default). For a directory next to this file
+      # instead, slower on Docker Desktop and some NAS filesystems, use
+      #   - ./data:/data   after  mkdir -p data && sudo chown 10001:10001 data
+      - marcan_data:/data
+    networks:
+      - marcan-net
+    # No "ports:" on purpose: reachable only through Caddy.
+
+  authelia:
+    image: authelia/authelia:4.39
+    container_name: marcan-authelia
+    restart: unless-stopped
+    environment:
+      X_AUTHELIA_CONFIG_FILTERS: template
+      MARCAN_DOMAIN: "${MARCAN_DOMAIN:?set MARCAN_DOMAIN in .env (e.g. dmarc.example.com)}"
+      AUTH_DOMAIN: "${AUTH_DOMAIN:?set AUTH_DOMAIN in .env (e.g. auth.example.com)}"
+      COOKIE_DOMAIN: "${COOKIE_DOMAIN:?set COOKIE_DOMAIN in .env (parent domain of both hosts, e.g. example.com)}"
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: "${AUTHELIA_JWT_SECRET:?set AUTHELIA_JWT_SECRET in .env (openssl rand -hex 32)}"
+      AUTHELIA_SESSION_SECRET: "${AUTHELIA_SESSION_SECRET:?set AUTHELIA_SESSION_SECRET in .env (openssl rand -hex 32)}"
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: "${AUTHELIA_STORAGE_ENCRYPTION_KEY:?set AUTHELIA_STORAGE_ENCRYPTION_KEY in .env (openssl rand -hex 32)}"
+    volumes:
+      # configuration.yml and users.yml; Authelia also keeps its database here.
+      - ./config:/config
+    networks:
+      - marcan-net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: marcan-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      MARCAN_DOMAIN: "${MARCAN_DOMAIN:?set MARCAN_DOMAIN in .env}"
+      AUTH_DOMAIN: "${AUTH_DOMAIN:?set AUTH_DOMAIN in .env}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - marcan
+      - authelia
+    networks:
+      - marcan-net
+
+volumes:
+  marcan_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  marcan-net:
+    driver: bridge

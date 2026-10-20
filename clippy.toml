@@ -1,0 +1,18 @@
+# Words doc_markdown takes for prose rather than code; ".." keeps clippy's default list.
+doc-valid-idents = [
+    "SQLite",
+    "DMARC",
+    "DKIM",
+    "SPF",
+    "IMAP",
+    "SMTP",
+    "MTA-STS",
+    "TLS-RPT",
+    "BIMI",
+    "OpenStack",
+    "SvelteKit",
+    "AGPLv3",
+    "FCrDNS",
+    "SERVFAILed",
+    "..",
+]

@@ -1,0 +1,17 @@
+[package]
+name = "dmarc-assess"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+description = "What Marcan concludes from report figures: rates, health, enforcement, issues"
+
+[dependencies]
+serde = { workspace = true }
+ts-rs = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

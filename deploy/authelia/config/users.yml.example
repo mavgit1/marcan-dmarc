@@ -1,0 +1,11 @@
+# Copy to users.yml and edit. Generate the password hash with:
+#   docker run --rm -it authelia/authelia:4.39 authelia crypto hash generate argon2
+# and paste the "Digest:" value below (keep the quotes).
+users:
+  admin:
+    disabled: false
+    displayname: 'Admin'
+    email: 'admin@example.com'
+    password: '$argon2id$replace-with-the-generated-digest'
+    groups:
+      - admins

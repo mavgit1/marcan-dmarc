@@ -1,0 +1,16 @@
+# sqlx::migrate! checksums each migration over its raw bytes and compares that
+# against the checksum recorded in _sqlx_migrations. With core.autocrlf=true a
+# fresh Windows checkout gets CRLF while the blob is LF, so the checksums differ
+# and opening an existing database fails with "migration was previously applied
+# but has been modified". Pin migrations to LF everywhere.
+migrations/*.sql text eol=lf
+
+# Vendored upstream data: keep the bytes exactly as published so refreshes diff cleanly.
+crates/dmarc-identity/data/*.csv -text
+crates/dmarc-identity/data/*.txt -text
+
+# Generated from the Rust API types by ts-rs (cargo test).
+web/src/lib/types/** linguist-generated=true
+
+# Export snapshots: the exact bytes the CSV exports write (BOM, CRLF).
+crates/dmarc-server/tests/snapshots/*.csv -text

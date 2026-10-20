@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <style>@media (prefers-color-scheme: dark){.t{fill:#FAFAFA}.b{fill:#171717}.a{fill:#155DFC}}</style>
+  <rect class="t" width="16" height="16" rx="3.5" fill="#171717"/>
+  <rect class="b" x="4" y="3" width="2" height="10" fill="#FAFAFA" shape-rendering="crispEdges"/>
+  <rect class="a" x="7" y="8" width="2" height="5" fill="#51A2FF" shape-rendering="crispEdges"/>
+  <rect class="b" x="10" y="3" width="2" height="10" fill="#FAFAFA" shape-rendering="crispEdges"/>
+</svg>

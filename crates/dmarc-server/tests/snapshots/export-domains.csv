@@ -1,0 +1,3 @@
+﻿organization,domain,policy_p,policy_sp,policy_pct,total_messages,compliant_messages,delivered_compliance_pct,delivered_failures,forwarded_failures,blocked_by_policy,no_aligned_dkim_messages,parked,reporter_count,report_count,last_report_at,dns_grade,dns_score,dns_critical_count,dns_checked_at,health,issues
+Acme,example.com,none,,,180,170,100.00,0,10,0,0,false,2,2,2024-01-03T23:59:59Z,F,52,1,2024-01-01T00:00:00Z,protected,dns_grade;not_enforcing;reports_stopped
+Beta,other.org,,,,20,0,,0,0,20,0,false,1,1,2024-01-03T23:59:59Z,,,,,all_blocked,reports_stopped

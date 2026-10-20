@@ -1,0 +1,44 @@
+# Rust
+/target/
+**/target/
+
+# SvelteKit / Node
+web/node_modules/
+web/.svelte-kit/
+web/build/
+
+# Local secrets (e.g. a .env next to docker-compose.yml)
+.env
+
+# Local SQLite databases
+*.db
+*.db-shm
+*.db-wal
+*.bak
+
+*.log
+
+# Local dev data (DATA_DIR for the dev server)
+/.dev/
+/.demo/
+/.live/
+
+# macOS
+.DS_Store
+
+# Authelia example: real users and runtime state stay local
+deploy/authelia/config/users.yml
+deploy/authelia/config/db.sqlite3
+deploy/authelia/config/notification.txt
+
+# Agent worktrees (Claude Code)
+/.claude/worktrees/
+
+# Docs site (VitePress)
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
+# Data of the example stacks when run from the repo
+deploy/data/
+deploy/*/data/

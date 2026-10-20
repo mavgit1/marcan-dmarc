@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		<!--
+			SPA/FOUC: apply the stored (or system) colour mode before first paint.
+			hooks.server.ts never runs with adapter-static + ssr=false, so this must live here.
+		-->
+		<script>
+			(function () {
+				try {
+					var modeStorageKey = 'mode-watcher-mode';
+					var mode = localStorage.getItem(modeStorageKey) || 'system';
+					var light =
+						mode === 'light' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
+					var root = document.documentElement;
+					if (light) root.classList.remove('dark');
+					else root.classList.add('dark');
+					root.style.colorScheme = light ? 'light' : 'dark';
+					if (!localStorage.getItem(modeStorageKey)) {
+						localStorage.setItem(modeStorageKey, 'system');
+					}
+				} catch (e) {}
+			})();
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>
