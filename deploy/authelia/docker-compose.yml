@@ -4,7 +4,7 @@
 #   docker compose up -d
 services:
   marcan:
-    image: ghcr.io/mavgit1/marcan:${MARCAN_VERSION:-0.2.0}
+    image: ghcr.io/mavgit1/marcan:${MARCAN_VERSION:-0.2.1}
     # To run your own build instead, replace the line above with:  build: ../..
     container_name: marcan-app
     restart: unless-stopped
