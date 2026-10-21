@@ -601,3 +601,33 @@ async fn scope_lists_organizations_and_monitored_domains() {
         .iter()
         .any(|d| d["id"] == id));
 }
+
+#[tokio::test]
+async fn guide_counts_the_domains_at_each_policy() {
+    let t = common::TestApp::new().await;
+    let organization = get_default_organization(&t.pool).await.unwrap();
+    let spf = "v=spf1 -all";
+    for (domain, dmarc) in [
+        ("none-a.test", Some("v=DMARC1; p=none")),
+        (
+            "none-b.test",
+            Some("v=DMARC1; p=none; rua=mailto:r@none-b.test"),
+        ),
+        ("quarantine.test", Some("v=DMARC1; p=quarantine")),
+        ("reject.test", Some("v=DMARC1; p=reject")),
+        ("unchecked.test", None),
+    ] {
+        get_or_create_domain(&t.pool, organization.id, domain)
+            .await
+            .unwrap();
+        if let Some(dmarc) = dmarc {
+            common::store_dns(&t.pool, domain, dmarc, spf, 1_710_000_000).await;
+        }
+    }
+    let (status, guide) = get(&t.app, "/api/guide").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        guide["policies"],
+        serde_json::json!({ "monitor": 2, "quarantine": 1, "reject": 1, "unknown": 1 })
+    );
+}

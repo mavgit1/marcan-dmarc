@@ -51,7 +51,6 @@ Use the tag of the release you install in place of `v0.3.0`. A clone of the repo
 | `AUTH_DOMAIN` | The login portal's host name, such as `auth.example.com` |
 | `COOKIE_DOMAIN` | A parent domain of both, such as `example.com` |
 | `AUTHELIA_JWT_SECRET`, `AUTHELIA_SESSION_SECRET`, `AUTHELIA_STORAGE_ENCRYPTION_KEY` | Three independent secrets: `openssl rand -hex 32` for each |
-| `MARCAN_VERSION` | Optional: the Marcan version, the release's own by default |
 
 Compose refuses to start while one of them is missing. Changing the encryption key later makes the stored 2FA registrations unreadable.
 
@@ -90,4 +89,4 @@ Authelia is configured through its own configuration file; see its documentation
 
 ## Upgrade
 
-Set the new version in `.env`, then `docker compose pull && docker compose up -d`. Take a [backup](./backup) first; the steps are in [Upgrade](./upgrade). The Authelia image is pinned in `docker-compose.yml` (`authelia/authelia:4.39`); a Marcan release that moves it says so in its [release notes](./releases).
+Read the [release notes](./releases), Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade). The Authelia image is pinned in `docker-compose.yml` (`authelia/authelia:4.39`); a Marcan release that moves it says so in its [release notes](./releases).

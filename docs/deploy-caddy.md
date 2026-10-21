@@ -44,9 +44,8 @@ Use the tag of the release you install in place of `v0.3.0`. A clone of the repo
 | `MARCAN_DOMAIN` | The host name, such as `dmarc.example.com` |
 | `MARCAN_USER` | The login name |
 | `MARCAN_PASSWORD_HASH` | The password's bcrypt hash, below |
-| `MARCAN_VERSION` | Optional: the Marcan version, the release's own by default |
 
-Compose refuses to start while one of the first three is missing.
+Compose refuses to start while one of them is missing.
 
 ## 3. Create the login
 
@@ -77,6 +76,6 @@ Basic auth means one shared login for everyone, and the browser keeps it until i
 
 ## Upgrade
 
-Set the new version in `.env`, then `docker compose pull && docker compose up -d`. Take a [backup](./backup) first; the steps are in [Upgrade](./upgrade).
+Read the [release notes](./releases), Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade).
 
 Before 0.3.0 these files were in `deploy/` itself. If you ran the stack from `deploy/` in a clone, its volume is `deploy_marcan_data`: move your `.env` to `deploy/caddy/` and add `COMPOSE_PROJECT_NAME=deploy` to it, so Compose finds the volume again. With a bind mount instead, move `data/` along. A stack in a directory of its own, as above, is not affected.

@@ -1,8 +1,8 @@
 import { untrack } from 'svelte';
 
 /**
- * A request to show one anchor (a Settings section or row such as the alert catalogue, a
- * reference section of /guide): a link to it was followed, or the page opened with its hash.
+ * A request to show one anchor (a Settings section or row such as the alert catalogue): a link
+ * to it was followed, or the page opened with its hash.
  * The element with that anchor unfolds and scrolls into view once it is on the page; `seq` lets
  * the same link work twice, and `done` keeps a section that mounts again later (after its part
  * loaded again) from jumping again.

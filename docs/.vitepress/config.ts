@@ -20,10 +20,16 @@ const sidebar: DefaultTheme.SidebarItem[] = [
   {
     text: 'Setup',
     items: [
-      { text: 'Deployment', link: '/deployment' },
-      { text: 'Caddy with basic auth', link: '/deploy-caddy' },
-      { text: 'Caddy with Authelia', link: '/deploy-authelia' },
-      { text: 'Caddy with OAuth2-Proxy', link: '/deploy-oauth2-proxy' },
+      {
+        text: 'Deployment',
+        link: '/deployment',
+        collapsed: true,
+        items: [
+          { text: 'Caddy with basic auth', link: '/deploy-caddy' },
+          { text: 'Caddy with Authelia', link: '/deploy-authelia' },
+          { text: 'Caddy with OAuth2-Proxy', link: '/deploy-oauth2-proxy' }
+        ]
+      },
       { text: 'Mailbox & reporting setup', link: '/mailbox' },
       { text: 'Domains & organizations', link: '/domains' },
       { text: 'Sender names', link: '/sender-names' }

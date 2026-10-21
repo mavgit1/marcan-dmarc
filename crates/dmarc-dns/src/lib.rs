@@ -35,4 +35,4 @@ pub use spf::{spf_ip_match, SpfIpMatch};
 /// alter the score, grade or a stored verdict for unchanged DNS (reclassifying
 /// a severity, or adding a verdict field that older snapshots lack, counts;
 /// rewording a message does not). Snapshots of another version are re-checked.
-pub const CHECKER_VERSION: u32 = 13;
+pub const CHECKER_VERSION: u32 = 14;

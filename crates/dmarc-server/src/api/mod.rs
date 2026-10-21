@@ -7,6 +7,7 @@ mod dns;
 mod domain_detail;
 mod domains;
 mod export;
+mod guide;
 mod identity;
 mod mapping;
 mod meta;
@@ -67,6 +68,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/api/system/health", get(system::get_system_health))
         .route("/api/meta", get(meta::get_meta))
         .route("/api/scope", get(scope::get_scope))
+        .route("/api/guide", get(guide::get_guide))
         .route("/api/statistics", get(analytics::get_statistics))
         .route("/api/timeseries", get(analytics::get_timeseries))
         .route("/api/alerts", get(alerts::list_alerts))

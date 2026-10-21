@@ -46,7 +46,6 @@ Use the tag of the release you install in place of `v0.3.0`. A clone of the repo
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | The client you registered |
 | `ALLOWED_EMAIL_DOMAINS` | Who may sign in, such as `example.com`; several comma-separated |
 | `COOKIE_SECRET` | `openssl rand -base64 32` |
-| `MARCAN_VERSION` | Optional: the Marcan version, the release's own by default |
 
 Compose refuses to start while one of them is missing.
 
@@ -71,4 +70,4 @@ Open `https://dmarc.example.com`: you are sent to your provider to sign in, then
 
 ## Upgrade
 
-Set the new version in `.env`, then `docker compose pull && docker compose up -d`. Take a [backup](./backup) first; the steps are in [Upgrade](./upgrade). The OAuth2-Proxy image is pinned in `docker-compose.yml`; a Marcan release that moves it says so in its [release notes](./releases).
+Read the [release notes](./releases), Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade). The OAuth2-Proxy image is pinned in `docker-compose.yml`; a Marcan release that moves it says so in its [release notes](./releases).

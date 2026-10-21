@@ -11,6 +11,7 @@
 	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
 	import LookupBadge from '$lib/components/dns/lookup-badge.svelte';
 	import PageHeader from '$lib/components/page-header.svelte';
+	import { DOCS_URL } from '$lib/nav';
 	import Skeleton from '$lib/components/skeleton.svelte';
 	import SpfIncludeTree from '$lib/components/spf-include-tree.svelte';
 	import StatusBadge from '$lib/components/status-badge.svelte';
@@ -187,9 +188,9 @@
 	description="Live check of SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI records for any domain, including ones Marcan doesn't monitor."
 >
 	{#snippet actions()}
-		<Button variant="outline" size="sm" href={resolve('/guide')}>
+		<Button variant="outline" size="sm" href="{DOCS_URL}dns-checks" target="_blank" rel="noopener">
 			<BookOpenIcon />
-			Setup
+			Docs
 		</Button>
 	{/snippet}
 </PageHeader>

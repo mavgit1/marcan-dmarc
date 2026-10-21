@@ -105,3 +105,110 @@ html:not(.dark) .screenshot .dark-only {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Pricing page: the three plan cards, side by side from 768px, stacked below. */
+.pricing-plans {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin: 24px 0 16px;
+}
+@media (min-width: 768px) {
+  .pricing-plans {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.pricing-plan {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--docs-radius);
+  background-color: var(--vp-c-bg-soft);
+}
+.vp-doc .pricing-plan p {
+  margin: 0;
+}
+.vp-doc .pricing-plan .pricing-plan-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+.vp-doc .pricing-plan .pricing-plan-for {
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--vp-c-text-2);
+}
+.vp-doc .pricing-plan .pricing-plan-price {
+  margin-top: 16px;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: var(--vp-c-text-1);
+}
+.pricing-plan-price span {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--vp-c-text-2);
+}
+.vp-doc .pricing-plan .pricing-plan-terms {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--vp-c-text-2);
+}
+.pricing-plan-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 20px;
+  text-align: center;
+}
+@media (min-width: 768px) {
+  /* Lines the single button up with the paid plans' buttons above their yearly link. */
+  .pricing-plan-actions.single {
+    padding-bottom: 28px;
+  }
+}
+.vp-doc a.pricing-button {
+  display: block;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  text-decoration: none;
+  transition: color 0.25s, border-color 0.25s, background-color 0.25s;
+}
+.vp-doc a.pricing-button.brand {
+  border-color: var(--vp-button-brand-border);
+  color: var(--vp-button-brand-text);
+  background-color: var(--vp-button-brand-bg);
+}
+.vp-doc a.pricing-button.brand:hover {
+  border-color: var(--vp-button-brand-hover-border);
+  color: var(--vp-button-brand-hover-text);
+  background-color: var(--vp-button-brand-hover-bg);
+}
+.vp-doc a.pricing-button.alt {
+  border-color: var(--vp-button-alt-border);
+  color: var(--vp-button-alt-text);
+  background-color: var(--vp-button-alt-bg);
+}
+.vp-doc a.pricing-button.alt:hover {
+  border-color: var(--vp-button-alt-hover-border);
+  color: var(--vp-button-alt-hover-text);
+  background-color: var(--vp-button-alt-hover-bg);
+}
+.vp-doc a.pricing-plan-yearly {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}

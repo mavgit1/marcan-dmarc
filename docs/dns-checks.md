@@ -8,7 +8,7 @@ Marcan checks each monitored domain's mail DNS records live, and the **DNS inspe
 
 | Check | What Marcan looks at |
 | :--- | :--- |
-| **DMARC** (RFC 7489, RFC 9989) | Policy (`p=`), subdomain policy (`sp=`), the policy for subdomains that do not exist (`np=`), rollout percentage (`pct=`), testing mode (`t=`), alignment modes, and whether external report addresses (`rua=` / `ruf=`) have authorized receiving the reports (RFC 7489 §7.1). |
+| **DMARC** (RFC 7489, RFC 9989) | Policy (`p=`), subdomain policy (`sp=`), the policy for subdomains that do not exist (`np=`), rollout percentage (`pct=`), testing mode (`t=`), the public suffix flag (`psd=`), alignment modes, and whether external report addresses (`rua=` / `ruf=`) have authorized receiving the reports (RFC 7489 §7.1). |
 | **SPF** (RFC 7208) | The full include tree, the 10-lookup limit, void lookups, mechanism syntax, and how the record ends (`-all`, `~all`, `+all`). |
 | **DKIM** (RFC 6376) | The selectors seen signing in your reports, plus the ones on your selector list. Key type and size. |
 | **MTA-STS** (RFC 8461) | The DNS record and, only when the record exists, the policy file: the fetch follows no redirects and reads at most 64 KB. A policy host that does not resolve, redirects, serves the wrong certificate or answers with an error shows as **Policy unreachable**, since receivers cannot apply the policy either. So does a policy host that resolves to a loopback, private, link-local, unique-local or multicast address (or the cloud metadata address 169.254.169.254): Marcan does not connect to it, so a report for a made-up domain cannot point the server at an internal service. |
@@ -34,10 +34,11 @@ RFC 9989 replaces RFC 7489. Receivers move to it over time, so Marcan reads a re
 | `dmarc_testing` | Critical | `t=y` with `p=quarantine` or `p=reject`: DMARCbis receivers do not apply the policy, so it is monitoring only, like `pct=0`. Not raised again when `pct=0` is published too. |
 | `dmarc_bad_t` | Warning | `t=` is neither `y` nor `n`. |
 | `dmarc_bad_np` | Warning | `np=` is not none, quarantine or reject. |
+| `dmarc_bad_psd` | Warning | `psd=` is not `y`, `n` or `u`. |
 | `dmarc_pct_ignored` | Info | `pct=` below 100 with an enforcing policy and without `t=y`: RFC 7489 receivers still apply it, DMARCbis receivers ignore it and apply the policy to all failing mail. |
 | `dmarc_obsolete_tag` | Info | `rf=` or `ri=`, which RFC 9989 removed; receivers ignore them. |
 
-`t=n` and `np=` with a valid policy raise nothing. The DMARC panel shows `np=` and `t=y` beside `sp=` and `pct=` when they are published.
+`t=n`, `np=` with a valid policy, and `psd=` (whether the domain is a public suffix) set to `y`, `n` or `u` raise nothing. The DMARC panel shows `np=` and `t=y` beside `sp=` and `pct=` when they are published.
 
 ## The DNS score
 

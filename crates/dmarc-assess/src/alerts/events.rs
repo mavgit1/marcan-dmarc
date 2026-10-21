@@ -59,7 +59,7 @@ pub enum AlertKind {
         check: CheckKind,
         change: RecordDelta,
     },
-    /// The DMARC record in DNS changed its policy (`p`, `sp` or `pct`): the
+    /// The DMARC record in DNS changed its policy (`p`, `sp`, `pct` or `t`): the
     /// record before and after, with any other tag changed at the same time.
     PolicyChanged {
         from: DmarcRecordFacts,

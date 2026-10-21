@@ -1,9 +1,10 @@
 <script lang="ts">
 	import SettingsLink from '$lib/components/settings/settings-link.svelte';
+	import { DOCS_URL } from '$lib/nav';
 
 	/**
-	 * "Optional next steps" after the setup: alerts, monthly client reports, and the operator key
-	 * for whoever runs Marcan for clients. The setup's Done step shows it, in /setup and its guide.
+	 * "Optional next steps" after the setup: alerts, monthly client reports, and what the license
+	 * asks of whoever runs Marcan for clients. The setup's Done step shows it.
 	 * `heading` is the heading element's level in its page.
 	 */
 	let { heading = 'h3' }: { heading?: 'h2' | 'h3' } = $props();
@@ -24,8 +25,11 @@
 			under <SettingsLink to="client-reports">Settings → Client reports</SettingsLink>, then turn it on there.
 		</li>
 		<li>
-			<span class="text-foreground">Running Marcan for clients?</span> Add your operator key under
-			<SettingsLink to="operator-key">Settings → License</SettingsLink>, or keep the free-software notice on.
+			<span class="text-foreground">Running Marcan for clients?</span> The license asks you to tell them it is free
+			software, or to hold an operator license. See <SettingsLink to="license">Settings → License</SettingsLink> and the
+			<a href="{DOCS_URL}pricing" target="_blank" rel="noopener" class="text-foreground underline underline-offset-2"
+				>Pricing page</a
+			>.
 		</li>
 	</ul>
 </div>

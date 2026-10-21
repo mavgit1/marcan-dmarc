@@ -2,6 +2,19 @@
 
 Newest first. Each release is tagged `vX.Y.Z` and the image `ghcr.io/mavgit1/marcan` carries the same tag; how to move to a new one is in [Upgrade](./upgrade). An entry says what changed and what, if anything, to do before upgrading.
 
+## 0.3.1
+
+Nothing to do before upgrading. Every domain is re-checked once after it.
+
+- The [Pricing](./pricing) page shows the free plan and the two operator plans as cards side by side, with their checkout buttons, then what a license changes and the practical questions. Prices, terms and checkout links are unchanged.
+- The Compose stacks run `ghcr.io/mavgit1/marcan:latest`, and `MARCAN_VERSION` is gone from them and from `.env.example`. An upgrade is `docker compose pull && docker compose up -d` after reading this page; to pin a version, edit the `image:` line. Files fetched before keep reading `MARCAN_VERSION` from your `.env`; with the new files it is ignored. See [Upgrade](./upgrade).
+- In the docs sidebar, the three deployment stacks sit in a collapsible group under **Deployment**, so Setup reads Deployment, Mailbox & reporting setup, Domains & organizations, Sender names.
+- DMARC checks read RFC 9989's `psd=` tag: `y`, `n` and `u` no longer show as an unknown tag, another value is a warning (`dmarc_bad_psd`). Every domain is re-checked once after the upgrade. See [DNS checks](./dns-checks#dmarcbis-rfc-9989).
+- Turning DMARC testing mode (`t=y`) on or off is a **DMARC policy change** alert, like a new `p=`, `sp=` or `pct=`: "DMARC policy changed: testing mode on (t=y)." On under quarantine or reject is amber, off green. See [Alerts](./alerts).
+- **Guide** under Tools replaces the read-only Setup: how reports reach Marcan, the mailbox domain's permission, what Marcan judges, enforcement, alerts and client reports, each with this installation's values, where it stands and a docs link. The setup's first step no longer opens with an intro.
+- [Backup](./backup) and [Upgrade](./upgrade) are shorter and start from one fact: Marcan only reads the mailbox, so with the reports kept there and a copy of the four lists, starting over is the mailbox login, the lists pasted back and **Re-import mailbox**. A copy of the database file is for mail you delete, the alert and client report history, and going back a version.
+- While the version check names a newer release, the header shows "0.3.1 available" beside the status, linking its release notes.
+
 ## 0.3.0
 
 Before upgrading: take a backup. This release has the first database migrations (new columns on the DNS snapshots) and re-checks every domain once; the default Compose stack moved to `deploy/caddy/`, see the first note. A database opened by 0.3.0 cannot be opened by 0.2.1 again.

@@ -13,6 +13,7 @@
 	import TransportDetails from '$lib/components/dns/transport-details.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { PILLAR_LABEL, type PillarId, type PillarModel } from '$lib/dns';
+	import { DOCS_URL } from '$lib/nav';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
@@ -58,10 +59,12 @@
 		</div>
 		{#if pillar === 'dmarc'}
 			<a
-				href="{resolve('/guide')}#dmarc"
+				href="{DOCS_URL}dns-checks#what-is-checked"
+				target="_blank"
+				rel="noopener"
 				class="text-muted-foreground hover:text-foreground ml-auto mr-2 text-xs underline underline-offset-2"
 			>
-				Setup
+				Docs
 			</a>
 		{/if}
 		<Button

@@ -237,6 +237,7 @@ fn dmarc_facts(report: &DnsReport) -> Observed<DmarcRecordFacts> {
         rua: sorted(p.rua.iter().map(|u| u.raw.clone())),
         adkim: clean(p.adkim.as_deref()).unwrap_or_else(|| "r".into()),
         aspf: clean(p.aspf.as_deref()).unwrap_or_else(|| "r".into()),
+        testing: p.testing(),
     })
 }
 
@@ -604,6 +605,26 @@ mod tests {
         assert_eq!(after.p.as_deref(), Some("quarantine"));
         assert_eq!((after.pct, after.aspf.as_str()), (50, "s"));
         assert_eq!(after.rua, ["mailto:x@example.org"]);
+    }
+
+    /// `t=y` is part of the facts; `t=n` written out is the default.
+    #[test]
+    fn testing_mode_before_and_after() {
+        let testing = Spec {
+            dmarc: Some("v=DMARC1; p=reject; t=y; rua=mailto:d@example.com"),
+            ..spec()
+        };
+        let changes = diff(&spec(), &testing);
+        let RecordDelta::DmarcChanged { before, after } = &changes[0].change else {
+            panic!("unexpected {changes:?}");
+        };
+        assert_eq!((before.testing, after.testing), (false, true));
+        assert_eq!((&before.p, before.pct), (&after.p, after.pct));
+        let explicit_n = Spec {
+            dmarc: Some("v=DMARC1; p=reject; t=n; rua=mailto:d@example.com"),
+            ..spec()
+        };
+        assert!(diff(&spec(), &explicit_n).is_empty());
     }
 
     #[test]

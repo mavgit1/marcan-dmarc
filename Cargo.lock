@@ -871,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "dmarc-assess"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -880,7 +880,7 @@ dependencies = [
 
 [[package]]
 name = "dmarc-dns"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -904,7 +904,7 @@ dependencies = [
 
 [[package]]
 name = "dmarc-domain"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "psl",
  "thiserror 2.0.19",
@@ -912,7 +912,7 @@ dependencies = [
 
 [[package]]
 name = "dmarc-identity"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "csv",
  "dmarc-domain",
@@ -923,7 +923,7 @@ dependencies = [
 
 [[package]]
 name = "dmarc-imap"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-imap",
  "async-native-tls",
@@ -939,7 +939,7 @@ dependencies = [
 
 [[package]]
 name = "dmarc-parser"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "dmarc-domain",
  "flate2",
@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "dmarc-server"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -990,7 +990,7 @@ dependencies = [
 
 [[package]]
 name = "dmarc-store"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "dmarc-assess",

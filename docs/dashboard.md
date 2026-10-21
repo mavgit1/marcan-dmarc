@@ -22,7 +22,7 @@ Exports follow the same scope. The scope is part of the page address (for exampl
 | **Senders** | Every sending IP with its identity, volume, failed mail and pass rate. Failed means failed DMARC and delivered anyway or blocked by policy; forwarded mail is counted apart. A sender's page shows each domain it sent for, and where a domain's SPF record lists it. |
 | **Organizations** | Domains grouped by organization: for each, its domains, reports and messages, a bar of its mail by outcome, how many of its domains need attention and the worst DNS grade. |
 | **DNS inspector** | Live checks for any domain, monitored or not. |
-| **Setup** | The [setup](./getting-started#first-start)'s steps, read-only, over what is set up now (each domain's DMARC record and what it still needs among them), and a short DMARC, SPF and DKIM reference. |
+| **Guide** | The principles with this installation's values and status: the report mailbox and `rua=`, the mailbox domain's authorization record, what Marcan reads and judges, enforcement, alerts and client reports, each with a link to its docs page, and **Run setup again**. |
 
 At the bottom of the sidebar, under **Settings**, one line shows the running version and a link to these docs (**Docs**), and "X.Y.Z available" when the [version check](./upgrade#checking-for-new-versions) found a newer release.
 

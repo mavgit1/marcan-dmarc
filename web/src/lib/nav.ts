@@ -48,7 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
 		label: 'Tools',
 		items: [
 			{ title: 'DNS inspector', href: '/tools/dns', icon: NetworkIcon },
-			{ title: 'Setup', href: '/guide', icon: BookOpenIcon }
+			{ title: 'Guide', href: '/guide', icon: BookOpenIcon }
 		]
 	}
 ];
@@ -115,7 +115,7 @@ export function crumbsForPath(
 
 	if (pathname.startsWith('/tools/dns')) return [{ label: 'Tools' }, { label: 'DNS inspector' }];
 	if (pathname.startsWith('/tools')) return [{ label: 'Tools' }];
-	if (pathname === '/guide') return [{ label: 'Tools' }, { label: 'Setup' }];
+	if (pathname === '/guide') return [{ label: 'Tools' }, { label: 'Guide' }];
 	if (pathname === '/setup') return [{ label: 'Setup' }];
 
 	if (pathname.startsWith('/reports/') && params?.id) {

@@ -1,4 +1,4 @@
-// Links to a section (in Settings, on /guide): each request shows its anchor once, a repeated link again, and a
+// Links to a section (in Settings): each request shows its anchor once, a repeated link again, and a
 // request made inside an effect (the page's hash) does not loop.
 import { flushSync } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';

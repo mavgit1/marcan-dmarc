@@ -2,7 +2,7 @@
 
 /**
  * A DMARC record's tags, with the RFC defaults applied (`pct` 100, relaxed
- * alignment) so writing a default out is no change.
+ * alignment, `t=n`) so writing a default out is no change.
  */
 export type DmarcRecordFacts = {
   p: string | null;
@@ -17,4 +17,9 @@ export type DmarcRecordFacts = {
   rua: Array<string>;
   adkim: string;
   aspf: string;
+  /**
+   * `t=y` (RFC 9989): published for testing, which RFC 9989 receivers do
+   * not apply. Defaulted: facts stored before it read as not testing.
+   */
+  testing: boolean;
 };

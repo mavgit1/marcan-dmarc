@@ -20,11 +20,11 @@ Every stack needs a server with Docker and Compose v2 (the `docker compose` comm
 
 ## Image and options
 
-The image is `ghcr.io/mavgit1/marcan`, for `linux/amd64` and `linux/arm64`. Each release is tagged `X.Y.Z`, `X.Y` and `latest`. Pin a version for anything you rely on, and upgrade on purpose (see [Upgrade](./upgrade)). The Compose stacks read the version from `MARCAN_VERSION` in `.env`.
+The image is `ghcr.io/mavgit1/marcan`, for `linux/amd64` and `linux/arm64`. Each release is tagged `X.Y.Z`, `X.Y` and `latest`. The Compose stacks run `latest`, so `docker compose pull` is an upgrade: pull on purpose, after reading the release notes (see [Upgrade](./upgrade)), or pin a version in the `image:` line.
 
 The image runs as an unprivileged user (uid/gid 10001) and keeps its database in `/data`. It has a built-in health check against `/healthz`.
 
-**Marcan itself needs no configuration file.** Everything you set up (mailbox, domains, lists) lives in its database and is changed in the UI. The `.env` of a stack configures the proxy and the login, and the Marcan version.
+**Marcan itself needs no configuration file.** Everything you set up (mailbox, domains, lists) lives in its database and is changed in the UI. The `.env` of a stack configures the proxy and the login.
 
 The server takes three options, as flags or environment variables:
 

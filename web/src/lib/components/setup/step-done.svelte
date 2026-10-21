@@ -12,13 +12,11 @@
 	 */
 	let {
 		data,
-		readonly = false,
 		finishing = false,
 		onBack,
 		onFinish
 	}: {
 		data: SetupData;
-		readonly?: boolean;
 		finishing?: boolean;
 		onBack: () => void;
 		onFinish?: () => void;
@@ -44,16 +42,12 @@
 	<div class="border-t pt-4">
 		<NextSteps />
 	</div>
-	{#if readonly}
-		<StepNav {onBack} />
-	{:else}
-		<StepNav
-			{onBack}
-			label="Finish setup"
-			onContinue={onFinish}
-			busy={finishing}
-			disabled={!configured}
-			hint={configured ? undefined : 'Connect the report mailbox first.'}
-		/>
-	{/if}
+	<StepNav
+		{onBack}
+		label="Finish setup"
+		onContinue={onFinish}
+		busy={finishing}
+		disabled={!configured}
+		hint={configured ? undefined : 'Connect the report mailbox first.'}
+	/>
 </div>

@@ -16,6 +16,7 @@ const VALID_POLICIES: &[&str] = &["none", "quarantine", "reject"];
 const VALID_ALIGNMENT: &[&str] = &["r", "s"];
 const VALID_RF: &[&str] = &["afrf", "iodef"];
 const VALID_TESTING: &[&str] = &["y", "n"];
+const VALID_PSD: &[&str] = &["y", "n", "u"];
 
 /// A `mailto:` / `https:` aggregate or forensic reporting URI.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -58,6 +59,12 @@ pub struct ParsedDmarc {
     /// an older checker lack it and are shown until their re-check.
     #[serde(default)]
     pub obsolete_tags: Vec<String>,
+    /// `psd=` (RFC 9989), lowercase: whether the domain is a public suffix
+    /// domain (`y`, `n`, `u` the default). Read only to judge its value,
+    /// neither stored nor shown.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub psd: Option<String>,
     pub unknown_tags: Vec<String>,
     /// True when the first tag was not `v`.
     pub v_not_first: bool,
@@ -146,6 +153,7 @@ pub fn parse_dmarc_record(raw: &str) -> ParsedDmarc {
         rf: None,
         t: None,
         obsolete_tags: Vec::new(),
+        psd: None,
         unknown_tags: Vec::new(),
         v_not_first: false,
         malformed_parts: Vec::new(),
@@ -168,6 +176,7 @@ pub fn parse_dmarc_record(raw: &str) -> ParsedDmarc {
             "sp" => parsed.sp = Some(value.to_ascii_lowercase()),
             "np" => parsed.np = Some(value.to_ascii_lowercase()),
             "t" => parsed.t = Some(value.to_ascii_lowercase()),
+            "psd" => parsed.psd = Some(value.to_ascii_lowercase()),
             "pct" => match value.parse::<u32>() {
                 Ok(n) if n <= 100 => parsed.pct = Some(n),
                 _ => parsed.pct_raw = Some(value),
@@ -595,6 +604,16 @@ fn validate_parsed(domain: &str, parsed: &ParsedDmarc, findings: &mut Vec<Findin
             ));
         }
     }
+    if let Some(psd) = parsed.psd.as_deref() {
+        if !VALID_PSD.contains(&psd) {
+            findings.push(Finding::warning(
+                CheckKind::Dmarc,
+                "dmarc_bad_psd",
+                format!("DMARC psd={psd} is not y, n or u."),
+                "Remove `psd=` (u is the default); only the operator of a public suffix publishes `psd=y`.",
+            ));
+        }
+    }
 
     if let Some(raw) = parsed.pct_raw.as_deref() {
         findings.push(Finding::warning(
@@ -843,6 +862,25 @@ mod tests {
         assert!(!c.iter().any(|(code, _)| *code == "dmarc_unknown_tag"));
         // A malformed t is not testing.
         assert!(!c.iter().any(|(code, _)| *code == "dmarc_testing"));
+    }
+
+    /// RFC 9989's `psd=` is a tag: y, n and u raise nothing, another value warns.
+    #[test]
+    fn psd_is_a_tag_and_only_a_bad_value_warns() {
+        let check = |psd: &str| {
+            let raw = format!("v=DMARC1; p=reject; psd={psd}; rua=mailto:dmarc@example.com");
+            let r = evaluate_dmarc("example.com", &rec(&raw), &[]);
+            assert!(r.parsed.as_ref().unwrap().unknown_tags.is_empty(), "{psd}");
+            let c = codes(&r);
+            c.into_iter()
+                .map(|(code, s)| (code.to_owned(), s))
+                .collect::<Vec<_>>()
+        };
+        for ok in ["y", "n", "u", "Y"] {
+            assert_eq!(check(ok), [("dmarc_ok".to_owned(), Severity::Ok)], "{ok}");
+        }
+        let bad = check("yes");
+        assert_eq!(bad, [("dmarc_bad_psd".to_owned(), Severity::Warning)]);
     }
 
     /// t=y weighs like pct=0: monitoring only under an enforcing policy,

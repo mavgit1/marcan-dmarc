@@ -34,7 +34,7 @@ Every signed-in user can change every setting. There are no roles: who may sign 
 - **It is only ever sent to the mailbox it was saved for.** Changing the host, port or user name asks for it again, so nobody can redirect the stored password to a server of their own.
 - **It is stored unencrypted in the database.** The database file is created readable by its owner only, but anyone with the file, or a backup of it, has the password.
 
-Why not encrypted? The key would have to be on the same server, readable by Marcan, so anyone who can read the database can almost always read the key as well: it would look safer without being safer. The one case it helps is a backup that leaks without the key. You can avoid that case entirely by using the [mailbox as your backup](./backup#the-simple-way-keep-the-reports-in-the-mailbox) instead of copying the database around.
+Why not encrypted? The key would have to be on the same server, readable by Marcan, so anyone who can read the database can almost always read the key as well: it would look safer without being safer. The one case it helps is a backup that leaks without the key. You can avoid that case entirely by using the [mailbox as your backup](./backup#keep-the-reports-and-the-lists) instead of copying the database around.
 
 Use a dedicated mailbox for the reports, or an app password that can be revoked on its own.
 

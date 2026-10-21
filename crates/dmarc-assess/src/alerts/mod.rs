@@ -140,6 +140,7 @@ mod tests {
             rua: vec!["mailto:d@example.com".into()],
             adkim: "r".into(),
             aspf: "r".into(),
+            testing: false,
         }
     }
 
@@ -573,6 +574,16 @@ mod tests {
             ),
             Status::Warn
         );
+        // Testing mode weighs like a partial pct: on loosens, off tightens.
+        let testing = DmarcRecordFacts {
+            testing: true,
+            ..dmarc("reject", None, 100)
+        };
+        assert_eq!(
+            change(dmarc("reject", None, 100), testing.clone()),
+            Status::Warn
+        );
+        assert_eq!(change(testing, dmarc("reject", None, 100)), Status::Pass);
         // `sp=` written out as `p=` is another record, but no stricter.
         assert_eq!(
             change(
@@ -584,7 +595,7 @@ mod tests {
     }
 
     /// The policy comes from the DMARC record's diff alone: one event per
-    /// changed record, the policy change when `p`, `sp` or `pct` moved
+    /// changed record, the policy change when `p`, `sp`, `pct` or `t` moved
     /// (whatever else moved with them), else a record change.
     #[test]
     fn a_dmarc_record_change_is_one_event() {

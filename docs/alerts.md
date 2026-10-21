@@ -31,13 +31,13 @@ Every kind of alert, as **Settings → Alerts → Alert kinds** lists it (the wo
 |  | New issue: reports stopped | An issue opened: reports for the domain arrived before and then none for the days of the domain warning (Settings → Mailbox). |
 |  | Resolved: reports stopped | That issue cleared: reports for the domain arrive again. |
 | Health | Health changed | The domain's health moved between two measured states (to or from no data is not alerted). |
-| DNS records | DMARC record changed | A DMARC record was published or removed, or its rua or alignment changed (a new p, sp or pct is a DMARC policy change). |
+| DNS records | DMARC record changed | A DMARC record was published or removed, or its rua or alignment changed (a new p, sp or pct, or testing mode turned on or off, is a DMARC policy change). |
 |  | SPF record changed | An SPF record was published or removed, terms were added or removed, or the lookup count moved. |
 |  | DKIM key changed | A DKIM key was published, changed, revoked or removed under a selector checked before. |
 |  | MTA-STS changed | An MTA-STS record was published or removed, its id changed, or the policy's mode or MX hosts changed. |
 |  | TLS-RPT record changed | A TLS-RPT record was published or removed, or its report address changed. |
 |  | BIMI record changed | A BIMI record was published or removed, or its logo changed or was declined. |
-| Policy | DMARC policy changed | The DMARC record in DNS changed its p, sp or pct (other tags changed with them are named too). |
+| Policy | DMARC policy changed | The DMARC record in DNS changed its p, sp or pct, or turned testing mode (t=y) on or off (other tags changed with them are named too). |
 | Readiness | Ready for the next policy step | The domain became ready for its next policy step: quarantine, then reject. |
 | Parked | Marked as parked | The domain was marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one. |
 |  | No longer parked | The domain is no longer marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one. |
@@ -54,6 +54,7 @@ Each change is one sentence that names the numbers it is based on, the same in t
 | Health changes | Health changed from Protected to Critical: 30 delivered failures in the last 30 days (7.5% of delivered mail, threshold 5%). | The new health |
 | A DNS record changes | SPF record changed: added include:mailgun.org; DNS lookups 7 → 8. | The check's worst finding when it is a warning or worse, otherwise none |
 | The DMARC policy in DNS changes | DMARC policy changed: p reject → none, pct 100 → 50. | Green when tightened, amber when loosened, red when spoofed mail would now be delivered |
+| Testing mode turns on or off | DMARC policy changed: testing mode on (t=y). | Like a policy change: `t=y` under quarantine or reject loosens it as `pct=` below 100 does (amber), removing it tightens it (green) |
 | Ready for the next policy step | Ready for p=quarantine: 30 days and 1,204 messages under p=none, 99.6% delivered compliance. | Green |
 | Marked as parked, or no longer | Marked as parked. | None |
 | A new sender fails | New sender 203.0.113.5 (Example Mail) failed DMARC with 42 messages in the last 30 days (12 delivered) and sent nothing as the domain before. A new system sending as the domain, or spoofing: check its sender page. | Red when any of its failing mail was delivered, amber when the policy blocked all of it |
@@ -75,7 +76,7 @@ DNS record changes compare the parsed records, so a record rewritten with other 
 
 | Check | What counts as a change |
 | :--- | :--- |
-| DMARC | Published or removed; `rua` or the alignment modes changed (each shown before and after). A change of `p`, `sp` or `pct` is one DMARC policy change instead, with the other tags that changed along with it. |
+| DMARC | Published or removed; `rua` or the alignment modes changed (each shown before and after). A change of `p`, `sp`, `pct` or `t` (testing mode on or off; `t=n` is the default) is one DMARC policy change instead, with the other tags that changed along with it. |
 | SPF | Published or removed; terms added or removed, or the total DNS lookups changed (an include you use changing its own record shows here too). |
 | DKIM | For each selector checked both times: a key published, changed, revoked or removed. A selector checked for the first time is not a change. |
 | MTA-STS | Published or removed; the record's `id` changed, or the policy's mode or MX hosts changed (only when the policy file was read both times). |

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { getOrganizations, getScope } from '$lib/api';
 	import type { OrganizationSummary } from '$lib/types/OrganizationSummary';
 	import Loaded from '$lib/components/loaded.svelte';
@@ -22,16 +23,14 @@
 	/**
 	 * The setup, one step at a time in a fixed order, with Back and Continue. Each step is done
 	 * by what the server stored and answers (`SETUP_STEPS`); it opens on the first step that is
-	 * not. A step can be opened from the list once reached. `readonly` (Tools → Setup) shows
-	 * the same steps over the current state, saving nothing, every step open.
+	 * not, or on the one a link names (`?step=dmarc`, from the guide). A step can be opened from
+	 * the list once reached.
 	 */
 	let {
-		readonly = false,
 		finishing = false,
 		header,
 		onFinish
 	}: {
-		readonly?: boolean;
 		/** Finish setup is saving. */
 		finishing?: boolean;
 		/** Beside the title (Skip setup). */
@@ -99,10 +98,13 @@
 	const reportingPending = $derived(
 		!!settings.current?.reporting.report_address && reporting.data === null && !reporting.source.error
 	);
+	/** The step a link names (`?step=`); -1 for none. */
+	const linkedStep = SETUP_STEPS.findIndex((s) => s.id === page.url.searchParams.get('step'));
 	$effect(() => {
 		if (data && current === null && !reportingPending) {
-			current = firstOpenStep(data);
-			reached = current;
+			const open = firstOpenStep(data);
+			current = linkedStep === -1 ? open : linkedStep;
+			reached = Math.max(open, current);
 		}
 	});
 
@@ -116,19 +118,15 @@
 	}
 	const next = () => go((current ?? 0) + 1);
 	const back = () => go((current ?? 0) - 1);
-	const reachable = (i: number) => readonly || i <= reached;
+	const reachable = (i: number) => i <= reached;
 </script>
 
 <Card.Root class="mx-auto w-full max-w-3xl">
 	<Card.Header class="space-y-4 border-b pb-4">
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div class="space-y-1">
-				<Card.Title class="text-lg font-semibold">{readonly ? 'Setup' : 'Set up Marcan'}</Card.Title>
-				<Card.Description>
-					{readonly
-						? 'The setup steps over what is set up now; change things under Settings, or run the setup again.'
-						: 'From the report mailbox to your first DMARC report, one step at a time.'}
-				</Card.Description>
+				<Card.Title class="text-lg font-semibold">Set up Marcan</Card.Title>
+				<Card.Description>From the report mailbox to your first DMARC report, one step at a time.</Card.Description>
 			</div>
 			{@render header?.()}
 		</div>
@@ -162,26 +160,24 @@
 				{#if step.id === 'organization'}
 					<StepOrganization
 						organization={data.organization}
-						{readonly}
 						onSaved={(organization) => {
 							setup.update(() => organization);
 							organizationConfirmed = true;
 							next();
 						}}
-						onNext={next}
 					/>
 				{:else if step.id === 'mailbox'}
-					<StepMailbox {data} done={done[current]} {readonly} onBack={back} onNext={next} />
+					<StepMailbox {data} done={done[current]} onBack={back} onNext={next} />
 				{:else if step.id === 'import'}
-					<StepImport {data} {readonly} onBack={back} onNext={next} />
+					<StepImport {data} onBack={back} onNext={next} />
 				{:else if step.id === 'domains'}
-					<StepDomains {data} {readonly} onChanged={() => domainList.reload()} onBack={back} onNext={next} />
+					<StepDomains {data} onChanged={() => domainList.reload()} onBack={back} onNext={next} />
 				{:else if step.id === 'delivery'}
-					<StepDelivery {data} {readonly} onBack={back} onNext={next} />
+					<StepDelivery {data} onBack={back} onNext={next} />
 				{:else if step.id === 'dmarc'}
-					<StepDmarc {data} {reporting} {readonly} onBack={back} onNext={next} />
+					<StepDmarc {data} {reporting} onBack={back} onNext={next} />
 				{:else}
-					<StepDone {data} {readonly} {finishing} onBack={back} {onFinish} />
+					<StepDone {data} {finishing} onBack={back} {onFinish} />
 				{/if}
 			{/key}
 		</section>

@@ -30,6 +30,7 @@ import type { DomainOverview } from '$lib/types/DomainOverview';
 import type { DomainSummary } from '$lib/types/DomainSummary';
 import type { EmailPreview } from '$lib/types/EmailPreview';
 import type { FailureOutcome } from '$lib/types/FailureOutcome';
+import type { GuideResponse } from '$lib/types/GuideResponse';
 import type { Items } from '$lib/types/Items';
 import type { Meta } from '$lib/types/Meta';
 import type { MonitoringSettings } from '$lib/types/MonitoringSettings';
@@ -144,6 +145,11 @@ export function getUpcomingClientReport(id: number): Promise<UpcomingClientRepor
 /** Organizations and monitored domains, ids and names only (the header's scope filter). */
 export function getScope(): Promise<ScopeOptions> {
 	return api.get('scope').json();
+}
+
+/** What only the guide shows: the monitored domains counted by policy. */
+export function getGuide(): Promise<GuideResponse> {
+	return api.get('guide').json();
 }
 
 /** One page of the domain list; `q` filters by domain or organization name on the server. */

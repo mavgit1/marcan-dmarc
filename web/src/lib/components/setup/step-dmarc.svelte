@@ -11,13 +11,11 @@
 	let {
 		data,
 		reporting,
-		readonly = false,
 		onBack,
 		onNext
 	}: {
 		data: SetupData;
 		reporting: ReportingSetupState;
-		readonly?: boolean;
 		onBack: () => void;
 		onNext: () => void;
 	} = $props();
@@ -45,5 +43,5 @@
 			No report address yet, so the records show a placeholder: connect the mailbox in the Mailbox step.
 		{/snippet}
 	</ReportingSetup>
-	<StepNav {onBack} label={readonly ? 'Next' : 'Continue'} onContinue={onNext} />
+	<StepNav {onBack} onContinue={onNext} />
 </div>

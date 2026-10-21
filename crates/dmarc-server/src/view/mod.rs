@@ -8,6 +8,7 @@
 
 pub mod alerts;
 pub mod domain;
+pub mod guide;
 pub mod readiness;
 pub mod report;
 pub mod reporting_setup;

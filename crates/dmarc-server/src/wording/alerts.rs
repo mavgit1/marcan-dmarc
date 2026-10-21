@@ -85,7 +85,7 @@ fn catalogue_trigger_line(kind: CatalogueKind) -> &'static str {
         }
         CatalogueKind::DnsRecordChanged(check) => match check {
             CheckKind::Dmarc => {
-                "A DMARC record was published or removed, or its rua or alignment changed (a new p, sp or pct is a DMARC policy change)."
+                "A DMARC record was published or removed, or its rua or alignment changed (a new p, sp or pct, or testing mode turned on or off, is a DMARC policy change)."
             }
             CheckKind::Spf => {
                 "An SPF record was published or removed, terms were added or removed, or the lookup count moved."
@@ -104,7 +104,7 @@ fn catalogue_trigger_line(kind: CatalogueKind) -> &'static str {
             }
         },
         CatalogueKind::PolicyChanged => {
-            "The DMARC record in DNS changed its p, sp or pct (other tags changed with them are named too)."
+            "The DMARC record in DNS changed its p, sp or pct, or turned testing mode (t=y) on or off (other tags changed with them are named too)."
         }
         CatalogueKind::ReadinessReached => {
             "The domain became ready for its next policy step: quarantine, then reject."
@@ -183,6 +183,16 @@ fn dmarc_tag_changes(before: &DmarcRecordFacts, after: &DmarcRecordFacts) -> Vec
     tag("rua", list_or_none(&before.rua), list_or_none(&after.rua));
     tag("adkim", before.adkim.clone(), after.adkim.clone());
     tag("aspf", before.aspf.clone(), after.aspf.clone());
+    if before.testing != after.testing {
+        out.push(
+            if after.testing {
+                "testing mode on (t=y)"
+            } else {
+                "testing mode off"
+            }
+            .into(),
+        );
+    }
     out
 }
 
@@ -428,6 +438,7 @@ mod tests {
             rua: vec!["mailto:d@example.com".into()],
             adkim: "r".into(),
             aspf: "r".into(),
+            testing: false,
         }
     }
 
@@ -757,6 +768,33 @@ mod tests {
                     },
                 },
                 "DMARC policy changed: p reject → none, pct 100 → 50.",
+            ),
+            (
+                AlertKind::PolicyChanged {
+                    from: DmarcRecordFacts {
+                        p: Some("reject".into()),
+                        ..dmarc()
+                    },
+                    to: DmarcRecordFacts {
+                        p: Some("reject".into()),
+                        testing: true,
+                        ..dmarc()
+                    },
+                },
+                "DMARC policy changed: testing mode on (t=y).",
+            ),
+            (
+                AlertKind::PolicyChanged {
+                    from: DmarcRecordFacts {
+                        testing: true,
+                        ..dmarc()
+                    },
+                    to: DmarcRecordFacts {
+                        p: Some("quarantine".into()),
+                        ..dmarc()
+                    },
+                },
+                "DMARC policy changed: p none → quarantine, testing mode off.",
             ),
             (
                 new_sender(Some("Example Mail"), 42, 12),

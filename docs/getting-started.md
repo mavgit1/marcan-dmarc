@@ -23,6 +23,8 @@ On a server, behind a reverse proxy that handles the login and HTTPS. Marcan has
 - **A mailbox for the reports**, reachable over IMAP with TLS (port 993) or STARTTLS (port 143) and a username and password. A dedicated mailbox, or an app password, is best. Microsoft 365 mailboxes cannot be used yet (see [Limitations](./security#limitations)).
 - **Access to your domains' DNS**, for the records below.
 
+Running Marcan for clients, as an agency or MSP? Read [Pricing](./pricing) first: the license asks you to tell clients the software is free, or to hold an operator license. Your own domains need nothing.
+
 ## Point your domains at Marcan
 
 Receivers send their reports to the address in each domain's DMARC record. Getting them to Marcan's mailbox takes up to two DNS records. The setup checks both live and shows the exact values to publish.
@@ -61,7 +63,7 @@ While the import runs, the Domains and DMARC records steps say "Still importing"
 
 Receivers send aggregate reports about once a day, so the first ones usually arrive within 24 to 48 hours. If the mailbox already holds reports, Marcan imports them at once.
 
-You can skip the setup and open it again under **Settings → Data → Run setup again**. Everything it sets is also under **Settings**. **Setup** (under Tools) shows the same steps, read-only, over what is set up now, followed by a short DMARC, SPF and DKIM reference.
+You can skip the setup and open it again under **Settings → Data → Run setup again**. Everything it sets is also under **Settings**. **Guide** (under Tools) shows the principles with your own values and the live status, and opens the setup again, followed by a short DMARC, SPF and DKIM reference.
 
 ## Next steps
 
@@ -69,7 +71,7 @@ Optional, and all under **Settings** (the setup's last step lists them too):
 
 - **Turn on alerts**: set up **Sending**, then **Alerts**, for an email when something about a domain changes and a digest. See [Alerts](./alerts).
 - **Send clients a monthly report**: list the recipients under **Client reports**, then turn it on there. See [Client reports](./client-reports).
-- **Running Marcan for clients?** Add your operator key under **License**, or keep the free-software notice on. See [License](./license).
+- **Running Marcan for clients?** Add your operator key under **License**, or keep the free-software notice on. See [Pricing](./pricing) and [License](./license).
 
 To read on:
 

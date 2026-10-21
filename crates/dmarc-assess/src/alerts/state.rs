@@ -240,7 +240,7 @@ pub struct DnsRecords {
 }
 
 /// A DMARC record's tags, with the RFC defaults applied (`pct` 100, relaxed
-/// alignment) so writing a default out is no change.
+/// alignment, `t=n`) so writing a default out is no change.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct DmarcRecordFacts {
@@ -252,18 +252,24 @@ pub struct DmarcRecordFacts {
     pub rua: Vec<String>,
     pub adkim: String,
     pub aspf: String,
+    /// `t=y` (RFC 9989): published for testing, which RFC 9989 receivers do
+    /// not apply. Defaulted: facts stored before it read as not testing.
+    #[serde(default)]
+    pub testing: bool,
 }
 
 impl DmarcRecordFacts {
-    /// Whether `other` sets another policy: `p`, `sp` or `pct` differ.
+    /// Whether `other` sets another policy: `p`, `sp`, `pct` or `t` differ.
     pub(super) fn policy_differs(&self, other: &Self) -> bool {
-        (&self.p, &self.sp, self.pct) != (&other.p, &other.sp, other.pct)
+        (&self.p, &self.sp, self.pct, self.testing)
+            != (&other.p, &other.sp, other.pct, other.testing)
     }
 
     /// How strictly failing mail is treated: `none` < `quarantine` <
-    /// `reject`, each below 100% below its full step. Unknown is weakest.
-    fn strength(p: Option<&str>, pct: u32) -> i32 {
-        let partial = i32::from(pct < 100);
+    /// `reject`, each below 100% (or in testing mode) below its full step.
+    /// Unknown is weakest.
+    fn strength(p: Option<&str>, pct: u32, testing: bool) -> i32 {
+        let partial = i32::from(pct < 100 || testing);
         match enforcement(p).state {
             EnforcementState::Unknown => -1,
             EnforcementState::Monitor => 0,
@@ -276,8 +282,8 @@ impl DmarcRecordFacts {
     pub(super) fn rank(&self) -> (i32, i32) {
         let sp = self.sp.as_deref().or(self.p.as_deref());
         (
-            Self::strength(self.p.as_deref(), self.pct),
-            Self::strength(sp, self.pct),
+            Self::strength(self.p.as_deref(), self.pct, self.testing),
+            Self::strength(sp, self.pct, self.testing),
         )
     }
 }

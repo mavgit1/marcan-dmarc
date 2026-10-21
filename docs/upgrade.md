@@ -1,31 +1,35 @@
 # Upgrade
 
-In your stack's directory:
+Read the [release notes](./releases), then, in your stack's directory:
 
 ```bash
-# set MARCAN_VERSION=<new version> in .env
-docker compose pull
-docker compose up -d
+docker compose pull && docker compose up -d
 ```
 
-The [Releases](./releases) page lists every release, what changed and what to do before upgrading; the `vX.Y.Z` tag on GitHub carries the same notes.
+The stacks run the `latest` image, so a pull is an upgrade, database migrations included. Pull on purpose, never on a timer (cron, Watchtower or the like). When the notes say the stack files changed, fetch them again from your stack's page under [Deployment](./deployment#choose-a-setup) and keep your `.env`. To stay on one version, edit the `image:` line in `docker-compose.yml` to `ghcr.io/mavgit1/marcan:X.Y.Z` (or `X.Y` for the newest patch of a minor version).
 
-## Image tags
+## If something goes wrong
 
-The image has three tags per release: `X.Y.Z` is exactly that release, `X.Y` the latest patch release of that minor version, `latest` the newest release. Pin `X.Y.Z` for anything you rely on, as the Compose examples do, so nothing changes until you change the version.
+You can always start over. Marcan only reads the mailbox, so while the reports stay there, the database can be rebuilt:
 
-## Before upgrading
+1. Start Marcan with an empty data directory.
+2. Enter the mailbox.
+3. Paste the [four lists](./backup#keep-the-reports-and-the-lists) back.
+4. Press **Re-import mailbox** (**Settings → Data**).
 
-1. Take a [database backup](./backup#database-backup) first, or make sure your [lists are saved](./backup#the-simple-way-keep-the-reports-in-the-mailbox). The backup is the only way back to the old version (see below).
-2. If the release changed the Compose files, fetch your stack's files again with the new tag, as on its page under [Deployment](./deployment#choose-a-setup) (in a clone: `git fetch --tags && git checkout vX.Y.Z`). Keep your `.env`. The [release notes](./releases) say when a file moved: in 0.3.0 the default stack moved from `deploy/` to `deploy/caddy/`.
+This loses the alert history, the record of client reports sent, and reports no longer in the mailbox. For most installations that is fine. The details are in [Backup](./backup#starting-over).
 
-## Migrations and going back
+## Going back to an older version
 
-Database migrations run on start and cannot be undone; the log says where the schema stands, as in `database schema at migration 2 (1 applied now)`. A database migrated by a newer version cannot be opened by an older one: the older version refuses to start, logs `migration 2 was previously applied but is missing in the resolved migrations` (with the number of the newer migration) and Docker keeps restarting it. To go back, restore the backup you took before the upgrade and start the old version:
+Migrations run on start and cannot be undone; the log says where the schema stands, as in `database schema at migration 2 (1 applied now)`. Going back therefore needs a [database backup](./backup#the-database-file) taken before the upgrade:
 
-1. Set `MARCAN_VERSION` back to the old version in `.env`.
+1. Edit the `image:` line in `docker-compose.yml` to the old version, such as `ghcr.io/mavgit1/marcan:0.3.0`.
 2. Stop Marcan and copy the backup over `marcan.db`, steps 1 and 2 of [Restore](./backup#restore).
 3. Start it with `docker compose up -d`, not `docker compose start marcan`: `start` would run the existing container of the new version again, which migrates the restored database once more; `up -d` replaces it with the old version's.
+
+Without the backup, the old version refuses the migrated database: it logs `migration 2 was previously applied but is missing in the resolved migrations` (with the number of the newer migration) and Docker keeps restarting it. Start over on the old version instead, as above.
+
+## After an upgrade
 
 After an upgrade that changes the DNS checks, domains show their last result marked **updating** until they have been checked again, which happens first thing in the background.
 

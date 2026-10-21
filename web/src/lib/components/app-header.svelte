@@ -2,6 +2,7 @@
 	import { tick } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import CircleArrowUpIcon from '@lucide/svelte/icons/circle-arrow-up';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import ImportProgress from '$lib/components/import-progress.svelte';
 	import ModeToggle from '$lib/components/mode-toggle.svelte';
@@ -15,6 +16,7 @@
 	import { formatDateTime, formatInt, formatTimeOfDay, plural } from '$lib/format';
 	import { crumbsForPath, titleForPath, type CrumbOrganization } from '$lib/nav';
 	import { filters } from '$lib/state/filters.svelte';
+	import { meta } from '$lib/state/meta.svelte';
 	import { scopeOptions } from '$lib/state/scope.svelte';
 	import { pageMeta } from '$lib/state/page-meta.svelte';
 	import { progressPercent } from '$lib/imap-progress';
@@ -70,15 +72,23 @@
 		health?.last_ingest_at == null ? 'No reports yet' : formatDateTime(health.last_ingest_at)
 	);
 
+	/** A newer version the version check found (the sidebar's foot links it too). */
+	const available = $derived(meta.current?.available ?? null);
+	$effect(() => {
+		meta.load().catch(() => {});
+	});
+
 	const skippedCount = $derived(health?.quarantine_count ?? 0);
 	const skippedLabel = $derived(plural(skippedCount, 'skipped report'));
 
 	/**
-	 * The title row always holds the trigger, the breadcrumb, the status pill and the theme
-	 * toggle. The filters sit between the breadcrumb and the status while all of them fit at
+	 * The title row always holds the trigger, the breadcrumb, the status pill (with the update
+	 * pill before it while a newer version is out) and the theme toggle. The filters sit between the breadcrumb and the status while all of them fit at
 	 * their natural width, otherwise on a row of their own below, right-aligned. CSS cannot say
 	 * this: a wrapping flex row moves its trailing items (the status) along with the filters,
 	 * and a breakpoint cannot know how wide the selected names are. So the header measures.
+	 * Where even the title row alone does not fit at its natural width (a phone), the update
+	 * pill drops its word and shows an arrow instead ("↑ 0.3.1"), so the breadcrumb keeps room.
 	 */
 	let headerEl = $state<HTMLElement | null>(null);
 	let rulerEl = $state<HTMLElement | null>(null);
@@ -86,12 +96,18 @@
 	let statusEl = $state<HTMLElement | null>(null);
 	let filtersEl = $state<HTMLElement | null>(null);
 	let filtersBelow = $state(false);
+	let updateCompact = $state(false);
 
-	/** An element's width on one line (max-content), from an invisible copy. */
+	/**
+	 * An element's width on one line (max-content), from an invisible copy; the update pill in
+	 * the copy always at its full label, so its own shortening never feeds back.
+	 */
 	function naturalWidth(el: HTMLElement, ruler: HTMLElement): number {
 		const copy = el.cloneNode(true) as HTMLElement;
 		copy.style.cssText =
 			'position:absolute;top:0;left:0;visibility:hidden;width:max-content;max-width:none;min-width:0';
+		for (const word of copy.querySelectorAll('[data-update-word]')) word.classList.remove('sr-only');
+		for (const icon of copy.querySelectorAll('[data-update-icon]')) icon.remove();
 		ruler.append(copy);
 		const width = copy.getBoundingClientRect().width;
 		copy.remove();
@@ -101,8 +117,18 @@
 	function placeFilters() {
 		if (!headerEl || !rulerEl || !crumbEl) return;
 		const filters = filtersEl;
+		const gap = parseFloat(getComputedStyle(headerEl).columnGap) || 0;
+		const rowWidth = rulerEl.getBoundingClientRect().width;
+		// The title row without the filters, at its natural width with the full update pill.
+		let titleRow = 0;
+		for (const child of headerEl.children) {
+			const el = child as HTMLElement;
+			if (el === rulerEl || (filters && el.contains(filters)) || el.getClientRects().length === 0) continue;
+			const width = el === crumbEl || el === statusEl ? naturalWidth(el, rulerEl) : el.getBoundingClientRect().width;
+			titleRow += (titleRow > 0 ? gap : 0) + width;
+		}
+		updateCompact = titleRow > rowWidth + 0.5;
 		if (filters) {
-			const gap = parseFloat(getComputedStyle(headerEl).columnGap) || 0;
 			// Everything on the title row at its natural width: the filters and each shown item.
 			let needed = naturalWidth(filters, rulerEl);
 			for (const child of headerEl.children) {
@@ -111,7 +137,7 @@
 				const width = el === crumbEl ? naturalWidth(el, rulerEl) : el.getBoundingClientRect().width;
 				needed += gap + width;
 			}
-			filtersBelow = needed > rulerEl.getBoundingClientRect().width + 0.5;
+			filtersBelow = needed > rowWidth + 0.5;
 		} else {
 			filtersBelow = false;
 		}
@@ -130,7 +156,8 @@
 	}
 
 	// The row's width and the status's and filters' labels can each move the filters. Moving
-	// them resizes none of these, so the observer does not feed itself.
+	// them resizes none of these; shortening the update pill resizes the status once, and the
+	// next placement measures the pill at its full label again, so it settles.
 	$effect(() => {
 		const targets = [rulerEl, statusEl, filtersEl].filter((el) => el !== null);
 		const observer = new ResizeObserver(() => placeFilters());
@@ -185,6 +212,22 @@
 	</div>
 	<ScopeFilters bind:ref={filtersEl} class={filtersBelow ? 'order-last basis-full' : undefined} />
 	<div bind:this={statusEl} class="ml-auto flex shrink-0 items-center gap-1.5">
+		{#if available}
+			<a
+				href={available.url}
+				target="_blank"
+				rel="noopener"
+				class="focus-visible:ring-ring rounded-md focus-visible:ring-1 focus-visible:outline-none"
+			>
+				<StatusBadge tone="neutral" class="hover:text-foreground h-5 gap-1 px-1.5 text-[11px] font-medium">
+					{#if updateCompact}
+						<span data-update-icon class="inline-flex"><CircleArrowUpIcon class="size-3 shrink-0" /></span>
+					{/if}
+					<span class="tabular-nums">{available.version}</span>
+					<span data-update-word class={updateCompact ? 'sr-only' : undefined}>available</span>
+				</StatusBadge>
+			</a>
+		{/if}
 		{#if health}
 			<Popover.Root>
 				<Popover.Trigger>

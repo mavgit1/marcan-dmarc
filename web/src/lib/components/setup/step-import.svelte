@@ -11,12 +11,7 @@
 	 * The import of the reports already in the folder, from the shared health poll (every 3 s
 	 * while it runs). Continue is always open: the import keeps running behind the next steps.
 	 */
-	let {
-		data,
-		readonly = false,
-		onBack,
-		onNext
-	}: { data: SetupData; readonly?: boolean; onBack: () => void; onNext: () => void } = $props();
+	let { data, onBack, onNext }: { data: SetupData; onBack: () => void; onNext: () => void } = $props();
 
 	// A pass that just started shows at once rather than at the next 30 s poll.
 	onMount(() => void systemHealth.poll());
@@ -47,10 +42,5 @@
 		{/if}
 		<MailboxSync {health} mailboxConfigured={configured} />
 	{/if}
-	<StepNav
-		{onBack}
-		label={readonly ? 'Next' : 'Continue'}
-		onContinue={onNext}
-		hint={running && !readonly ? 'You can continue, it keeps running.' : undefined}
-	/>
+	<StepNav {onBack} onContinue={onNext} hint={running ? 'You can continue, it keeps running.' : undefined} />
 </div>
