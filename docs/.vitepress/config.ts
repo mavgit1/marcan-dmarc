@@ -21,6 +21,9 @@ const sidebar: DefaultTheme.SidebarItem[] = [
     text: 'Setup',
     items: [
       { text: 'Deployment', link: '/deployment' },
+      { text: 'Caddy with basic auth', link: '/deploy-caddy' },
+      { text: 'Caddy with Authelia', link: '/deploy-authelia' },
+      { text: 'Caddy with OAuth2-Proxy', link: '/deploy-oauth2-proxy' },
       { text: 'Mailbox & reporting setup', link: '/mailbox' },
       { text: 'Domains & organizations', link: '/domains' },
       { text: 'Sender names', link: '/sender-names' }
@@ -30,6 +33,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
     text: 'Using Marcan',
     items: [
       { text: 'Reading the dashboard', link: '/dashboard' },
+      { text: 'Policy readiness', link: '/readiness' },
       { text: 'DNS checks', link: '/dns-checks' },
       { text: 'Alerts', link: '/alerts' },
       { text: 'Client reports', link: '/client-reports' },
@@ -39,7 +43,8 @@ const sidebar: DefaultTheme.SidebarItem[] = [
   {
     text: 'Operations',
     items: [
-      { text: 'Backup & upgrades', link: '/backup' },
+      { text: 'Backup', link: '/backup' },
+      { text: 'Upgrade', link: '/upgrade' },
       { text: 'Releases', link: '/releases' },
       { text: 'Security model', link: '/security' }
     ]
@@ -47,7 +52,8 @@ const sidebar: DefaultTheme.SidebarItem[] = [
   {
     text: 'Project',
     items: [
-      { text: 'License & pricing', link: '/license' },
+      { text: 'Pricing', link: '/pricing' },
+      { text: 'License', link: '/license' },
       { text: 'Roadmap', link: '/roadmap' },
       { text: 'Development', link: '/development' },
       { text: 'FAQ', link: '/faq' }
@@ -74,6 +80,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Guide', link: '/getting-started' },
+      { text: 'Pricing', link: '/pricing' },
       { text: `v${version}`, link: `${repo}/tags` }
     ],
 
@@ -84,7 +91,7 @@ export default defineConfig({
     search: { provider: 'local' },
 
     footer: {
-      message: `Free for your own domains. <a href="${base}license">License &amp; pricing</a> · <a href="https://kaitiaki.tech/impressum">Legal notice</a>`
+      message: `Free for your own domains. <a href="${base}license">License</a> · <a href="${base}pricing">Pricing</a> · <a href="https://kaitiaki.tech/impressum">Legal notice</a>`
     }
   }
 })

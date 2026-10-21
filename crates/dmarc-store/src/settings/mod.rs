@@ -1,8 +1,8 @@
 //! `app_settings`: one row per group of Marcan's settings (mailbox, reporting,
 //! monitoring, retention, DNS, sending, alerts, client reports, license,
-//! branding, onboarding), keyed by the group's name and holding the group as
-//! JSON, read together as one typed [`AppSettings`] and written a group at a
-//! time with [`save_settings`]. A field missing from a stored group reads as
+//! branding, onboarding, updates), keyed by the group's name and holding the
+//! group as JSON, read together as one typed [`AppSettings`] and written a
+//! group at a time with [`save_settings`]. A field missing from a stored group reads as
 //! its default. The same table keeps a few job records as plain text by key
 //! ([`get_setting`], [`set_setting`]); the logo (`branding_logo`) and the extra
 //! DKIM selectors (`dkim_selectors`) have tables of their own.
@@ -18,6 +18,7 @@ mod onboarding;
 mod reporting;
 mod retention;
 mod sending;
+mod updates;
 
 pub use alerts::{
     get_alerts_held_at, get_last_digest_at, set_alerts_held_at, set_last_digest_at, AlertSettings,
@@ -47,6 +48,10 @@ pub use retention::{
     RetentionSettings, DEFAULT_REPORT_RETENTION_MONTHS, REPORT_RETENTION_MONTHS_RANGE,
 };
 pub use sending::{SendingGroup, SendingLogin, SendingSettings, SmtpSecurity};
+pub use updates::{
+    clear_update_check, get_update_check, set_update_check, SeenVersion, UpdateCheck,
+    UpdateSettings,
+};
 
 use crate::StoreError;
 use serde::de::DeserializeOwned;
@@ -139,6 +144,7 @@ pub struct AppSettings {
     pub license: LicenseSettings,
     pub branding: BrandingSettings,
     pub onboarding: OnboardingSettings,
+    pub updates: UpdateSettings,
 }
 
 impl AppSettings {
@@ -172,6 +178,7 @@ impl AppSettings {
             license: group(&rows),
             branding: group(&rows),
             onboarding: group(&rows),
+            updates: group(&rows),
         })
     }
 }
@@ -255,6 +262,7 @@ mod tests {
         round_trip(&OnboardingSettings {
             state: Some(OnboardingState::Skipped),
         });
+        round_trip(&UpdateSettings { check: true });
     }
 
     #[test]
@@ -275,6 +283,7 @@ mod tests {
         assert_eq!(alerts.digest_hour, DEFAULT_DIGEST_HOUR);
         let reports: ClientReportSettings = read(&json!({ "hour_utc": 9 }));
         assert_eq!(reports.day_of_month, DEFAULT_CLIENT_REPORT_DAY);
+        assert!(read::<UpdateSettings>(&json!({})).check);
         assert_eq!(
             read::<RetentionSettings>(&json!({})).report_retention_months,
             DEFAULT_REPORT_RETENTION_MONTHS

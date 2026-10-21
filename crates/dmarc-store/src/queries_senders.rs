@@ -1,10 +1,10 @@
 //! `GET /api/senders`: one row per source IP in an organization / domain / time scope.
 //! Used by the Senders page, the dashboard's failing senders and a domain's
-//! Senders tab.
+//! Senders tab. Also the senders new to a domain, for the alerts.
 
 use crate::outcome::{
-    pass_rate_sort, COMPLIANT_MESSAGES_EXPR, DKIM_PASS_MESSAGES_EXPR, FAILED_MESSAGES_EXPR,
-    FORWARDED_FAILURES_EXPR, SPF_PASS_MESSAGES_EXPR,
+    pass_rate_sort, COMPLIANT_MESSAGES_EXPR, DELIVERED_FAILURES_EXPR, DKIM_PASS_MESSAGES_EXPR,
+    FAILED_MESSAGES_EXPR, FORWARDED_FAILURES_EXPR, SPF_PASS_MESSAGES_EXPR,
 };
 use crate::queries::{Scope, VISIBLE_DOMAIN_IDS};
 use crate::sort::{sort_keys, Sort, SortDir};
@@ -131,4 +131,46 @@ pub async fn list_senders(
         .await?;
     let total = rows.first().map_or(0, |r| r.total);
     Ok((rows, total))
+}
+
+/// A sender new to a domain: a source IP with no records for the domain in
+/// reports that began before the window, and its failing mail in the window.
+#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
+pub struct NewSenderRow {
+    pub source_ip: String,
+    /// Failed DMARC and not a trusted forward ([`FAILED_MESSAGES_EXPR`]).
+    pub failed_messages: i64,
+    /// Of those, delivered.
+    pub delivered_failures: i64,
+}
+
+/// The senders of domain `domain_id` that are new in the window from
+/// `since` on (no records of the domain in reports that began before it)
+/// with at least `min_failed` failed, not forwarded messages in it, most
+/// failures first. Plain sums; the threshold is the caller's
+/// (`dmarc_assess::NEW_SENDER_MIN_FAILURES`).
+pub async fn new_failing_senders(
+    pool: &SqlitePool,
+    domain_id: i64,
+    since: i64,
+    min_failed: i64,
+) -> Result<Vec<NewSenderRow>, StoreError> {
+    let rows = sqlx::query_as::<_, NewSenderRow>(&format!(
+        "SELECT rec.source_ip AS source_ip, \
+             {FAILED_MESSAGES_EXPR} AS failed_messages, \
+             {DELIVERED_FAILURES_EXPR} AS delivered_failures \
+         FROM records rec INNER JOIN reports r ON r.id = rec.report_id \
+         WHERE r.domain_id = ?1 AND r.date_begin >= ?2 \
+         GROUP BY rec.source_ip \
+         HAVING failed_messages >= ?3 AND NOT EXISTS ( \
+             SELECT 1 FROM records old INNER JOIN reports ro ON ro.id = old.report_id \
+             WHERE old.source_ip = rec.source_ip AND ro.domain_id = ?1 AND ro.date_begin < ?2) \
+         ORDER BY failed_messages DESC, source_ip"
+    ))
+    .bind(domain_id)
+    .bind(since)
+    .bind(min_failed.max(1))
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
 }

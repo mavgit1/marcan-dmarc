@@ -61,7 +61,7 @@
 				href="{resolve('/guide')}#dmarc"
 				class="text-muted-foreground hover:text-foreground ml-auto mr-2 text-xs underline underline-offset-2"
 			>
-				Setup guide
+				Setup
 			</a>
 		{/if}
 		<Button

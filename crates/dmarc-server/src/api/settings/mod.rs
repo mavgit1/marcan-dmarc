@@ -3,8 +3,8 @@
 //! Marcan's own settings are groups: `GET /api/settings` answers all of them
 //! ([`SettingsResponse`]) and `PUT /api/settings/{group}` saves one (mailbox,
 //! reporting, monitoring, retention, dns, sending, alerts, client-reports,
-//! license, branding, onboarding),
-//! plus the branding logo (`POST` / `DELETE /api/settings/branding/logo`),
+//! license, branding, onboarding, updates),
+//! plus the branding logo (`GET` / `POST` / `DELETE /api/settings/branding/logo`),
 //! answering all of them again, and the branding preview (`POST
 //! /api/settings/branding/preview`, how the emails would look with a draft,
 //! which stores nothing). The mailbox actions (connect, sync, re-import) live
@@ -18,8 +18,8 @@
 //!
 //! Values live in the `app_settings` table, one row per group, read and
 //! written through `dmarc_store::AppSettings` and its groups. The groups
-//! without checks of their own (monitoring, retention, onboarding) are saved
-//! here; each other group has its module.
+//! without checks of their own (monitoring, retention, onboarding, updates)
+//! are saved here; each other group has its module.
 
 mod alerts;
 mod branding;
@@ -33,7 +33,7 @@ mod sending;
 
 pub use alerts::{put_alerts, send_test as send_test_alert};
 pub use branding::{
-    delete_logo, preview_branding, put_branding, upload_logo, LOGO_MAX_BYTES,
+    delete_logo, preview_branding, put_branding, show_logo, upload_logo, LOGO_MAX_BYTES,
     OPERATOR_NAME_MAX_CHARS,
 };
 pub(crate) use client_reports::NO_RECIPIENTS as NO_CLIENT_REPORT_RECIPIENTS;
@@ -55,7 +55,8 @@ use crate::view::settings::SettingsResponse;
 use crate::AppState;
 use axum::extract::State;
 use dmarc_store::{
-    save_settings, unix_now, AppSettings, MonitoringSettings, OnboardingSettings, RetentionSettings,
+    clear_update_check, save_settings, unix_now, AppSettings, MonitoringSettings,
+    OnboardingSettings, RetentionSettings, UpdateSettings,
 };
 use std::sync::Arc;
 
@@ -99,5 +100,22 @@ pub async fn put_onboarding(
     Json(payload): Json<OnboardingSettings>,
 ) -> AppResult<Json<SettingsResponse>> {
     save_settings(&state.pool, &payload).await?;
+    settings_response(&state).await
+}
+
+/// `PUT /api/settings/updates`: the daily version check. Switched on, the
+/// check runs within seconds (then once a day); switched off, its last
+/// answer is forgotten, so nothing is shown and nothing more is fetched.
+pub async fn put_updates(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateSettings>,
+) -> AppResult<Json<SettingsResponse>> {
+    let stored = AppSettings::load(&state.pool).await?.updates;
+    save_settings(&state.pool, &payload).await?;
+    if !payload.check {
+        clear_update_check(&state.pool).await?;
+    } else if !stored.check {
+        state.update_check_wake.notify_one();
+    }
     settings_response(&state).await
 }

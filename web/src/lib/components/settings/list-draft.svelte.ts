@@ -1,7 +1,8 @@
 import { apiLineErrors, textSaveError } from '$lib/http';
 import type { LineError } from '$lib/types/LineError';
 import type { ListText } from '$lib/types/ListText';
-import { SettingsForm } from './settings-form.svelte';
+import { plural } from '$lib/format';
+import { SettingsForm, type Invalid } from './settings-form.svelte';
 import { countEntries } from './text-lines';
 
 /** How long typing must pause before the draft is previewed. */
@@ -114,9 +115,10 @@ export class ListDraft<S extends ListSummary> extends SettingsForm<string, { tex
 		}
 	}
 
-	/** Save waits while there are line errors. */
-	get canSave(): boolean {
-		return this.errors.length === 0;
+	/** Save waits while there are line errors (the editor lists them under the text, `text`). */
+	protected check(): Invalid | null {
+		const lines = new Set(this.errors.map((e) => e.line)).size;
+		return lines > 0 ? { field: 'text', message: `Fix ${plural(lines, 'line')} before saving.` } : null;
 	}
 
 	/** The server's preview of the draft on screen; `null` until it is answered, and for a saved draft. */

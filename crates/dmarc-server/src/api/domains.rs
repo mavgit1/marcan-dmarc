@@ -76,26 +76,51 @@ pub async fn list_domains(
 
 #[derive(Debug, Deserialize)]
 pub struct AttentionQuery {
-    /// The first this many (default 50, at most 500); `total` counts them all.
+    /// This many (default 50, at most 500) from `offset`; `total` counts
+    /// them all.
     pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    /// Case-insensitive substring of the domain or its organization's name,
+    /// as on the domain list.
+    pub q: Option<String>,
 }
 
 /// `GET /api/domains/attention`: the scope's domains with an open issue, in
-/// their attention rank among all of the scope's domains (the dashboard's
-/// list), the first `limit` of them, plus how many there are.
+/// their attention rank among all of the scope's domains, a page of them
+/// plus how many there are: the dashboard's list (the first page) and the
+/// Domains page's attention filter (every page, narrowed by `q`). The rank
+/// is decided over the whole scope, so it is paged here, not in SQL.
 pub async fn list_attention_domains(
     State(state): State<Arc<AppState>>,
     Query(q): Query<ScopeQuery>,
     Query(page): Query<AttentionQuery>,
 ) -> AppResult<Json<Page<DomainSummary>>> {
-    let (limit, offset) = parse_pagination(page.limit, None)?;
+    let (limit, offset) = parse_pagination(page.limit, page.offset)?;
     let rows = list_domain_summaries(&state.pool, q.scope()?).await?;
     let mut items = domain_summaries(rows, Judging::load(&state.pool, unix_now()).await?);
     note_failed_checks(&mut items, &state.dns);
-    let open = needing_attention(&items);
+    let search = page
+        .q
+        .as_deref()
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty());
+    let open: Vec<&DomainSummary> = needing_attention(&items)
+        .into_iter()
+        .filter(|d| {
+            search.as_deref().is_none_or(|s| {
+                d.row.domain.to_lowercase().contains(s)
+                    || d.row.organization.name.to_lowercase().contains(s)
+            })
+        })
+        .collect();
     let total = open.len() as i64;
-    let first = open.into_iter().take(limit as usize).cloned().collect();
-    Ok(Json(Page::new(first, total, limit, offset)))
+    let rows = open
+        .into_iter()
+        .skip(offset as usize)
+        .take(limit as usize)
+        .cloned()
+        .collect();
+    Ok(Json(Page::new(rows, total, limit, offset)))
 }
 
 async fn domain_summary(state: &AppState, id: i64) -> AppResult<DomainSummary> {

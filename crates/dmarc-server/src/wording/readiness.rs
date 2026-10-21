@@ -72,9 +72,24 @@ pub fn verdict(r: &PolicyReadiness) -> Verdict {
                 )
             ),
         ),
-        ReadinessState::RaisePct { pct } => (
+        ReadinessState::RaisePct {
+            pct,
+            testing: false,
+        } => (
             "Raise pct to 100 first".to_owned(),
             format!("the policy applies to only {pct}% of the mail that fails DMARC."),
+        ),
+        ReadinessState::RaisePct {
+            pct,
+            testing: true,
+        } => (
+            if pct < 100 {
+                "Remove t=y and raise pct to 100 first"
+            } else {
+                "Remove t=y first"
+            }
+            .to_owned(),
+            "the record is in testing mode (t=y), so receivers that follow DMARCbis do not apply the policy.".to_owned(),
         ),
         ReadinessState::NotReady { next, reason: why } => (
             format!("Not ready for {} yet", step_name(next)),
@@ -233,7 +248,7 @@ pub fn parked(r: &PolicyReadiness) -> Option<ParkedReadiness> {
             reason: NotApplicableReason::Parked,
         } => (
             format!("Publish {reject} now."),
-            "This domain is marked as parked: it sends no mail, so rejecting everything loses nothing."
+            "This domain is marked as parked: it sends no mail, so rejecting everything loses nothing. Leave sp= and np= out, or set both to reject, so its subdomains are refused too."
                 .to_owned(),
         ),
         _ => return None,
@@ -386,21 +401,22 @@ pub(crate) mod tests {
             line(&late),
             "Not ready for p=reject yet: receivers still apply the old policy to 12.0% of mail."
         );
+        let raise = |pct, testing| ReadinessState::RaisePct { pct, testing };
         assert_eq!(
-            line(&readiness(
-                ReadinessState::RaisePct { pct: 50 },
-                4120,
-                Some(99.8)
-            )),
+            line(&readiness(raise(50, false), 4120, Some(99.8))),
             "Raise pct to 100 first: the policy applies to only 50% of the mail that fails DMARC."
         );
         assert_eq!(
-            line(&readiness(
-                ReadinessState::RaisePct { pct: 20 },
-                4120,
-                Some(99.8)
-            )),
+            line(&readiness(raise(20, false), 4120, Some(99.8))),
             "Raise pct to 100 first: the policy applies to only 20% of the mail that fails DMARC."
+        );
+        assert_eq!(
+            line(&readiness(raise(100, true), 4120, Some(99.8))),
+            "Remove t=y first: the record is in testing mode (t=y), so receivers that follow DMARCbis do not apply the policy."
+        );
+        assert_eq!(
+            line(&readiness(raise(50, true), 4120, Some(99.8))),
+            "Remove t=y and raise pct to 100 first: the record is in testing mode (t=y), so receivers that follow DMARCbis do not apply the policy."
         );
         assert_eq!(
             line(&readiness(ReadinessState::Enforced, 4120, Some(99.8))),
@@ -476,6 +492,9 @@ pub(crate) mod tests {
         };
         let p = parked(&readiness(parked_state, 0, None)).unwrap();
         assert_eq!(p.lead, "Publish p=reject now.");
+        assert!(p.detail.ends_with(
+            "Leave sp= and np= out, or set both to reject, so its subdomains are refused too."
+        ));
         assert_eq!(p.mail_line, "No mail was sent in the last 30 days.");
         let enforced = parked(&readiness(ReadinessState::Enforced, 0, None)).unwrap();
         assert_eq!(

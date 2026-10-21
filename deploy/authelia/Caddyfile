@@ -3,22 +3,22 @@
 
 # The Authelia login portal
 {$AUTH_DOMAIN} {
-    reverse_proxy authelia:9091
+	reverse_proxy authelia:9091
 }
 
 {$MARCAN_DOMAIN} {
-    encode gzip zstd
+	encode gzip zstd
 
-    # Liveness probe for uptime monitors: answers "ok", no login, no details.
-    handle /healthz {
-        reverse_proxy marcan:8080
-    }
+	# Liveness probe for uptime monitors: answers "ok", no login, no details.
+	handle /healthz {
+		reverse_proxy marcan:8080
+	}
 
-    handle {
-        # Unauthenticated requests are redirected to the portal.
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-        }
-        reverse_proxy marcan:8080
-    }
+	handle {
+		# Unauthenticated requests are redirected to the portal.
+		forward_auth authelia:9091 {
+			uri /api/authz/forward-auth
+		}
+		reverse_proxy marcan:8080
+	}
 }

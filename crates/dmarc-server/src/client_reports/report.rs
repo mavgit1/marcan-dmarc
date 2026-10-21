@@ -1,7 +1,7 @@
 //! One organization's report, read for rendering. Everything goes through a
 //! `Scope` pinned to the organization, the same path the UI's organization
 //! page takes: its domains with their figures and issues over the 30 days
-//! before sending, the readiness facts and failing senders, the calendar
+//! before sending, the readiness facts, the calendar
 //! month's mail against the month before (`Statistics`, as `GET
 //! /api/statistics` computes it) and the month's changes. Nothing is read
 //! for all domains and filtered here.
@@ -15,8 +15,8 @@ use crate::view::domain::{domain_summaries, summary_readiness, Judging};
 use crate::view::stats::{statistics, Statistics};
 use dmarc_assess::{covers_previous, readiness_window_start};
 use dmarc_store::{
-    alert_events_in, count_domains, list_domain_summaries, list_senders, readiness_mail,
-    report_span, scope_stats, AppSettings, Scope, SenderListQuery, SenderSort,
+    alert_events_in, count_domains, list_domain_summaries, readiness_mail, report_span,
+    scope_stats, AppSettings, Scope,
 };
 use sqlx::SqlitePool;
 
@@ -46,19 +46,16 @@ pub async fn organization_report(
         )
         .await?;
         let readiness = summary_readiness(row, &mail, now);
-        // Who the next step would affect, when the report says it.
-        let failing_senders = match readiness.next_step() {
-            Some(_) => failing_senders(pool, row.id, readiness.window.since).await?,
-            None => 0,
-        };
-        domains.push(ReportDomain {
-            summary,
-            readiness,
-            failing_senders,
-        });
+        domains.push(ReportDomain { summary, readiness });
     }
     let mail = month_mail(pool, scope, &month).await?;
-    let events: Vec<AlertItem> = events.into_iter().map(AlertItem::from).collect();
+    // A new failing sender is the operator's to look into (its line points
+    // to Marcan's sender page): the client's report leaves it out.
+    let events: Vec<AlertItem> = events
+        .into_iter()
+        .map(AlertItem::from)
+        .filter(|item| item.sender_ip.is_none())
+        .collect();
     Ok(client_report::render(&ClientReportInput {
         organization,
         now,
@@ -83,20 +80,6 @@ async fn month_mail(pool: &SqlitePool, scope: Scope, month: &ReportMonth) -> App
     };
     let domain_count = count_domains(pool, scope).await?;
     Ok(statistics(current, previous, domain_count))
-}
-
-/// How many senders (source IPs) of domain `domain_id` sent mail since
-/// `since` that failed DMARC and was not forwarded: who a stricter policy
-/// would affect, as the Enforcement tab lists them.
-async fn failing_senders(pool: &SqlitePool, domain_id: i64, since: i64) -> AppResult<i64> {
-    let query = SenderListQuery {
-        scope: Scope::domain(domain_id, Some(since)),
-        failing: true,
-        sort: SenderSort::DEFAULT,
-        limit: 1,
-        offset: 0,
-    };
-    Ok(list_senders(pool, &query).await?.1)
 }
 
 /// The sending account for client reports: the stored one, with the client

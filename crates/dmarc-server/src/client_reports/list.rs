@@ -1,21 +1,35 @@
-//! The recipient list as text: one `organization,email` per line. Pure: the
-//! text and the existing organizations in, recipients and line errors out.
+//! The recipient list as text: one `organization,email` per line, a
+//! projection of the organizations like the Domains list. Pure: the text and
+//! the existing organizations in, the organizations it names, their
+//! recipients and the line errors out.
+//!
+//! An organization named in the text gets exactly the recipients named for
+//! it (several lines for one organization form its set); `organization,none`
+//! names it with none, so saving clears its recipients. An organization the
+//! text does not name keeps its recipients, so a line taken out changes
+//! nothing. [`format_recipients`] writes every organization, `none` for one
+//! without a recipient.
 //!
 //! Organizations are matched by name, trimmed and ignoring case. A name that
 //! matches none is a line error with the closest existing name as a
 //! suggestion: the list never creates an organization and never skips a line.
 //! An optional `organization,email` header, blank lines and `#` comments are
-//! skipped. Several lines may name one organization; the same address twice
-//! for one organization is an error.
+//! skipped. The same address twice for one organization is an error, and so
+//! is `none` beside an address for it.
 
 use crate::mail::parse_address;
 use crate::view::LineError;
 use dmarc_store::{ClientReportRecipient, ScopeOrganization};
 use std::collections::HashMap;
 
-/// The list as parsed: every valid line's recipient, and every line error.
+/// The value that names an organization with no recipient: `Acme,none`.
+const NONE: &str = "none";
+
+/// The list as parsed: the organizations it names (once each, in the order
+/// they first appear), every valid line's recipient, and every line error.
 #[derive(Debug, Default)]
 pub struct ParsedRecipients {
+    pub organizations: Vec<i64>,
     pub recipients: Vec<ClientReportRecipient>,
     pub errors: Vec<LineError>,
 }
@@ -64,7 +78,7 @@ pub fn parse_recipients(text: &str, organizations: &[ScopeOrganization]) -> Pars
         .iter()
         .map(|org| (org.name.trim().to_lowercase(), org))
         .collect();
-    // (organization id, lowercased address) → the line it is on.
+    // (organization id, lowercased address or `none`) → the line it is on.
     let mut seen: HashMap<(i64, String), usize> = HashMap::new();
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -113,6 +127,9 @@ pub fn parse_recipients(text: &str, organizations: &[ScopeOrganization]) -> Pars
             error(format!("{email} has no organization"));
             continue;
         }
+        // Unlike the Domains list, an unknown name never creates an
+        // organization: a typo would make a new, empty one and send that
+        // client's report to nobody, with the real organization unchanged.
         let Some(organization) = by_name.get(&org.to_lowercase()) else {
             error(match closest(org, organizations) {
                 Some(suggestion) => {
@@ -128,11 +145,40 @@ pub fn parse_recipients(text: &str, organizations: &[ScopeOrganization]) -> Pars
             error(format!("{} has no email address", organization.name));
             continue;
         }
+        let none_key = (organization.id, NONE.to_owned());
+        if email.eq_ignore_ascii_case(NONE) {
+            let listed = seen
+                .iter()
+                .filter(|((id, address), _)| *id == organization.id && address != NONE)
+                .min_by_key(|(_, other)| **other);
+            match (seen.get(&none_key), listed) {
+                (Some(other), _) => error(format!(
+                    "{} is already listed as none (line {other})",
+                    organization.name
+                )),
+                (None, Some((_, other))) => error(format!(
+                    "{} has an address on line {other}, so it cannot also be none",
+                    organization.name
+                )),
+                (None, None) => {
+                    seen.insert(none_key, line);
+                    name(&mut parsed.organizations, organization.id);
+                }
+            }
+            continue;
+        }
         let Some(address) = parse_address(email) else {
             error(format!("not a valid email address: {email}"));
             continue;
         };
         let email = address.to_string();
+        if let Some(other) = seen.get(&none_key) {
+            error(format!(
+                "{} is listed as none on line {other}: remove that line to add {email}",
+                organization.name
+            ));
+            continue;
+        }
         match seen.get(&(organization.id, email.to_ascii_lowercase())) {
             Some(other) => error(format!(
                 "{email} is already listed for {} (line {other})",
@@ -140,6 +186,7 @@ pub fn parse_recipients(text: &str, organizations: &[ScopeOrganization]) -> Pars
             )),
             None => {
                 seen.insert((organization.id, email.to_ascii_lowercase()), line);
+                name(&mut parsed.organizations, organization.id);
                 parsed.recipients.push(ClientReportRecipient {
                     organization_id: organization.id,
                     organization: organization.name.clone(),
@@ -151,14 +198,31 @@ pub fn parse_recipients(text: &str, organizations: &[ScopeOrganization]) -> Pars
     parsed
 }
 
-/// `recipients` as the text [`parse_recipients`] reads (organization names
-/// with a comma quoted).
-pub fn format_recipients(recipients: &[ClientReportRecipient]) -> String {
-    crate::csv_text::lf_text(
-        recipients
+/// Add `id` to the named organizations unless it is there.
+fn name(organizations: &mut Vec<i64>, id: i64) {
+    if !organizations.contains(&id) {
+        organizations.push(id);
+    }
+}
+
+/// Every organization in `organizations`' order with its `recipients`, as
+/// the text [`parse_recipients`] reads: one line per recipient, or
+/// `organization,none` without one (names with a comma quoted).
+pub fn format_recipients(
+    organizations: &[ScopeOrganization],
+    recipients: &[ClientReportRecipient],
+) -> String {
+    crate::csv_text::lf_text(organizations.iter().flat_map(|org| {
+        let mut lines: Vec<[&str; 2]> = recipients
             .iter()
-            .map(|r| [r.organization.as_str(), r.email.as_str()]),
-    )
+            .filter(|r| r.organization_id == org.id)
+            .map(|r| [org.name.as_str(), r.email.as_str()])
+            .collect();
+        if lines.is_empty() {
+            lines.push([org.name.as_str(), NONE]);
+        }
+        lines
+    }))
 }
 
 #[cfg(test)]
@@ -210,9 +274,45 @@ mod tests {
                 (4, "Initech", "it@acme.example"),
             ]
         );
-        assert_eq!(format_recipients(&parsed.recipients), "Acme,it@acme.example\nAcme,boss@acme.example\n\"Globex, Inc\",ops@globex.example\nInitech,it@acme.example\n");
-        let again = parse_recipients(&format_recipients(&parsed.recipients), &orgs());
+        assert_eq!(parsed.organizations, [2, 3, 4]);
+    }
+
+    #[test]
+    fn none_names_an_organization_without_recipients() {
+        let parsed = parse_recipients("Acme,None\nInitech,it@initech.example\n", &orgs());
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        // Acme is named (its recipients are cleared on save), with none.
+        assert_eq!(parsed.organizations, [2, 4]);
+        assert_eq!(parsed.recipients.len(), 1);
+        assert_eq!(
+            errors("Acme,none\nAcme,it@acme.example\nInitech,a@initech.example\nInitech,none\nAcme,none\n"),
+            [
+                (
+                    2,
+                    "Acme is listed as none on line 1: remove that line to add it@acme.example"
+                        .to_owned()
+                ),
+                (4, "Initech has an address on line 3, so it cannot also be none".to_owned()),
+                (5, "Acme is already listed as none (line 1)".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_text_lists_every_organization_and_reads_back_the_same() {
+        let parsed = parse_recipients(
+            "Acme,it@acme.example\nAcme,boss@acme.example\n\"Globex, Inc\",ops@globex.example\n",
+            &orgs(),
+        );
+        let text = format_recipients(&orgs(), &parsed.recipients);
+        assert_eq!(
+            text,
+            "Default,none\nAcme,it@acme.example\nAcme,boss@acme.example\n\"Globex, Inc\",ops@globex.example\nInitech,none\n"
+        );
+        let again = parse_recipients(&text, &orgs());
+        assert!(again.errors.is_empty(), "{:?}", again.errors);
         assert_eq!(again.recipients, parsed.recipients);
+        assert_eq!(again.organizations, [1, 2, 3, 4]);
     }
 
     #[test]

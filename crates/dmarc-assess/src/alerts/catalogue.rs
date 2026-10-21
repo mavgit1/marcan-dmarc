@@ -19,6 +19,7 @@ pub enum AlertGroup {
     Policy,
     Readiness,
     Parked,
+    Senders,
 }
 
 /// One kind of alert as the user can choose it: an [`AlertKind`], split by
@@ -34,6 +35,7 @@ pub enum CatalogueKind {
     PolicyChanged,
     ReadinessReached,
     ParkedChanged { parked: bool },
+    NewFailingSender,
 }
 
 impl CatalogueKind {
@@ -47,6 +49,7 @@ impl CatalogueKind {
             AlertKind::PolicyChanged { .. } => Self::PolicyChanged,
             AlertKind::ReadinessReached { .. } => Self::ReadinessReached,
             AlertKind::ParkedChanged { parked } => Self::ParkedChanged { parked: *parked },
+            AlertKind::NewFailingSender { .. } => Self::NewFailingSender,
         }
     }
 
@@ -72,6 +75,7 @@ impl CatalogueKind {
             Self::ReadinessReached => "readiness_reached",
             Self::ParkedChanged { parked: true } => "parked_changed.parked",
             Self::ParkedChanged { parked: false } => "parked_changed.unparked",
+            Self::NewFailingSender => "new_failing_sender",
         }
     }
 
@@ -84,6 +88,7 @@ impl CatalogueKind {
             Self::PolicyChanged => AlertGroup::Policy,
             Self::ReadinessReached => AlertGroup::Readiness,
             Self::ParkedChanged { .. } => AlertGroup::Parked,
+            Self::NewFailingSender => AlertGroup::Senders,
         }
     }
 }
@@ -91,7 +96,7 @@ impl CatalogueKind {
 /// Every alert kind [`alert_events`](super::alert_events) raises, in the order the settings and
 /// the docs list them. A test checks that every raised kind maps to exactly
 /// one entry ([`catalogue_id`]) and no entry is unreachable.
-pub static ALERT_CATALOGUE: [CatalogueKind; 15] = {
+pub static ALERT_CATALOGUE: [CatalogueKind; 16] = {
     use CatalogueKind::*;
     [
         IssueOpened(AlertedIssue::DeliveredFailures),
@@ -109,6 +114,7 @@ pub static ALERT_CATALOGUE: [CatalogueKind; 15] = {
         ReadinessReached,
         ParkedChanged { parked: true },
         ParkedChanged { parked: false },
+        NewFailingSender,
     ]
 };
 

@@ -1,17 +1,20 @@
 //! The client report recipients as text (Settings → Client reports,
 //! Recipients), a list like the others ([`ListText`]):
 //!
-//! `GET /api/settings/client-reports/recipients` — the list.
+//! `GET /api/settings/client-reports/recipients` — every organization with
+//! its recipients, `organization,none` for one without.
 //! `POST /api/settings/client-reports/recipients/preview` — a draft → who
 //! starts and who stops getting a report, and the line errors; writes nothing.
 //! `PUT /api/settings/client-reports/recipients` — a draft → the same, saved in
 //! one transaction; refused with `errors` when the text has errors, and with
-//! `409` when it is empty while the reports are on (switch them off first).
+//! `409` when it would leave no recipient while the reports are on (switch
+//! them off first).
 //!
-//! Format: one `organization,email` per line (see
-//! [`crate::client_reports::list`]). Unlike the domain mapping, the list is
-//! the full truth: the saved list replaces every stored recipient, so a line
-//! taken out stops that report.
+//! Format: one `organization,email` per line, or `organization,none` (see
+//! [`crate::client_reports::list`]). Like the domain mapping, the list is a
+//! projection: an organization the text names gets exactly the recipients
+//! named for it, one it does not name keeps its own, so a line taken out
+//! changes nothing.
 
 use super::mapping::rejected_lines;
 use super::settings::NO_CLIENT_REPORT_RECIPIENTS;
@@ -41,34 +44,42 @@ async fn parse(pool: &SqlitePool, text: &str) -> AppResult<ParsedRecipients> {
     Ok(parse_recipients(text, &organizations))
 }
 
-/// The stored list, by organization name, then address.
+/// Every organization by name, each with its recipients by address, or
+/// `none`.
 pub async fn get_recipients(State(state): State<Arc<AppState>>) -> AppResult<Json<ListText>> {
+    let (mut organizations, _) = dmarc_store::scope_options(&state.pool).await?;
+    organizations.sort_by_key(|org| org.name.to_lowercase());
     let recipients = dmarc_store::list_client_report_recipients(&state.pool).await?;
     Ok(Json(ListText {
-        text: format_recipients(&recipients),
+        text: format_recipients(&organizations, &recipients),
     }))
 }
 
 /// What saving `text` would change. Lines with errors are left out of the
-/// changes, so they would read as "stops" for a recipient stored now: the
-/// errors come first in the editor and block the save.
+/// changes (an organization named only on such lines keeps its
+/// recipients): the errors come first in the editor and block the save.
 pub async fn preview_recipients(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ListText>,
 ) -> AppResult<Json<RecipientsSummary>> {
     let parsed = parse(&state.pool, &req.text).await?;
-    let changes =
-        dmarc_store::preview_client_report_recipients(&state.pool, &parsed.recipients).await?;
+    let changes = dmarc_store::preview_client_report_recipients(
+        &state.pool,
+        &parsed.organizations,
+        &parsed.recipients,
+    )
+    .await?;
     Ok(Json(RecipientsSummary {
         changes,
         errors: parsed.errors,
     }))
 }
 
-/// Replace the stored recipients with `text`. Any line error rejects the
-/// whole list (with the preview's `errors`) and nothing is written. An empty
-/// list while the reports are on is refused (`409`), as switching them on
-/// with an empty list is: they would send nothing.
+/// Give each organization `text` names the recipients named for it. Any
+/// line error rejects the whole list (with the preview's `errors`) and
+/// nothing is written. A save that would leave no recipient at all while the
+/// reports are on is refused (`409`), as switching them on with an empty
+/// list is: they would send nothing.
 pub async fn save_recipients(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ListText>,
@@ -77,12 +88,13 @@ pub async fn save_recipients(
     if !parsed.errors.is_empty() {
         return Err(rejected_lines(&parsed.errors, "list"));
     }
-    if parsed.recipients.is_empty() && AppSettings::load(&state.pool).await?.client_reports.enabled
-    {
+    let (named, next) = (&parsed.organizations, &parsed.recipients);
+    let preview = dmarc_store::preview_client_report_recipients(&state.pool, named, next).await?;
+    let left = preview.unchanged_count + preview.start.len();
+    if left == 0 && AppSettings::load(&state.pool).await?.client_reports.enabled {
         return Err(AppError::conflict(NO_CLIENT_REPORT_RECIPIENTS));
     }
-    let changes =
-        dmarc_store::replace_client_report_recipients(&state.pool, &parsed.recipients).await?;
+    let changes = dmarc_store::replace_client_report_recipients(&state.pool, named, next).await?;
     Ok(Json(RecipientsSummary {
         changes,
         errors: Vec::new(),

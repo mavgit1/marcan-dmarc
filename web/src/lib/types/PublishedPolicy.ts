@@ -10,4 +10,13 @@ export type PublishedPolicy = {
   pct: number | null;
   adkim: string | null;
   aspf: string | null;
+  /**
+   * `t=y` (RFC 9989): the policy is published for testing, and receivers
+   * that follow RFC 9989 do not apply it. `false` for any other record.
+   */
+  testing: boolean | null;
+  /**
+   * `np=` (RFC 9989): the policy for subdomains that do not exist.
+   */
+  np: string | null;
 };

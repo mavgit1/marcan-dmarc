@@ -6,7 +6,14 @@ import type { SendingGroup } from '$lib/types/SendingGroup';
 import type { SettingsResponse } from '$lib/types/SettingsResponse';
 import type { SmtpSecurity } from '$lib/types/SmtpSecurity';
 import { defaultPort, portAfterSecurityChange, sameAccount } from './connection';
-import { NO_TEST_RECIPIENT, SettingsForm, type SettingsFormSource, type Writes } from './settings-form.svelte';
+import {
+	invalid,
+	NO_TEST_RECIPIENT,
+	SettingsForm,
+	type Invalid,
+	type SettingsFormSource,
+	type Writes
+} from './settings-form.svelte';
 
 /**
  * The editable fields of the sending group: the group as the server answers it, the port
@@ -146,10 +153,10 @@ export class SendingModel extends SettingsForm<SettingsResponse, SendingDraft> {
 
 	/**
 	 * Switched on without a server. Client-side because it holds Save, so the request the server
-	 * would refuse (a 409, the same words) is never sent.
+	 * would refuse (a 409, the same words) is never sent. It marks the host.
 	 */
-	protected whyBlocked(d: SendingDraft): string | null {
-		return d.enabled && !d.host ? SENDING_NO_SERVER : null;
+	protected whyBlocked(d: SendingDraft): Invalid | null {
+		return invalid('host', d.enabled && !d.host ? SENDING_NO_SERVER : null);
 	}
 
 	/** The test sends with the values on screen, as complete as sending needs them, before they are saved. */

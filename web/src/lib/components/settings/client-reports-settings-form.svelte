@@ -64,6 +64,7 @@
 							min={dayRange(meta.current)?.min}
 							max={dayRange(meta.current)?.max}
 							bind:value={m.draft.day_of_month}
+							aria-invalid={m.ariaInvalid('day_of_month')}
 							class="mt-1 block h-9 w-20 text-sm tabular-nums"
 						/>
 					</div>
@@ -82,6 +83,7 @@
 					id={id('reply-to')}
 					type="email"
 					bind:value={m.draft.reply_to}
+					aria-invalid={m.ariaInvalid('reply_to')}
 					placeholder={saved.sending.reply_to || 'support@example.com'}
 					aria-label="Reply-To"
 					class="max-w-md text-sm"
@@ -94,18 +96,26 @@
 
 		<ListEditor
 			list={recipients}
+			invalid={m.fieldProblem('recipients')}
 			title="Recipients"
 			anchor="client-report-recipients"
-			example={'Acme,it@acme.example\nAcme,ceo@acme.example\nGlobex,dmarc@globex.example'}
+			example={'Acme,it@acme.example\nAcme,ceo@acme.example\nGlobex,dmarc@globex.example\nInitech,none'}
 		>
 			{#snippet format()}
-				<li>One <code class="font-mono">organization,email</code> per line; an organization may have several.</li>
+				<li>
+					One <code class="font-mono">organization,email</code> per line; an organization may have several. Every organization
+					is listed.
+				</li>
+				<li><code class="font-mono">,none</code>: no recipient; saving it stops that organization's reports.</li>
+				<li>
+					An organization you list gets exactly the addresses listed for it. Organizations you leave out stay as they
+					are.
+				</li>
 				<li>
 					The organization must exist: add it under
 					<SettingsLink to="domains" class="text-inherit" /> or on
 					<a href={resolve('/organizations')} class="underline underline-offset-2">Organizations</a>.
 				</li>
-				<li>Saving replaces the whole list: a recipient left out stops getting reports.</li>
 				<li>
 					Quote a name with a comma: <code class="font-mono">"Acme, Inc"</code>.
 					<code class="font-mono">#</code> starts a comment.

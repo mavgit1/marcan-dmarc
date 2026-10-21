@@ -17,19 +17,22 @@ use crate::csv_text::{write_line, LineEnd};
 use crate::error::AppResult;
 use crate::extract::Query;
 use crate::filters::ScopeQuery;
-use crate::view::domain::{domain_summaries, DomainSummary, Judging};
+use crate::view::domain::{
+    domain_summaries, note_failed_checks, summary_readiness, DomainSummary, Judging,
+};
 use crate::AppState;
 use axum::body::{Body, Bytes};
 use axum::extract::State;
 use axum::http::{header, HeaderValue};
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
-use dmarc_assess::{AuthIssue, Rate};
+use dmarc_assess::{readiness_window_start, AuthIssue, PolicyReadiness, Rate};
 use dmarc_dns::DnsReport;
 use dmarc_identity::SenderIdentity;
 use dmarc_store::{
-    list_domain_summaries, sender_export_ips, stream_auth_issue_export, stream_dns_snapshot_export,
-    stream_sender_export, unix_now, AuthIssueExportRow, Scope, SenderExportRow, StoreError,
+    list_domain_summaries, readiness_mail, sender_export_ips, stream_auth_issue_export,
+    stream_dns_snapshot_export, stream_sender_export, unix_now, AuthIssueExportRow, Scope,
+    SenderExportRow, StoreError,
 };
 use serde::Deserialize;
 use std::future::Future;
@@ -64,6 +67,8 @@ const DOMAINS_HEADER: &[&str] = &[
     "dns_checked_at",
     "health",
     "issues",
+    "policy_source",
+    "readiness",
 ];
 
 const SENDERS_HEADER: &[&str] = &[
@@ -204,6 +209,15 @@ fn list(items: &[String]) -> String {
         .join(";")
 }
 
+/// An internally tagged enum's variant as its API name: its `kind`, e.g.
+/// `not_ready`.
+fn tag<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_value(value)
+        .ok()
+        .and_then(|v| v.get("kind").and_then(|k| k.as_str()).map(str::to_owned))
+        .unwrap_or_default()
+}
+
 /// A unit enum as its API (`snake_case`) name, e.g. `delivered_failures`.
 fn token<T: serde::Serialize>(value: &T) -> String {
     serde_json::to_value(value)
@@ -298,7 +312,9 @@ where
 
 // ---- endpoints -------------------------------------------------------------
 
-fn domain_fields(d: &DomainSummary) -> Vec<String> {
+/// A domain's row; `readiness` is its policy readiness now (the overview's,
+/// over its own window, whatever the export's `since`).
+fn domain_fields(d: &DomainSummary, readiness: &PolicyReadiness) -> Vec<String> {
     let row = &d.row;
     let policy = row.policy.as_ref();
     let dns = row.dns.as_ref();
@@ -331,17 +347,21 @@ fn domain_fields(d: &DomainSummary) -> Vec<String> {
                 .map(|issue| token(&issue.kind))
                 .collect::<Vec<_>>(),
         ),
+        token(&row.policy_source),
+        tag(&readiness.state),
     ]
 }
 
 /// `GET /api/export/domains.csv?organization_id&since` — the domain list's rows
-/// (same query as `GET /api/domains`).
+/// (same query as `GET /api/domains`, the policy source as it says it), each
+/// with its policy readiness (as the overview judges it).
 pub async fn export_domains_csv(
     State(state): State<Arc<AppState>>,
     Query(q): Query<ScopeQuery>,
 ) -> AppResult<Response> {
     let scope = q.scope()?;
     let pool = state.pool.clone();
+    let dns = Arc::clone(&state.dns);
     Ok(csv_download(
         "domains",
         DOMAINS_HEADER,
@@ -354,12 +374,25 @@ pub async fn export_domains_csv(
             };
             let result = match listed {
                 Ok((rows, at)) => {
-                    for row in &domain_summaries(rows, at) {
-                        if !deliver(sink.push(&domain_fields(row))).await {
+                    let mut items = domain_summaries(rows, at);
+                    note_failed_checks(&mut items, &dns);
+                    let window = readiness_window_start(at.now);
+                    let mut result = Ok(());
+                    for d in &items {
+                        let p = d.row.policy.as_ref().and_then(|p| p.p.as_deref());
+                        let mail = match readiness_mail(&pool, d.row.id, p, window).await {
+                            Ok(mail) => mail,
+                            Err(e) => {
+                                result = Err(e);
+                                break;
+                            }
+                        };
+                        let readiness = summary_readiness(&d.row, &mail, at.now);
+                        if !deliver(sink.push(&domain_fields(d, &readiness))).await {
                             return;
                         }
                     }
-                    Ok(())
+                    result
                 }
                 Err(e) => Err(e),
             };

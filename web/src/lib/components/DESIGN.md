@@ -80,7 +80,10 @@ record reaches the same conclusion about it.
 - A feature's switch is the form's first row and a draft field: a flipped switch is an unsaved
   change saved with the rest (tested per model). Off disables and dims the rows below (one fieldset) and keeps their values; the save
   bar is never dimmed.
-- Save disabled while on but unusable says why beside it, in the server's words.
+- A disabled Save always says why. While the page is unsaved, only the page's `reason` disables
+  it (a model's `blocked`, else its `held`: the check that failed), stated beside Save in the
+  warn tone, in the server's words; the field it names is marked invalid (`ariaInvalid`, with
+  the message under the field where the page has one). The setup's buttons do the same.
 - Unsaved edits hold another page visibly in the save bar, never by a silent cancel or a
   dialog; closing the browser tab is the browser's question (`settings-form` tests).
 - A stored secret is a locked "Stored" field with Replace (Remove for the operator key); it
@@ -168,6 +171,8 @@ unconfirmed when reverse DNS failed forward confirmation. There are no sender ca
 - Each settings group is written by exactly one Settings page (`settings-ownership.test.ts`).
 - A page form saves its unsaved parts in page order, `saveLast` after, and stops at the first
   failure, naming what was saved (`page-form`).
+- A disabled Save states its reason in the warn tone and marks the field (`save-bar`,
+  `sending-settings-form`, `alerts-settings-form`, `list-editor` component tests).
 - The legend shows all four outcomes in order, a zero muted in place, a trend only where the
   server sent one, the share and meaning in the title (`outcome-legend`).
 - With no DNS answer every card reads "Check failed" with no points (`dns.pillars`).

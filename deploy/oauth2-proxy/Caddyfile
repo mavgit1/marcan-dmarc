@@ -2,16 +2,16 @@
 # Marcan has no login of its own: every route except /healthz goes through OAuth2-Proxy.
 
 {$MARCAN_DOMAIN} {
-    encode gzip zstd
+	encode gzip zstd
 
-    # Liveness probe for uptime monitors: answers "ok", no login, no details.
-    handle /healthz {
-        reverse_proxy marcan:8080
-    }
+	# Liveness probe for uptime monitors: answers "ok", no login, no details.
+	handle /healthz {
+		reverse_proxy marcan:8080
+	}
 
-    # Everything else (including /oauth2/* login, callback and sign-out) goes
-    # through OAuth2-Proxy, which forwards authenticated requests to Marcan.
-    handle {
-        reverse_proxy oauth2-proxy:41880
-    }
+	# Everything else (including /oauth2/* login, callback and sign-out) goes
+	# through OAuth2-Proxy, which forwards authenticated requests to Marcan.
+	handle {
+		reverse_proxy oauth2-proxy:41880
+	}
 }

@@ -93,7 +93,8 @@ pub async fn get_domain_overview(
     domain_id: i64,
     since: Option<i64>,
 ) -> Result<Option<DomainOverviewRow>, StoreError> {
-    let policy_columns = applied_policy_columns(&["p", "sp", "pct", "adkim", "aspf"]);
+    let policy_columns =
+        applied_policy_columns(&["p", "sp", "pct", "adkim", "aspf", "testing", "np"]);
     let head = sqlx::query_as::<_, DomainHeadRow>(&format!(
         r#"
         SELECT d.id, d.domain, d.organization_id, org.name AS organization_name, d.parked,

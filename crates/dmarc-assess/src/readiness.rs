@@ -7,6 +7,9 @@
 //! each report carries the policy its receiver applied, and mail evaluated
 //! under an older one counts toward neither the message minimum nor the days
 //! of history. So publishing `p=quarantine` restarts the clock for `p=reject`.
+//!
+//! `t=y` (RFC 9989, testing) counts as `pct=0`: RFC 9989 receivers do not
+//! apply the policy, so it is to be ended before the next step.
 
 use crate::mail::{enforcement, EnforcementState, Mail, Rate, RATE_PASS_MIN_PCT};
 use crate::status::Status;
@@ -82,8 +85,10 @@ pub enum ReadinessState {
     /// The window's mail supports moving to `next`.
     Ready { next: PolicyStep },
     /// `p=quarantine` or `p=reject` applies to only `pct` percent of failing
-    /// mail: raise it to 100 before taking the next step.
-    RaisePct { pct: i64 },
+    /// mail, or is published with `t=y` (`testing`), which RFC 9989 receivers
+    /// read as none of it: raise `pct` to 100 and end testing before taking
+    /// the next step. `pct` is as published (100 when absent).
+    RaisePct { pct: i64, testing: bool },
     /// Not yet ready for `next`.
     NotReady {
         next: PolicyStep,
@@ -252,6 +257,9 @@ pub struct ReadinessFacts<'a> {
     pub policy: Option<&'a str>,
     /// Published `pct=`; absent means 100.
     pub pct: Option<i64>,
+    /// Published `t=y` (RFC 9989): the policy is a test, applied by
+    /// RFC 9989 receivers to no mail, as with `pct=0`.
+    pub testing: bool,
     pub parked: bool,
     /// Messages of the window from reports that applied `policy`.
     pub policy_messages: i64,
@@ -320,10 +328,11 @@ pub fn policy_readiness(facts: &ReadinessFacts<'_>, now: i64) -> PolicyReadiness
     }
 }
 
-/// The policies left to publish, the next first, at full `pct` each.
+/// The policies left to publish, the next first, at full `pct` each (and
+/// without `t=y`).
 fn plan(facts: &ReadinessFacts<'_>) -> Vec<PolicyTarget> {
     let full = |p| PolicyTarget { p, pct: 100 };
-    let partial = facts.pct.unwrap_or(100) < 100;
+    let partial = facts.pct.unwrap_or(100) < 100 || facts.testing;
     match enforcement(facts.policy).state {
         EnforcementState::Reject if !partial => vec![],
         _ if facts.parked => vec![full(PolicyStep::Reject)],
@@ -343,7 +352,9 @@ fn readiness_state(
 ) -> ReadinessState {
     let pct = facts.pct.unwrap_or(100);
     let next = match enforcement(facts.policy).state {
-        EnforcementState::Reject if pct >= 100 => return ReadinessState::Enforced,
+        EnforcementState::Reject if pct >= 100 && !facts.testing => {
+            return ReadinessState::Enforced
+        }
         _ if facts.parked => {
             return ReadinessState::NotApplicable {
                 reason: NotApplicableReason::Parked,
@@ -354,11 +365,14 @@ fn readiness_state(
                 reason: NotApplicableReason::NoPolicy,
             }
         }
-        // `pct` does nothing under `p=none`; under an enforcing policy it
-        // comes before the next step.
+        // `pct` and `t` do nothing under `p=none`; under an enforcing
+        // policy they come before the next step.
         EnforcementState::Quarantine | EnforcementState::Reject => {
-            if pct < 100 {
-                return ReadinessState::RaisePct { pct };
+            if pct < 100 || facts.testing {
+                return ReadinessState::RaisePct {
+                    pct,
+                    testing: facts.testing,
+                };
             }
             PolicyStep::Reject
         }
@@ -404,6 +418,7 @@ mod tests {
             window_mail,
             policy: Some(policy),
             pct: None,
+            testing: false,
             parked: false,
             policy_messages: window_mail.total,
             policy_first_report_at: Some(OLD),
@@ -491,7 +506,13 @@ mod tests {
                 ..facts(policy, mail(10, 1, 9, 0))
             };
             let r = policy_readiness(&f, NOW);
-            assert_eq!(r.state, ReadinessState::RaisePct { pct: 50 });
+            assert_eq!(
+                r.state,
+                ReadinessState::RaisePct {
+                    pct: 50,
+                    testing: false
+                }
+            );
             assert_eq!(r.status, Status::Warn);
         }
         // pct does nothing under p=none.
@@ -761,6 +782,81 @@ mod tests {
                 next: PolicyStep::Reject,
                 reason: ReadinessReason::OldPolicyApplied
             }
+        );
+    }
+
+    /// `t=y` is RFC 9989's `pct=0`: the policy is not applied, so it comes
+    /// before the next step (and `p=reject` is not enforced yet), and does
+    /// nothing under `p=none`.
+    #[test]
+    fn testing_counts_as_pct_zero() {
+        let good = mail(1000, 995, 5, 0);
+        let testing = |policy, pct| ReadinessFacts {
+            testing: true,
+            pct,
+            ..facts(policy, good)
+        };
+        let zero = |policy| ReadinessFacts {
+            pct: Some(0),
+            ..facts(policy, good)
+        };
+        for policy in ["quarantine", "reject"] {
+            let t = policy_readiness(&testing(policy, None), NOW);
+            let z = policy_readiness(&zero(policy), NOW);
+            assert_eq!(
+                t.state,
+                ReadinessState::RaisePct {
+                    pct: 100,
+                    testing: true
+                }
+            );
+            assert_eq!(t.status, z.status);
+            assert_eq!(t.status, Status::Warn);
+            assert_eq!(t.plan, z.plan);
+            assert_eq!(
+                (
+                    t.rules_decide(),
+                    t.recommends_first_step(),
+                    t.step_pending()
+                ),
+                (
+                    z.rules_decide(),
+                    z.recommends_first_step(),
+                    z.step_pending()
+                )
+            );
+        }
+        assert_eq!(
+            state(&testing("reject", Some(50))),
+            ReadinessState::RaisePct {
+                pct: 50,
+                testing: true
+            }
+        );
+        assert_eq!(
+            state(&testing("none", None)),
+            ReadinessState::Ready {
+                next: PolicyStep::Quarantine
+            }
+        );
+        // Parked: p=reject with t=y is not enforced yet.
+        let parked = ReadinessFacts {
+            parked: true,
+            ..testing("reject", None)
+        };
+        let r = policy_readiness(&parked, NOW);
+        assert_eq!(
+            r.state,
+            ReadinessState::NotApplicable {
+                reason: NotApplicableReason::Parked
+            }
+        );
+        assert_eq!(
+            r.plan,
+            [PolicyTarget {
+                p: PolicyStep::Reject,
+                pct: 100
+            }]
         );
     }
 

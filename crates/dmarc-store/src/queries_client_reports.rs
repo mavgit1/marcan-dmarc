@@ -1,10 +1,11 @@
 //! Client reports: who gets each organization's monthly summary email.
 //!
 //! The recipient list is edited as text under Settings → Client reports
-//! (Recipients) and is the whole truth: saving replaces every stored
-//! recipient, so a line taken out stops that recipient's report. The server parses and validates the text
-//! (organizations by name, addresses); this module previews and applies the
-//! validated list in one transaction.
+//! (Recipients), a projection of the organizations: saving replaces the
+//! recipients of each organization the text names and leaves the others
+//! alone. The server parses and validates the text (organizations by name,
+//! addresses, `none`); this module previews and applies the validated list
+//! in one transaction.
 //!
 //! `client_report_sends` is the monthly job's record: one row per recipient
 //! and month, written as each email goes out; `client_report_failures` one
@@ -248,26 +249,51 @@ fn diff(current: &[ClientReportRecipient], next: &[ClientReportRecipient]) -> Cl
     }
 }
 
-/// What replacing the stored recipients with `next` would change; writes
-/// nothing. `next` is validated (every organization exists).
-pub async fn preview_client_report_recipients(
-    pool: &SqlitePool,
+/// The recipients after a save: those of the organizations `named` leaves
+/// out, as they are, then `next`.
+fn after_save(
+    current: &[ClientReportRecipient],
+    named: &[i64],
     next: &[ClientReportRecipient],
-) -> Result<ClientReportChanges, StoreError> {
-    Ok(diff(&list_client_report_recipients(pool).await?, next))
+) -> Vec<ClientReportRecipient> {
+    current
+        .iter()
+        .filter(|r| !named.contains(&r.organization_id))
+        .chain(next)
+        .cloned()
+        .collect()
 }
 
-/// Replace every stored recipient with `next` in one transaction, and say
-/// what changed. A repeated `(organization, address)` is stored once.
+/// What giving each organization in `named` exactly its recipients in
+/// `next` would change; writes nothing. `next` is validated (every
+/// organization exists and is in `named`).
+pub async fn preview_client_report_recipients(
+    pool: &SqlitePool,
+    named: &[i64],
+    next: &[ClientReportRecipient],
+) -> Result<ClientReportChanges, StoreError> {
+    let current = list_client_report_recipients(pool).await?;
+    Ok(diff(&current, &after_save(&current, named, next)))
+}
+
+/// Give each organization in `named` exactly its recipients in `next` (none
+/// when `next` has none for it) in one transaction, and say what changed.
+/// Organizations not in `named` keep theirs. A repeated `(organization,
+/// address)` is stored once.
 pub async fn replace_client_report_recipients(
     pool: &SqlitePool,
+    named: &[i64],
     next: &[ClientReportRecipient],
 ) -> Result<ClientReportChanges, StoreError> {
     let mut tx = begin_write(pool).await?;
-    let changes = diff(&recipients_in(&mut tx).await?, next);
-    sqlx::query("DELETE FROM client_report_recipients")
-        .execute(&mut *tx)
-        .await?;
+    let current = recipients_in(&mut tx).await?;
+    let changes = diff(&current, &after_save(&current, named, next));
+    for organization_id in named {
+        sqlx::query("DELETE FROM client_report_recipients WHERE organization_id = ?")
+            .bind(organization_id)
+            .execute(&mut *tx)
+            .await?;
+    }
     for recipient in next {
         sqlx::query(
             "INSERT OR IGNORE INTO client_report_recipients (organization_id, email) VALUES (?, ?)",

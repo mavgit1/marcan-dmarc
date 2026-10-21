@@ -3,7 +3,7 @@
 //! (`crate::wording::alerts`), the same the alert email uses.
 
 use crate::wording::alerts::{alert_line, status_word};
-use dmarc_assess::catalogue_id;
+use dmarc_assess::{catalogue_id, AlertKind};
 use dmarc_store::AlertEventRow;
 use serde::Serialize;
 use ts_rs::TS;
@@ -25,6 +25,9 @@ pub struct AlertItem {
     /// The event's colour (`event.severity`) in a word: "Problem",
     /// "Warning", "Good" or "Note".
     pub severity_label: &'static str,
+    /// The source IP of the sender the event is about, whose sender page
+    /// the line links to (a new failing sender); `null` for the others.
+    pub sender_ip: Option<String>,
 }
 
 impl From<AlertEventRow> for AlertItem {
@@ -33,6 +36,10 @@ impl From<AlertEventRow> for AlertItem {
             catalogue_id: catalogue_id(&row.event.kind),
             text: alert_line(&row.event.kind),
             severity_label: status_word(row.event.severity),
+            sender_ip: match &row.event.kind {
+                AlertKind::NewFailingSender { sender, .. } => Some(sender.source_ip.clone()),
+                _ => None,
+            },
             row,
         }
     }

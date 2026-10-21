@@ -50,7 +50,7 @@ The SMTP password follows the mailbox password's rules: it cannot be read back, 
 
 ## The operator key
 
-An [operator key](./license#the-operator-key-and-the-notice) changes only how the emails name their sender (see [What a key changes](./license#what-a-key-changes)): while a valid key is stored, the sender name drops "via Marcan", the top of every email shows your letterhead without Marcan's line, and the last line is "Sent by" your name (such as "Sent by Acme IT.") in place of the free-software notice. The subjects do not change: alert emails and digests still begin with "Marcan". It unlocks no feature and no access, it changes nothing in Marcan's own pages but the line under its name in the sidebar, and Marcan never contacts anyone to check it. Like the passwords, it is not shown back once saved.
+An operator key changes only how the emails name their sender: see [What a key changes](./license#what-a-key-changes). It unlocks no feature and no access, it changes nothing in Marcan's own pages but the line under its name in the sidebar, and Marcan never contacts anyone to check it. Like the passwords, it is not shown back once saved.
 
 ## Mailbox access
 

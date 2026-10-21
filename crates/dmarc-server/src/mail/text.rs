@@ -95,6 +95,49 @@ fn img_size(size: PixelSize) -> (String, String) {
     )
 }
 
+/// The operator's letterhead in the HTML: the logo left of the name in one
+/// row, both vertically centred, as a one-row table (email clients centre
+/// table cells reliably, mixed inline content not); the name alone as a
+/// paragraph. Prominent with an operator license (the name in bold),
+/// secondary under Marcan's line without one.
+fn operator_row(operator: &OperatorLetterhead) -> String {
+    let name = operator.name.as_deref().unwrap_or_default();
+    let (margin, gap, text) = if operator.prominent {
+        (8, 12, "font-size:20px;font-weight:700;color:#111827")
+    } else {
+        (12, 8, "font-size:13px;color:#525252")
+    };
+    let Some(size) = operator.logo else {
+        return if operator.prominent {
+            format!(
+                "<p style=\"margin:0 0 4px;font-size:20px;font-weight:700\">{}</p>",
+                escape(name)
+            )
+        } else {
+            format!(
+                "<p style=\"margin:0 0 12px;font-size:13px;color:#525252\">{}</p>",
+                escape(name)
+            )
+        };
+    };
+    let (attrs, css) = img_size(size);
+    // The name beside it says who it is; alone, the logo has nothing to name.
+    let name_cell = if name.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<td style=\"vertical-align:middle;padding:0 0 0 {gap}px;{text}\">{}</td>",
+            escape(name)
+        )
+    };
+    format!(
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" \
+         style=\"border-collapse:collapse;margin:0 0 {margin}px\"><tr>\
+         <td style=\"vertical-align:middle;padding:0\"><img src=\"cid:{LOGO_CID}\" alt=\"\" \
+         {attrs} style=\"{css};display:block;border:0\"></td>{name_cell}</tr></table>"
+    )
+}
+
 /// The `From` display name of every email (the address is the sender's):
 /// "<name> via Marcan" while the notice is shown, else "<name>"; "Marcan"
 /// without a name either way.
@@ -196,38 +239,7 @@ impl Letterhead {
             ));
         }
         if let Some(operator) = &top.operator {
-            let name = operator.name.as_deref().unwrap_or_default();
-            match (operator.prominent, operator.logo) {
-                (true, logo) => {
-                    if let Some(size) = logo {
-                        let (attrs, css) = img_size(size);
-                        out.push_str(&format!(
-                            "<p style=\"margin:0 0 8px\"><img src=\"cid:{LOGO_CID}\" alt=\"{}\" \
-                             {attrs} style=\"{css};display:block;border:0\"></p>",
-                            escape(name)
-                        ));
-                    }
-                    if !name.is_empty() {
-                        out.push_str(&format!(
-                            "<p style=\"margin:0 0 4px;font-size:20px;font-weight:700\">{}</p>",
-                            escape(name)
-                        ));
-                    }
-                }
-                (false, logo) => {
-                    let image = logo.map_or_else(String::new, |size| {
-                        let (attrs, css) = img_size(size);
-                        format!(
-                            "<img src=\"cid:{LOGO_CID}\" alt=\"\" {attrs} \
-                             style=\"{css};vertical-align:middle;border:0\">&nbsp;"
-                        )
-                    });
-                    out.push_str(&format!(
-                        "<p style=\"margin:0 0 12px;font-size:13px;color:#525252\">{image}{}</p>",
-                        escape(name)
-                    ));
-                }
-            }
+            out.push_str(&operator_row(operator));
         }
         out.push_str(&format!(
             "<h1 style=\"font-size:16px;font-weight:600;margin:0 0 8px\">{}</h1>",
@@ -519,8 +531,9 @@ mod tests {
             "<p style=\"margin:0 0 12px;font-size:13px;line-height:20px;color:#737373\">\
              <img src=\"cid:marcan-mark\" alt=\"\" width=\"20\" height=\"20\" style=\"width:20px;height:20px;vertical-align:middle;border:0\">&nbsp;\
              <span style=\"font-weight:600;vertical-align:middle\">Marcan</span><span style=\"vertical-align:middle\">, free software</span></p>\
-             <p style=\"margin:0 0 12px;font-size:13px;color:#525252\">\
-             <img src=\"cid:logo\" alt=\"\" width=\"120\" height=\"30\" style=\"width:120px;height:30px;vertical-align:middle;border:0\">&nbsp;Managed by Acme &amp; Co</p>\
+             <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 12px\"><tr>\
+             <td style=\"vertical-align:middle;padding:0\"><img src=\"cid:logo\" alt=\"\" width=\"120\" height=\"30\" style=\"width:120px;height:30px;display:block;border:0\"></td>\
+             <td style=\"vertical-align:middle;padding:0 0 0 8px;font-size:13px;color:#525252\">Managed by Acme &amp; Co</td></tr></table>\
              <h1 style=\"font-size:16px;font-weight:600;margin:0 0 8px\">DMARC report for Beta, September 2026</h1>"
         );
         let cids: Vec<&str> = unlicensed.images().iter().map(|i| i.cid).collect();
@@ -539,13 +552,24 @@ mod tests {
         let html = licensed.html_heading("DMARC report for Beta, September 2026");
         assert_eq!(
             html,
-            "<p style=\"margin:0 0 8px\"><img src=\"cid:logo\" alt=\"Acme &amp; Co\" width=\"200\" height=\"50\" style=\"width:200px;height:50px;display:block;border:0\"></p>\
-             <p style=\"margin:0 0 4px;font-size:20px;font-weight:700\">Acme &amp; Co</p>\
+            "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 8px\"><tr>\
+             <td style=\"vertical-align:middle;padding:0\"><img src=\"cid:logo\" alt=\"\" width=\"200\" height=\"50\" style=\"width:200px;height:50px;display:block;border:0\"></td>\
+             <td style=\"vertical-align:middle;padding:0 0 0 12px;font-size:20px;font-weight:700;color:#111827\">Acme &amp; Co</td></tr></table>\
              <h1 style=\"font-size:16px;font-weight:600;margin:0 0 8px\">DMARC report for Beta, September 2026</h1>"
         );
         assert!(!html.contains("Marcan"));
         let cids: Vec<&str> = licensed.images().iter().map(|i| i.cid).collect();
         assert_eq!(cids, [LOGO_CID]);
+
+        // Licensed with a logo and no name: the logo alone in its row.
+        let logo_only = Letterhead {
+            operator_name: None,
+            ..licensed
+        };
+        assert!(logo_only.html_heading("T").starts_with(
+            "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 8px\"><tr>\
+             <td style=\"vertical-align:middle;padding:0\"><img src=\"cid:logo\" alt=\"\" width=\"200\" height=\"50\" style=\"width:200px;height:50px;display:block;border:0\"></td></tr></table><h1"
+        ));
 
         // Unlicensed without a name: Marcan's line, and the logo is not attached.
         let nameless = Letterhead {

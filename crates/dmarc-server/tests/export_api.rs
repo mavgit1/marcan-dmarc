@@ -264,6 +264,8 @@ async fn every_export_has_bom_header_row_and_attachment() {
                 "dns_checked_at",
                 "health",
                 "issues",
+                "policy_source",
+                "readiness",
             ],
         ),
         (
@@ -538,6 +540,10 @@ async fn domains_rows_match_the_domain_list() {
             .unwrap_or_default();
         assert_eq!(row["delivered_compliance_pct"], delivered);
         assert_eq!(row["health"], item["health"]["state"].as_str().unwrap());
+        assert_eq!(
+            row["policy_source"],
+            item["policy_source"].as_str().unwrap()
+        );
         let issues: Vec<&str> = assessment["issues"]
             .as_array()
             .unwrap()
@@ -555,6 +561,9 @@ async fn domains_rows_match_the_domain_list() {
     assert_eq!(ex["policy_p"], "");
     assert_eq!(ex["policy_sp"], "");
     assert_eq!(ex["policy_pct"], "");
+    // ...and the columns say why: no check yet, so no readiness either.
+    assert_eq!(ex["policy_source"], "not_checked");
+    assert_eq!(ex["readiness"], "not_applicable");
     assert_eq!(ex["total_messages"], "180");
     assert_eq!(ex["reporter_count"], "2");
     assert_eq!(ex["last_report_at"], "2024-01-03T23:59:59Z");

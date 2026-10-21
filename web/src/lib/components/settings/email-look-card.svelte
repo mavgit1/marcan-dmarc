@@ -28,18 +28,14 @@
 	{#if look.top.operator}
 		{@const operator = look.top.operator}
 		{#if operator.prominent}
-			{#if operator.logo && logoUrl}
-				<img
-					src={logoUrl}
-					alt={operator.name ?? ''}
-					width={operator.logo.width}
-					height={operator.logo.height}
-					class="mb-2 block max-w-full"
-				/>
-			{/if}
-			{#if operator.name}<p class="text-xl font-bold break-words">{operator.name}</p>{/if}
+			<div class="mb-2 flex min-w-0 items-center gap-3">
+				{#if operator.logo && logoUrl}
+					<img src={logoUrl} alt="" width={operator.logo.width} height={operator.logo.height} class="shrink-0" />
+				{/if}
+				{#if operator.name}<p class="min-w-0 text-xl font-bold break-words">{operator.name}</p>{/if}
+			</div>
 		{:else}
-			<p class="text-foreground/75 mb-3 flex min-w-0 items-center gap-1.5 text-[13px]">
+			<p class="text-foreground/75 mb-3 flex min-w-0 items-center gap-2 text-[13px]">
 				{#if operator.logo && logoUrl}
 					<img src={logoUrl} alt="" width={operator.logo.width} height={operator.logo.height} class="shrink-0" />
 				{/if}

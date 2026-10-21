@@ -9,4 +9,5 @@ export type AlertGroup =
   | "dns_records"
   | "policy"
   | "readiness"
-  | "parked";
+  | "parked"
+  | "senders";

@@ -488,6 +488,7 @@ async fn alerts_settings_are_off_by_default_and_validated() {
     // with how often changes are checked.
     let meta = get_ok(&t.app, "/api/meta").await;
     assert_eq!(meta["alert_interval_minutes"], 15);
+    assert_eq!(meta["new_sender_min_failures"], 10);
     let catalogue = meta["alert_catalogue"].clone();
     let ids: Vec<&str> = catalogue
         .as_array()
@@ -510,7 +511,7 @@ async fn alerts_settings_are_off_by_default_and_validated() {
         meta["alert_groups"][0],
         json!({ "group": "issues", "title": "Issues" })
     );
-    assert_eq!(meta["alert_groups"].as_array().unwrap().len(), 6);
+    assert_eq!(meta["alert_groups"].as_array().unwrap().len(), 7);
     let mut bad = body.clone();
     bad["muted_kinds"] = json!(["policy"]);
     let (status, err) = put_json(&t.app, "/api/settings/alerts", bad).await;
@@ -540,4 +541,93 @@ async fn alerts_settings_are_off_by_default_and_validated() {
         get_ok(&t.app, "/api/settings").await["alerts"]["recipients"],
         json!(["ops@example.com", "noc@example.com"])
     );
+}
+
+/// A failing record from `ip`: delivered, or forwarded when `forwarded`.
+fn failing(ip: &str, count: i64, forwarded: bool) -> dmarc_parser::Record {
+    let mut r = rec(ip, count, "fail", "fail");
+    if forwarded {
+        r.policy_overrides = vec![dmarc_parser::PolicyOverride {
+            reason_type: Some("forwarded".into()),
+            comment: None,
+        }];
+    }
+    r
+}
+
+async fn ingest_records(t: &TestApp, id: &str, days_ago: i64, records: Vec<dmarc_parser::Record>) {
+    let mut records = records;
+    // Plenty of passing mail, so the failures open no issue of their own.
+    records.push(rec("192.0.2.1", 100_000, "pass", "pass"));
+    let report = report_with_policy(
+        id,
+        "example.com",
+        NOW - days_ago * DAY,
+        "none",
+        "none",
+        records,
+    );
+    ingest_report(&t.pool, &report).await.expect("ingest");
+}
+
+/// A sender new to the domain alerts once it fails with 10 messages or
+/// more, forwarded mail not counted; senders failing at the baseline and
+/// senders known before the window raise nothing, and a sender alerted
+/// once stays quiet.
+#[tokio::test]
+async fn a_new_failing_sender_is_alerted_once() {
+    let t = TestApp::new().await;
+    seed_organizations(&t.pool).await;
+    store_dns(&t, "none", "v=spf1 ip4:192.0.2.0/24 -all", NOW - DAY).await;
+    // Known before the window.
+    ingest_records(&t, "old", 40, vec![failing("198.51.100.9", 1, false)]).await;
+    // New, and failing already at the first evaluation: the baseline.
+    ingest_records(&t, "r1", 3, vec![failing("203.0.113.7", 20, false)]).await;
+    assert_eq!(
+        evaluate(&t, NOW).await,
+        0,
+        "the first evaluation is a baseline"
+    );
+
+    ingest_records(
+        &t,
+        "r2",
+        1,
+        vec![
+            failing("203.0.113.5", 12, false),
+            // Mostly forwarded: 9 failures count, below the threshold.
+            failing("203.0.113.6", 50, true),
+            failing("203.0.113.6", 9, false),
+            // Known before the window, however much it fails now.
+            failing("198.51.100.9", 300, false),
+            failing("203.0.113.7", 30, false),
+        ],
+    )
+    .await;
+    assert_eq!(evaluate(&t, NOW + 900).await, 1);
+    let page = get_ok(&t.app, "/api/alerts").await;
+    let item = &page["items"][0];
+    assert_eq!(
+        item["event"],
+        json!({
+            "kind": "new_failing_sender",
+            "sender": {
+                "source_ip": "203.0.113.5",
+                "name": null,
+                "failed": 12,
+                "delivered_failures": 12
+            },
+            "window_days": 30,
+            "severity": "fail"
+        })
+    );
+    assert_eq!(item["catalogue_id"], "new_failing_sender");
+    assert_eq!(item["sender_ip"], "203.0.113.5");
+    assert!(item["text"].as_str().unwrap().starts_with(
+        "New sender 203.0.113.5 failed DMARC with 12 messages in the last 30 days (all delivered)"
+    ));
+
+    // It keeps failing: no second alert.
+    ingest_records(&t, "r3", 0, vec![failing("203.0.113.5", 40, false)]).await;
+    assert_eq!(evaluate(&t, NOW + 1800).await, 0);
 }

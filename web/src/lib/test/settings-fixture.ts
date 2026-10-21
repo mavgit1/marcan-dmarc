@@ -67,7 +67,8 @@ function base(): SettingsResponse {
 		},
 		license: { has_key: false, state: 'no_key', licensed_to: null, key_hint: null },
 		branding: { operator_name: '', has_logo: false, logo_type: null, logo_bytes: null },
-		onboarding: { state: 'completed' }
+		onboarding: { state: 'completed' },
+		updates: { check: true }
 	};
 }
 

@@ -71,13 +71,7 @@
 		{@render children()}
 	</fieldset>
 	{@render ungated?.()}
-	<SaveBar
-		dirty={form.dirty}
-		save={form.save}
-		canSave={form.canSave}
-		blocked={form.blocked}
-		onDiscard={() => form.discard()}
-	/>
+	<SaveBar dirty={form.dirty} save={form.save} reason={form.reason} onDiscard={() => form.discard()} />
 </form>
 
 {#if after}

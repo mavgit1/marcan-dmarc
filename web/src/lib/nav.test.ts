@@ -20,7 +20,7 @@ describe('titleForPath', () => {
 		expect(titleForPath('/reports')).toBe('Reports');
 		expect(titleForPath('/alerts')).toBe('Alerts');
 		expect(titleForPath('/tools/dns')).toBe('DNS inspector');
-		expect(titleForPath('/guide')).toBe('Setup guide');
+		expect(titleForPath('/guide')).toBe('Setup');
 		expect(titleForPath('/setup')).toBe('Setup');
 		expect(titleForPath('/settings')).toBe('Settings');
 	});
@@ -40,7 +40,7 @@ describe('crumbsForPath', () => {
 	it('is one crumb on a top-level page', () => {
 		expect(crumbsForPath('/')).toEqual([{ label: 'Dashboard' }]);
 		expect(crumbsForPath('/domains')).toEqual([{ label: 'Domains' }]);
-		expect(crumbsForPath('/guide')).toEqual([{ label: 'Tools' }, { label: 'Setup guide' }]);
+		expect(crumbsForPath('/guide')).toEqual([{ label: 'Tools' }, { label: 'Setup' }]);
 		expect(crumbsForPath('/setup')).toEqual([{ label: 'Setup' }]);
 		expect(crumbsForPath('/settings')).toEqual([{ label: 'Settings' }]);
 	});

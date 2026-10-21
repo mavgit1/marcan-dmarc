@@ -11,6 +11,7 @@ import { LicenseModel } from './license-draft.svelte';
 import { ResolversModel } from './resolvers-draft.svelte';
 import { RetentionModel } from './retention-draft.svelte';
 import { SendingModel } from './sending-draft.svelte';
+import { UpdatesModel } from './updates-draft.svelte';
 import type { Writes } from './settings-form.svelte';
 
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
@@ -23,7 +24,8 @@ const MODELS = [
 	LicenseModel,
 	BrandingModel,
 	ResolversModel,
-	RetentionModel
+	RetentionModel,
+	UpdatesModel
 ];
 
 /** The one writer that is no model: the Data page's "Run setup again" acts at once. */
@@ -41,7 +43,8 @@ const OWNER: Record<string, string> = {
 	'client-reports': 'client-reports',
 	license: 'license',
 	branding: 'branding',
-	onboarding: 'data'
+	onboarding: 'data',
+	updates: 'license'
 };
 
 describe('settings ownership', () => {

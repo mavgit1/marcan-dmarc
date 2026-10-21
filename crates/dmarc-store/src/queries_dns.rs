@@ -38,12 +38,18 @@ pub struct SnapshotDmarc {
     pub policy_pct: Option<i64>,
     pub policy_adkim: Option<String>,
     pub policy_aspf: Option<String>,
+    /// `t=y` (RFC 9989): `Some(true)` when testing, `Some(false)` for any
+    /// other record, `None` without one.
+    pub policy_testing: Option<bool>,
+    /// `np=` (RFC 9989), as parsed.
+    pub policy_np: Option<String>,
 }
 
 /// The columns of [`DnsSnapshot`] over `dns_snapshots s` joined to `domains d`.
 const SNAPSHOT_COLUMNS: &str = "d.domain, s.checked_at, s.grade, s.score, s.critical_count, \
      s.dmarc_record_count, s.dmarc_record, s.policy_p, s.policy_sp, s.policy_pct, \
-     s.policy_adkim, s.policy_aspf, s.report_json, s.checker_version";
+     s.policy_adkim, s.policy_aspf, s.policy_testing, s.policy_np, s.report_json, \
+     s.checker_version";
 
 /// Whether a snapshot is still fresh enough to skip a live re-check.
 ///
@@ -76,8 +82,8 @@ pub async fn upsert_dns_snapshot(
         INSERT INTO dns_snapshots
             (domain_id, checked_at, grade, score, critical_count, dmarc_record_count,
              dmarc_record, policy_p, policy_sp, policy_pct, policy_adkim, policy_aspf,
-             report_json, checker_version)
-        SELECT id, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14
+             policy_testing, policy_np, report_json, checker_version)
+        SELECT id, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16
         FROM domains WHERE domain = ?1 AND ignored = 0
         ON CONFLICT(domain_id) DO UPDATE SET
             checked_at = excluded.checked_at,
@@ -91,6 +97,8 @@ pub async fn upsert_dns_snapshot(
             policy_pct = excluded.policy_pct,
             policy_adkim = excluded.policy_adkim,
             policy_aspf = excluded.policy_aspf,
+            policy_testing = excluded.policy_testing,
+            policy_np = excluded.policy_np,
             report_json = excluded.report_json,
             checker_version = excluded.checker_version
         "#,
@@ -107,6 +115,8 @@ pub async fn upsert_dns_snapshot(
     .bind(dmarc.policy_pct)
     .bind(&dmarc.policy_adkim)
     .bind(&dmarc.policy_aspf)
+    .bind(dmarc.policy_testing)
+    .bind(&dmarc.policy_np)
     .bind(&snap.report_json)
     .bind(snap.checker_version)
     .execute(pool)

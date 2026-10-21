@@ -54,8 +54,10 @@ function check(extra: Record<string, unknown> = {}): DnsCheckResponse {
 			parsed: { p: 'reject', sp: 'none', pct: 100, rua: [{ raw: 'mailto:a@example.net' }] },
 			enforcement: { state: 'reject', status: 'pass' },
 			subdomain_enforcement: { state: 'monitor', status: 'fail' },
+			nonexistent_enforcement: null,
 			pct_below_100: false,
 			pct_status: 'neutral',
+			testing_status: 'neutral',
 			rua_authorization: { state: 'authorized', status: 'pass' },
 			lookup: 'ok',
 			record_status: 'pass'
@@ -108,6 +110,18 @@ describe('pillarModels', () => {
 		]);
 		expect(p.dmarc.lostPts).toBe(0);
 		expect(p.dmarc.findingsVerdict).toEqual({ label: 'No issues', tone: 'pass' });
+
+		// DMARCbis: np= when published, and t=y as a row of its own.
+		const bis = check();
+		Object.assign(bis.dmarc!, {
+			parsed: { ...bis.dmarc!.parsed!, np: 'reject', t: 'y' },
+			nonexistent_enforcement: { state: 'reject', status: 'pass' },
+			testing_status: 'warn'
+		});
+		expect(pillarModels(bis, overview()).dmarc.rows.slice(2)).toEqual([
+			{ label: 'Non-existent subdomains', value: 'np=reject', tone: 'pass', mono: true },
+			{ label: 'Testing', value: 't=y', tone: 'warn', mono: true }
+		]);
 
 		expect(p.spf.verdict).toEqual({ label: '~all', tone: 'warn', mono: true });
 		expect(p.spf.rows.map((r) => r.value)).toEqual(['3 of 10', '0 of 2']);

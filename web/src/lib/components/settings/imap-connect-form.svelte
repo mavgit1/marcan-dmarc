@@ -16,7 +16,9 @@
 	 * The setup's connection (host, port, username, password, report address) and the
 	 * folder to import. Test connection logs in and lists the folders; nothing is saved until
 	 * Save and start import, which stores both together, so the import starts on the chosen
-	 * folder. The typed password stays in the draft between the two.
+	 * folder. The typed password stays in the draft between the two. While the connection is
+	 * incomplete both buttons are disabled and its reason stands beside them (in the warn tone
+	 * once something is typed, which also marks the field); a missing folder is said under it.
 	 */
 	let {
 		settings,
@@ -88,6 +90,8 @@
 	/** The folders of the login on screen are known: pick one, then save. */
 	const listed = $derived(m.loginChecked && m.folders !== null);
 	const canSave = $derived(listed && !m.probing && m.problem === null && m.folderStatus?.exists === true);
+	/** The field the disabled button's reason names, marked once something is typed. */
+	const invalidField = $derived(form.dirty ? (m.invalid?.field ?? null) : null);
 
 	/** Enter saves once the folders are listed, and tests the login before that. */
 	function submit(e: SubmitEvent) {
@@ -133,6 +137,7 @@
 			layout="setup"
 			onUsernameBlur={() => (usernameLeft = true)}
 			usernameNote={differentAddress}
+			{invalidField}
 		/>
 
 		{#if needsReportAddress}
@@ -146,7 +151,9 @@
 						bind:value={form.draft.reportAddress}
 						placeholder="dmarc-reports@example.com"
 						required
-						aria-invalid={(form.draft.reportAddress.trim() !== '' && reportAddressInvalid) || undefined}
+						aria-invalid={(form.draft.reportAddress.trim() !== '' && reportAddressInvalid) ||
+							invalidField === 'reportAddress' ||
+							undefined}
 						aria-describedby={id('report-address-hint')}
 						class="mt-1 text-sm"
 					/>
@@ -223,6 +230,11 @@
 				</p>
 			{:else if form.save.feedback && !form.save.feedback.ok}
 				<p class="text-status-fail-fg mr-auto text-xs" role="alert">{form.save.feedback.message}</p>
+			{:else if m.problem}
+				<!-- Why both buttons wait: what to fill in next. -->
+				<p class={['mr-auto text-xs', form.dirty ? 'text-status-warn-fg' : 'text-muted-foreground']} role="status">
+					{m.problem}
+				</p>
 			{/if}
 			{#if listed && !isSaved}
 				<BusyButton type="submit" size="sm" busy={form.save.busy} busyLabel="Saving…" disabled={!canSave}>

@@ -43,8 +43,9 @@ pub use events::{alert_events, AlertEvent, AlertKind, AlertedIssue};
 pub use state::{
     alert_state, AlertFigures, AlertState, BimiRecordFacts, DeliveredFigures, DkimKeyFacts,
     DkimSelectorFacts, DmarcRecordFacts, DnsRecords, DnsState, MtaStsPolicyFacts,
-    MtaStsRecordFacts, Observed, OpenIssue, ReadinessEvidence, RecordChange, RecordDelta,
-    SpfRecordFacts, StoppedFigures, TlsRptRecordFacts, ALERT_FORMAT,
+    MtaStsRecordFacts, NewSender, Observed, OpenIssue, ReadinessEvidence, RecordChange,
+    RecordDelta, SpfRecordFacts, StoppedFigures, TlsRptRecordFacts, ALERT_FORMAT,
+    NEW_SENDER_MIN_FAILURES,
 };
 
 #[cfg(test)]
@@ -101,6 +102,10 @@ mod tests {
         });
         kinds.push(AlertKind::ParkedChanged { parked: true });
         kinds.push(AlertKind::ParkedChanged { parked: false });
+        kinds.push(AlertKind::NewFailingSender {
+            sender: sender("192.0.2.1", 10, 0),
+            window_days: 30,
+        });
         kinds
     }
 
@@ -166,7 +171,119 @@ mod tests {
             dns: Some(dns()),
             parked: false,
             figures: None,
+            new_failing_senders: Some(vec![]),
         }
+    }
+
+    fn sender(ip: &str, failed: i64, delivered_failures: i64) -> NewSender {
+        NewSender {
+            source_ip: ip.into(),
+            name: None,
+            failed,
+            delivered_failures,
+        }
+    }
+
+    /// `base()` with the senders new to the domain that alerts keep.
+    fn with_new_senders(new_senders: Vec<NewSender>) -> AlertState {
+        AlertState {
+            new_failing_senders: Some(state::failing_new_senders(new_senders)),
+            ..base()
+        }
+    }
+
+    /// A sender new to the domain alerts from the threshold on, red when
+    /// failing mail was delivered and amber when all of it was blocked.
+    #[test]
+    fn a_new_sender_alerts_from_the_threshold() {
+        let below = with_new_senders(vec![sender("192.0.2.1", 9, 9)]);
+        assert_eq!(below.new_failing_senders, Some(vec![]));
+        assert!(alert_events(Some(&base()), &below, &[]).is_empty());
+
+        let at = with_new_senders(vec![
+            sender("192.0.2.2", NEW_SENDER_MIN_FAILURES, 0),
+            sender("192.0.2.1", 25, 3),
+        ]);
+        let events = alert_events(Some(&below), &at, &[]);
+        assert_eq!(
+            events,
+            [
+                AlertEvent::new(
+                    AlertKind::NewFailingSender {
+                        sender: sender("192.0.2.1", 25, 3),
+                        window_days: 30,
+                    },
+                    Status::Fail
+                ),
+                AlertEvent::new(
+                    AlertKind::NewFailingSender {
+                        sender: sender("192.0.2.2", 10, 0),
+                        window_days: 30,
+                    },
+                    Status::Warn
+                ),
+            ]
+        );
+    }
+
+    /// Once alerted, a sender is known: it does not repeat while it keeps
+    /// failing (whatever its count), and leaving the set (no longer new, or
+    /// its failures gone with retention) raises nothing.
+    #[test]
+    fn a_known_sender_is_silent_and_leaving_raises_nothing() {
+        let alerted = with_new_senders(vec![sender("192.0.2.1", 12, 0)]);
+        let more = with_new_senders(vec![sender("192.0.2.1", 400, 380)]);
+        assert!(alert_events(Some(&alerted), &more, &[]).is_empty());
+        let aged = with_new_senders(vec![]);
+        assert!(alert_events(Some(&more), &aged, &[]).is_empty());
+        // Another sender is still new.
+        let other = with_new_senders(vec![
+            sender("192.0.2.1", 400, 380),
+            sender("198.51.100.7", 11, 0),
+        ]);
+        assert_eq!(
+            kinds(&alert_events(Some(&more), &other, &[])),
+            ["new_failing_sender"]
+        );
+    }
+
+    /// No flood: the first evaluation, the first reports, an import's
+    /// rebaseline and a state stored before senders were measured are all
+    /// baselines.
+    #[test]
+    fn new_senders_start_from_a_baseline() {
+        let failing = with_new_senders(vec![
+            sender("192.0.2.1", 50, 50),
+            sender("192.0.2.2", 30, 0),
+        ]);
+        assert!(alert_events(None, &failing, &[]).is_empty());
+        let empty = AlertState {
+            has_reports: false,
+            health: HealthState::NoData,
+            new_failing_senders: Some(vec![]),
+            ..base()
+        };
+        assert!(alert_events(Some(&empty), &failing, &[]).is_empty());
+        let rebaselined = base().reports_rebaselined();
+        assert!(alert_events(Some(&rebaselined), &failing, &[]).is_empty());
+        let unmeasured = AlertState {
+            new_failing_senders: None,
+            ..base()
+        };
+        assert!(alert_events(Some(&unmeasured), &failing, &[]).is_empty());
+        // A stored state of 0.2.1 has no senders: it reads as unmeasured.
+        let mut json = serde_json::to_value(base()).unwrap();
+        json.as_object_mut().unwrap().remove("new_failing_senders");
+        let stored: AlertState = serde_json::from_value(json).unwrap();
+        assert_eq!(stored.new_failing_senders, None);
+        // From the baseline on, a sender joining is new.
+        let joined = with_new_senders(vec![
+            sender("192.0.2.1", 50, 50),
+            sender("192.0.2.2", 30, 0),
+            sender("192.0.2.3", 10, 1),
+        ]);
+        let events = alert_events(Some(&failing), &joined, &[]);
+        assert_eq!(kinds(&events), ["new_failing_sender"]);
     }
 
     fn issue(kind: IssueKind, status: Status) -> OpenIssue {
@@ -734,6 +851,10 @@ mod tests {
                 evidence: None,
             },
             AlertKind::ParkedChanged { parked: true },
+            AlertKind::NewFailingSender {
+                sender: sender("192.0.2.1", 10, 0),
+                window_days: 30,
+            },
         ];
         let names: Vec<&str> = samples.iter().map(AlertKind::name).collect();
         assert_eq!(names, AlertKind::NAMES);
@@ -762,6 +883,10 @@ mod tests {
             .unwrap()
             .worst
             .insert(CheckKind::MtaSts, Severity::Info);
+        state.new_failing_senders = Some(vec![NewSender {
+            name: Some("Example Mail".into()),
+            ..sender("192.0.2.1", 10, 2)
+        }]);
         let json = serde_json::to_string(&state).unwrap();
         assert_eq!(serde_json::from_str::<AlertState>(&json).unwrap(), state);
     }

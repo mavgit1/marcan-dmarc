@@ -38,6 +38,42 @@ pub struct AlertState {
     /// The figures the events' sentences name (always set by
     /// [`alert_state`]).
     pub figures: Option<AlertFigures>,
+    /// The senders new to the domain in the window (no records from them
+    /// before it) with at least [`NEW_SENDER_MIN_FAILURES`] failing
+    /// messages in it, by source IP. `None` in a state stored before Marcan
+    /// measured them: the next evaluation is their baseline.
+    #[serde(default)]
+    pub new_failing_senders: Option<Vec<NewSender>>,
+}
+
+/// A sender new to a domain alerts once it has this many failing messages
+/// (failed DMARC, not forwarded) in the window.
+pub const NEW_SENDER_MIN_FAILURES: i64 = 10;
+
+/// The senders of `new_senders` with at least [`NEW_SENDER_MIN_FAILURES`]
+/// failing messages, by source IP.
+pub(super) fn failing_new_senders(new_senders: Vec<NewSender>) -> Vec<NewSender> {
+    let mut failing: Vec<NewSender> = new_senders
+        .into_iter()
+        .filter(|s| s.failed >= NEW_SENDER_MIN_FAILURES)
+        .collect();
+    failing.sort_by(|a, b| a.source_ip.cmp(&b.source_ip));
+    failing
+}
+
+/// A sender (a source IP, as the sender pages key it) that sent nothing as
+/// the domain before the window, and its failing mail in the window.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct NewSender {
+    pub source_ip: String,
+    /// Its name when Marcan knows one (the operator's, else its domain), as
+    /// the sender pages caption it.
+    pub name: Option<String>,
+    /// Failed DMARC and not forwarded: delivered failures plus blocked.
+    pub failed: i64,
+    /// Of those, delivered.
+    pub delivered_failures: i64,
 }
 
 /// The figures of one evaluation an event's sentence names: the mail over
@@ -353,7 +389,8 @@ pub enum RecordDelta {
 /// A domain's [`AlertState`] from what the domain overview shows: its
 /// health, assessment and policy readiness (all over the readiness window)
 /// and the stored DNS result, whose DMARC record holds the policy alerts
-/// compare.
+/// compare. `new_senders` are the senders new to the domain in the window;
+/// those with at least [`NEW_SENDER_MIN_FAILURES`] failing messages are kept.
 pub fn alert_state(
     health: HealthState,
     assessment: &DomainAssessment,
@@ -361,8 +398,10 @@ pub fn alert_state(
     has_reports: bool,
     parked: bool,
     dns: Option<DnsState>,
+    new_senders: Vec<NewSender>,
 ) -> AlertState {
     AlertState {
+        new_failing_senders: Some(failing_new_senders(new_senders)),
         has_reports,
         health,
         issues: assessment

@@ -28,6 +28,7 @@
 					max={m.range?.max}
 					step="1"
 					bind:value={m.draft.report_retention_months}
+					aria-invalid={m.ariaInvalid('report_retention_months')}
 					aria-label="Months to keep reports"
 					class="h-8 w-20 text-sm"
 				/>

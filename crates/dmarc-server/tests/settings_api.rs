@@ -1064,7 +1064,8 @@ async fn get_settings_reflects_each_group_write() {
 }
 
 /// The clean-up applies the stored retention: with one month, a report that
-/// ended 40 days ago goes and yesterday's stays, and so do alert events.
+/// ended 40 days ago goes and yesterday's stays, and so do alert events; the
+/// reverse DNS of an IP only the deleted report named goes too.
 #[tokio::test]
 async fn retention_pass_applies_the_stored_months() {
     let t = TestApp::new().await;
@@ -1077,14 +1078,17 @@ async fn retention_pass_applies_the_stored_months() {
     .await
     .unwrap();
     let now = dmarc_store::unix_now();
-    for (id, days_ago) in [("old", 41), ("recent", 2)] {
+    for (id, days_ago, ip) in [("old", 41, "192.0.2.9"), ("recent", 2, "192.0.2.1")] {
         let r = report(
             id,
             "example.com",
             now - days_ago * 86_400,
-            vec![rec("192.0.2.1", 5, "pass", "pass")],
+            vec![rec(ip, 5, "pass", "pass")],
         );
         dmarc_store::ingest_report(&t.pool, &r).await.unwrap();
+        dmarc_store::upsert_identity_snapshot(&t.pool, ip, now, Some("mail.example.com"), None)
+            .await
+            .unwrap();
     }
     let domain_id: i64 = sqlx::query_scalar("SELECT id FROM domains WHERE domain = 'example.com'")
         .fetch_one(&t.pool)
@@ -1116,6 +1120,12 @@ async fn retention_pass_applies_the_stored_months() {
         .await
         .unwrap();
     assert_eq!(events, vec![now - 2 * 86_400]);
+    // The reverse DNS of the old report's sender went with it.
+    let snapshots: Vec<String> = sqlx::query_scalar("SELECT ip FROM identity_snapshots")
+        .fetch_all(&t.pool)
+        .await
+        .unwrap();
+    assert_eq!(snapshots, vec!["192.0.2.1"]);
 }
 
 /// A stored retention that does not read as months skips the clean-up: the
@@ -1170,4 +1180,68 @@ async fn old_per_setting_endpoints_are_gone() {
         let (status, _) = post_json(&t.app, path, json!({})).await;
         assert!(status.is_client_error(), "POST {path}: {status}");
     }
+}
+
+/// The version check is on by default and shows nothing before its first
+/// answer; switched on again, it wakes the job and meta names a newer
+/// version the job stored; switched off, it forgets that answer.
+#[tokio::test]
+async fn the_version_check_is_on_by_default_and_forgets_when_off() {
+    let t = TestApp::new().await;
+    let app = t.app.clone();
+
+    let (_, body) = get(&app, "/api/settings").await;
+    assert_eq!(body["updates"], json!({ "check": true }));
+    assert_eq!(get_ok(&app, "/api/meta").await["available"], Value::Null);
+    let (status, body) = put_json(&app, "/api/settings/updates", json!({ "check": false })).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["updates"], json!({ "check": false }));
+
+    // An answer stored while off is not shown.
+    let newer = dmarc_store::UpdateCheck {
+        attempted_at: 1,
+        seen: Some(dmarc_store::SeenVersion {
+            version: "999.0.0".into(),
+            url: "https://marcan.kaitiaki.tech/releases".into(),
+            checked_at: 1,
+        }),
+    };
+    dmarc_store::set_update_check(&t.pool, &newer)
+        .await
+        .unwrap();
+    assert_eq!(get_ok(&app, "/api/meta").await["available"], Value::Null);
+
+    let (status, body) = put_json(&app, "/api/settings/updates", json!({ "check": true })).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["updates"]["check"], true);
+    assert_eq!(
+        get_ok(&app, "/api/meta").await["available"],
+        json!({ "version": "999.0.0", "url": "https://marcan.kaitiaki.tech/releases" })
+    );
+    // Switching it on woke the job.
+    tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        t.state.update_check_wake.notified(),
+    )
+    .await
+    .expect("woken");
+
+    // The running version itself is not named.
+    let mut current = newer.clone();
+    if let Some(seen) = current.seen.as_mut() {
+        seen.version = env!("CARGO_PKG_VERSION").into();
+    }
+    dmarc_store::set_update_check(&t.pool, &current)
+        .await
+        .unwrap();
+    assert_eq!(get_ok(&app, "/api/meta").await["available"], Value::Null);
+
+    let (status, body) = put_json(&app, "/api/settings/updates", json!({ "check": false })).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["updates"], json!({ "check": false }));
+    assert_eq!(dmarc_store::get_update_check(&t.pool).await.unwrap(), None);
+
+    // The whole group, as every PUT.
+    let (status, _) = put_json(&app, "/api/settings/updates", json!({})).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }

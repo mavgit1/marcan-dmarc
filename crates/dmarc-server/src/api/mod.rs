@@ -19,6 +19,7 @@ mod senders;
 mod settings;
 mod system;
 
+pub(crate) use identity::identities_named;
 pub use sender_names::load_sender_names;
 
 use crate::AppState;
@@ -164,13 +165,16 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/api/settings/branding", put(settings::put_branding))
         .route(
             "/api/settings/branding/logo",
-            post(settings::upload_logo).delete(settings::delete_logo),
+            get(settings::show_logo)
+                .post(settings::upload_logo)
+                .delete(settings::delete_logo),
         )
         .route(
             "/api/settings/branding/preview",
             post(settings::preview_branding),
         )
         .route("/api/settings/onboarding", put(settings::put_onboarding))
+        .route("/api/settings/updates", put(settings::put_updates))
         // The lists edited as text, one protocol each (`view::ListText`):
         // GET the list, POST …/preview a draft, PUT it to save.
         .route(

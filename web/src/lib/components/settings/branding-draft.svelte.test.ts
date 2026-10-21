@@ -1,11 +1,12 @@
 // The branding section's draft: the operator name and the logo change (a picked image, or
 // "Remove logo"), the client-side checks worded like the server's, and the save (the name, then
-// the upload or removal, then `meta` reloads so the stored logo shown follows).
+// the upload or removal, then the stored logo shown is asked for again).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { settingsFixture } from '$lib/test/settings-fixture';
 import type { Meta } from '$lib/types/Meta';
 import type { SettingsResponse } from '$lib/types/SettingsResponse';
 import * as api from '$lib/api';
+import { storedLogo } from '$lib/state/logo.svelte';
 import { meta } from '$lib/state/meta.svelte';
 import type { EmailPreview } from '$lib/types/EmailPreview';
 import {
@@ -27,7 +28,8 @@ vi.mock('$lib/api', () => ({
 	saveBranding: vi.fn(),
 	uploadLogo: vi.fn(),
 	deleteLogo: vi.fn(),
-	previewBranding: vi.fn()
+	previewBranding: vi.fn(),
+	logoUrl: (revision: number) => `/api/settings/branding/logo?r=${revision}`
 }));
 
 const saveBranding = vi.mocked(api.saveBranding);
@@ -200,7 +202,7 @@ describe('BrandingModel', () => {
 		stop();
 	});
 
-	it('save() sends the trimmed name, then the picked logo, and reloads meta', async () => {
+	it('save() sends the trimmed name, then the picked logo, and asks for the stored logo again', async () => {
 		saveBranding.mockResolvedValue(server('Acme IT'));
 		uploadLogo.mockResolvedValue(server('Acme IT', true));
 		const { m, stop } = await setup(server());
@@ -209,7 +211,7 @@ describe('BrandingModel', () => {
 		m.pick(file);
 		await settle();
 		expect(m.dirty).toBe(true);
-		getMeta.mockClear();
+		const before = storedLogo.url(true);
 		m.submit();
 		await settle();
 		expect(saveBranding).toHaveBeenCalledWith({ operator_name: 'Acme IT' });
@@ -217,7 +219,8 @@ describe('BrandingModel', () => {
 		expect(deleteLogo).not.toHaveBeenCalled();
 		expect(m.save.feedback).toEqual({ ok: true, message: 'Saved' });
 		expect(m.draft.logo).toEqual({ kind: 'keep' });
-		expect(getMeta).toHaveBeenCalled();
+		expect(storedLogo.url(true)).not.toBe(before);
+		expect(storedLogo.url(false)).toBeNull();
 		stop();
 	});
 

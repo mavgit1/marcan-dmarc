@@ -533,6 +533,16 @@ pub fn pct_status(pct: Option<u32>) -> Status {
     }
 }
 
+/// `t=y` (RFC 9989) asks receivers not to apply the policy: like `pct=0`
+/// to an RFC 9989 receiver, worth fixing once testing is done.
+pub fn testing_status(testing: bool) -> Status {
+    if testing {
+        Status::Warn
+    } else {
+        Status::Neutral
+    }
+}
+
 // ---- SPF, MTA-STS ----------------------------------------------------------------
 
 /// What the effective SPF `all` (the qualifier character) does with
@@ -856,6 +866,8 @@ mod tests {
         assert_eq!(pct_status(Some(50)), Status::Warn);
         assert_eq!(pct_status(Some(100)), Status::Neutral);
         assert_eq!(pct_status(None), Status::Neutral);
+        assert_eq!(testing_status(true), Status::Warn);
+        assert_eq!(testing_status(false), Status::Neutral);
     }
 
     #[test]

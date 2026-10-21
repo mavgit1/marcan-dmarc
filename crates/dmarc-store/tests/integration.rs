@@ -10,14 +10,15 @@ use dmarc_store::{
     get_default_organization, get_dns_snapshot, get_identity_snapshots, get_or_create_domain,
     get_or_create_organization, get_sender_by_ip, get_setting, ingest_report, ingest_reports, init,
     list_domain_failures, list_records_for_report, list_sender_ips_by_volume, list_senders,
-    load_settings, quarantine_imap_message, reset_cursor, retention_cutoff, save_settings,
-    scope_stats, set_cursor, set_custom_dkim_selectors, set_setting, spf_pass_domains,
-    upsert_dns_snapshot, upsert_identity_snapshot, AppSettings, BrandingSettings,
+    load_settings, new_failing_senders, quarantine_imap_message, reset_cursor, retention_cutoff,
+    save_settings, scope_stats, set_cursor, set_custom_dkim_selectors, set_setting,
+    spf_pass_domains, upsert_dns_snapshot, upsert_identity_snapshot, AppSettings, BrandingSettings,
     CreateDomainResult, DnsSettings, DnsSnapshot, DomainFailureFilter, DomainFailureQuery,
     FailureSort, ImapSecurity, IngestResult, LicenseSettings, MailboxSettings, MonitoringSettings,
-    OnboardingSettings, OnboardingState, PolicySource, ReportingMode, ReportingSettings,
-    RetentionSettings, Scope, SenderListQuery, SenderReceiverBreakdown, SenderSort,
-    SenderTargetCount, SendingGroup, SendingSettings, SmtpSecurity, SnapshotDmarc,
+    NewSenderRow, OnboardingSettings, OnboardingState, PolicySource, ReportingMode,
+    ReportingSettings, RetentionSettings, Scope, SenderListQuery, SenderReceiverBreakdown,
+    SenderSort, SenderTargetCount, SendingGroup, SendingSettings, SmtpSecurity, SnapshotDmarc,
+    UpdateSettings,
 };
 
 fn sample_report(report_id: &str) -> Report {
@@ -404,6 +405,99 @@ async fn dns_snapshot_roundtrip_and_overwrite() {
         .await
         .expect("get missing")
         .is_none());
+}
+
+/// The RFC 9989 columns of migration 0002 (`policy_testing`, `policy_np`)
+/// are written with the snapshot and read back by the snapshot, the domain
+/// list and the overview; NULL stays NULL. The test database runs every
+/// migration in order, 0001 then 0002.
+#[tokio::test]
+async fn dmarcbis_policy_columns_round_trip() {
+    let (_dir, pool) = test_pool().await;
+    let snapshot = |domain: &str, dmarc: SnapshotDmarc| DnsSnapshot {
+        domain: domain.into(),
+        checked_at: 1_700_000_000,
+        grade: "D".into(),
+        score: 64,
+        critical_count: 1,
+        dmarc,
+        report_json: "{}".into(),
+        checker_version: 2,
+    };
+    let testing = SnapshotDmarc {
+        dmarc_record_count: 1,
+        dmarc_record: Some("v=DMARC1; p=reject; np=reject; t=y".into()),
+        policy_p: Some("reject".into()),
+        policy_testing: Some(true),
+        policy_np: Some("reject".into()),
+        ..Default::default()
+    };
+    let applied = SnapshotDmarc {
+        dmarc_record_count: 1,
+        dmarc_record: Some("v=DMARC1; p=quarantine".into()),
+        policy_p: Some("quarantine".into()),
+        policy_testing: Some(false),
+        ..Default::default()
+    };
+    for (domain, dmarc) in [
+        ("testing.example", testing.clone()),
+        ("applied.example", applied.clone()),
+        ("none.example", SnapshotDmarc::default()),
+    ] {
+        get_or_create_domain(&pool, 1, domain).await.unwrap();
+        assert!(upsert_dns_snapshot(&pool, &snapshot(domain, dmarc))
+            .await
+            .unwrap());
+    }
+    let stored = |domain: &'static str| {
+        let pool = pool.clone();
+        async move {
+            get_dns_snapshot(&pool, domain)
+                .await
+                .unwrap()
+                .expect(domain)
+                .dmarc
+        }
+    };
+    assert_eq!(stored("testing.example").await, testing);
+    assert_eq!(stored("applied.example").await, applied);
+    let none = stored("none.example").await;
+    assert_eq!((none.policy_testing, none.policy_np), (None, None));
+
+    let rows = dmarc_store::list_domain_summaries(&pool, Scope::ALL)
+        .await
+        .expect("list");
+    let listed = |domain: &str| {
+        let row = rows.iter().find(|r| r.domain == domain).expect(domain);
+        (
+            row.id,
+            row.policy.as_ref().map(|p| (p.testing, p.np.clone())),
+        )
+    };
+    assert_eq!(
+        listed("testing.example").1,
+        Some((Some(true), Some("reject".into())))
+    );
+    assert_eq!(listed("applied.example").1, Some((Some(false), None)));
+    assert_eq!(listed("none.example").1, None);
+    let overview = dmarc_store::get_domain_overview(&pool, listed("testing.example").0, None)
+        .await
+        .unwrap()
+        .expect("overview");
+    let policy = overview.policy.expect("policy");
+    assert_eq!(
+        (policy.testing, policy.np.as_deref()),
+        (Some(true), Some("reject"))
+    );
+
+    // Overwritten in place: the record left testing.
+    let mut ended = testing.clone();
+    ended.policy_testing = Some(false);
+    ended.policy_np = None;
+    upsert_dns_snapshot(&pool, &snapshot("testing.example", ended.clone()))
+        .await
+        .unwrap();
+    assert_eq!(stored("testing.example").await, ended);
 }
 
 #[tokio::test]
@@ -1419,6 +1513,7 @@ async fn settings_groups_save_and_load_independently() {
     let onboarding = OnboardingSettings {
         state: Some(OnboardingState::Completed),
     };
+    let updates = UpdateSettings { check: true };
     save_settings(&pool, &mailbox).await.unwrap();
     save_settings(&pool, &license).await.unwrap();
     save_settings(&pool, &branding).await.unwrap();
@@ -1428,6 +1523,7 @@ async fn settings_groups_save_and_load_independently() {
     save_settings(&pool, &dns).await.unwrap();
     save_settings(&pool, &sending).await.unwrap();
     save_settings(&pool, &onboarding).await.unwrap();
+    save_settings(&pool, &updates).await.unwrap();
     let expected = AppSettings {
         mailbox: mailbox.clone(),
         reporting: reporting.clone(),
@@ -1440,6 +1536,7 @@ async fn settings_groups_save_and_load_independently() {
         license: license.clone(),
         branding: branding.clone(),
         onboarding,
+        updates,
     };
     assert_eq!(AppSettings::load(&pool).await.unwrap(), expected);
     assert_eq!(
@@ -2414,7 +2511,7 @@ async fn pruning_keeps_the_newest_successful_pass() {
 }
 
 #[tokio::test]
-async fn client_report_recipients_are_replaced_whole_and_follow_their_organization() {
+async fn client_report_recipients_are_replaced_per_named_organization() {
     use dmarc_store::{
         delete_organization, list_client_report_recipients, preview_client_report_recipients,
         replace_client_report_recipients, ClientReportRecipient,
@@ -2431,7 +2528,7 @@ async fn client_report_recipients_are_replaced_whole_and_follow_their_organizati
         r(beta.id, "Beta", "b@beta.example"),
         r(acme.id, "Acme", "a@acme.example"),
     ];
-    let changes = replace_client_report_recipients(&pool, &first)
+    let changes = replace_client_report_recipients(&pool, &[beta.id, acme.id], &first)
         .await
         .unwrap();
     assert_eq!(changes.start.len(), 2);
@@ -2441,31 +2538,131 @@ async fn client_report_recipients_are_replaced_whole_and_follow_their_organizati
         [first[1].clone(), first[0].clone()]
     );
 
+    // Acme named alone: its set is replaced, Beta keeps its recipient.
     let next = [
         r(acme.id, "Acme", "A@acme.example"),
         r(acme.id, "Acme", "c@acme.example"),
     ];
-    let preview = preview_client_report_recipients(&pool, &next)
+    let preview = preview_client_report_recipients(&pool, &[acme.id], &next)
         .await
         .unwrap();
     assert_eq!(preview.start, [next[1].clone()]);
-    assert_eq!(preview.stop, [first[0].clone()]);
-    assert_eq!(preview.unchanged_count, 1);
+    assert_eq!(preview.stop, []);
+    assert_eq!(preview.unchanged_count, 2);
     assert_eq!(
         list_client_report_recipients(&pool).await.unwrap().len(),
         2,
         "a preview writes nothing"
     );
     assert_eq!(
-        replace_client_report_recipients(&pool, &next)
+        replace_client_report_recipients(&pool, &[acme.id], &next)
             .await
             .unwrap(),
         preview
     );
+    assert_eq!(list_client_report_recipients(&pool).await.unwrap().len(), 3);
+
+    // Beta named with none: its recipient stops, Acme's stay.
+    let cleared = replace_client_report_recipients(&pool, &[beta.id], &[])
+        .await
+        .unwrap();
+    assert_eq!(cleared.stop, [first[0].clone()]);
+    assert_eq!(cleared.unchanged_count, 2);
 
     delete_organization(&pool, acme.id).await.unwrap();
     assert!(list_client_report_recipients(&pool)
         .await
         .unwrap()
         .is_empty());
+}
+
+/// A sender is new to a domain when none of the domain's reports that began
+/// before the window has a record from it; its failures count without the
+/// forwarded ones (blocked and delivered alike), from the threshold given.
+#[tokio::test]
+async fn new_failing_senders_are_new_to_the_domain_and_leave_out_forwards() {
+    let (_dir, pool) = test_pool().await;
+    let since = 1_704_067_200;
+    let failing = sample_report("x").records[1].clone();
+    let record = |ip: &str, disposition: &str, reason: Option<&str>, count: i64| {
+        let mut rec = failing.clone();
+        rec.source_ip = ip.into();
+        rec.disposition = Some(disposition.into());
+        rec.count = count;
+        rec.policy_overrides = reason
+            .map(|r| PolicyOverride {
+                reason_type: Some(r.into()),
+                comment: None,
+            })
+            .into_iter()
+            .collect();
+        rec
+    };
+    let report = |id: &str, domain: &str, date_begin: i64, records: Vec<Record>| {
+        let mut r = sample_report(id);
+        r.policy.domain = domain.into();
+        r.date_begin = date_begin;
+        r.date_end = date_begin + 86_399;
+        r.records = records;
+        r
+    };
+    // Before the window: 192.0.2.1 sent as example.com, 192.0.2.5 only as
+    // another domain.
+    let before = report(
+        "before",
+        "example.com",
+        since - 86_400,
+        vec![record("192.0.2.1", "none", None, 1)],
+    );
+    let elsewhere = report(
+        "elsewhere",
+        "example.org",
+        since - 86_400,
+        vec![record("192.0.2.5", "none", None, 50)],
+    );
+    let window = report(
+        "window",
+        "example.com",
+        since,
+        vec![
+            // Known before the window, however much it fails now.
+            record("192.0.2.1", "none", None, 100),
+            // New: delivered and blocked failures count.
+            record("192.0.2.2", "none", None, 4),
+            record("192.0.2.2", "reject", None, 8),
+            // New, but most of its failures are forwarded: they do not count.
+            record("192.0.2.3", "none", Some("forwarded"), 40),
+            record("192.0.2.3", "none", None, 9),
+            // New to example.com, whatever it sent as other domains.
+            record("192.0.2.5", "quarantine", None, 10),
+        ],
+    );
+    for r in [&before, &elsewhere, &window] {
+        ingest_report(&pool, r).await.expect("ingest");
+    }
+    let domain = find_domain_by_name(&pool, "example.com")
+        .await
+        .expect("domain")
+        .expect("exists")
+        .id;
+    let row = |ip: &str, failed, delivered| NewSenderRow {
+        source_ip: ip.into(),
+        failed_messages: failed,
+        delivered_failures: delivered,
+    };
+    let rows = new_failing_senders(&pool, domain, since, 10)
+        .await
+        .expect("senders");
+    assert_eq!(rows, [row("192.0.2.2", 12, 4), row("192.0.2.5", 10, 0)]);
+    // Below that threshold, the forwarded sender's own failures show.
+    let rows = new_failing_senders(&pool, domain, since, 1)
+        .await
+        .expect("senders");
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[2], row("192.0.2.3", 9, 9));
+    // With the window from the start, nothing is known before it.
+    let all = new_failing_senders(&pool, domain, since - 86_400, 10)
+        .await
+        .expect("senders");
+    assert_eq!(all[0], row("192.0.2.1", 101, 101));
 }

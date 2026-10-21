@@ -13,7 +13,7 @@ Under **Settings → Mailbox** (or in the setup):
 | Username, password | A plain IMAP login. Use a dedicated mailbox or an app password. |
 | Report address | The address DMARC `rua=` tags point at. Only needed when it differs from the login, for example a shared mailbox you log in to with your own account. |
 | Folder | Where the reports land. `INBOX` by default. |
-| Delivery | Under **Reports**: how reports reach the mailbox, also asked in the setup's **Report delivery** step. **Central mailbox** (the default): every domain's `rua=` names the report address. **Forwarded or central**: a domain may name an address of its own that forwards to it. The choice decides what the setup guide asks you to publish and how each domain's reporting status is judged; see [Choose how reports arrive](#choose-how-reports-arrive). |
+| Delivery | Under **Reports**: how reports reach the mailbox, also asked in the setup's **Report delivery** step. **Central mailbox** (the default): every domain's `rua=` names the report address. **Forwarded or central**: a domain may name an address of its own that forwards to it. The choice decides what the setup asks you to publish and how each domain's reporting status is judged; see [Choose how reports arrive](#choose-how-reports-arrive). |
 | Checks | Under **Schedule**: how often Marcan looks for new mail, in whole minutes. Every 5 minutes by default, at least every minute. |
 | Mailbox warning | Under **Report arrival**: how many hours without any new report, for the mailbox as a whole, before the status in the header warns (and goes red after twice as long). 4, 12, 24, 48 or 72 hours; 24 by default. |
 | Domain warning | Under **Report arrival**: how many days without a report before a domain that had reports is flagged with the **reports stopped** issue, which is also an [alert](./alerts). 2, 3, 5, 7, 10, 14 or 30 days; 14 by default. A parked domain is not flagged. |
@@ -72,6 +72,8 @@ A message that fails for another reason (the server returns nothing for it, the 
 ## Sending
 
 Marcan can send mail through an SMTP account, set up under **Settings → Sending**. It is **off by default**. The switch at the top of the page, **Sending**, is saved with the rest of the page: while it is off, the fields below it are greyed out and keep their values, and Marcan sends no mail at all. Switched on, **Save** waits until a server is entered ("Enter a server first."), and saving checks that the account can send. Marcan uses it for [alert emails and the digest](./alerts) and for [client reports](./client-reports), each on its own page after it.
+
+<Screenshot name="sending" alt="Settings, Sending: the switch on, the SMTP server and login, the sender address with its domain's DMARC policy and SPF ending, Reply-To and the test recipient" />
 
 | Field | Notes |
 | :--- | :--- |

@@ -36,6 +36,8 @@ rust-embed = "8"
 mime_guess = "2"
 ts-rs = { workspace = true }
 lettre = { workspace = true }
+# The version check (`updates.rs`); already in the build through dmarc-dns.
+reqwest = { workspace = true }
 ring = { workspace = true }
 base64 = { workspace = true }
 # The implicit-TLS (port 465) handshake, staged before lettre takes the stream.

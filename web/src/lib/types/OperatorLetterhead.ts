@@ -6,9 +6,10 @@ import type { PixelSize } from "./PixelSize";
  */
 export type OperatorLetterhead = {
   /**
-   * With a valid operator key: the logo at full height on its own line and
-   * `name` as a bold heading under it. Without one, secondary to Marcan:
-   * the logo smaller and `name` in regular weight after it, on one line.
+   * With a valid operator key: the logo at full height and `name` in bold
+   * beside it. Without one, secondary to Marcan: the logo smaller and
+   * `name` in regular weight beside it. Either way one row, the logo left
+   * of the name, both vertically centred.
    */
   prominent: boolean;
   /**

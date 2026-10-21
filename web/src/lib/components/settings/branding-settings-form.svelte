@@ -2,6 +2,7 @@
 	import Skeleton from '$lib/components/skeleton.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import { storedLogo } from '$lib/state/logo.svelte';
 	import { meta } from '$lib/state/meta.svelte';
 	import { statusText } from '$lib/tokens';
 	import { type BrandingModel, LOGO_ACCEPT, LOGO_TYPE_LABEL, kilobytes, previewNote } from './branding-draft.svelte';
@@ -42,9 +43,13 @@
 		if (logo.kind !== 'replace' && fileInput) fileInput.value = '';
 	});
 
-	/** The draft's logo: the picked image, else the stored one. */
+	/** The draft's logo: the picked image, else the stored one (loaded only here and in the previews). */
 	const logoUrl = $derived(
-		logo.kind === 'replace' ? pickedUrl : logo.kind === 'keep' ? (meta.current?.branding.logo ?? null) : null
+		logo.kind === 'replace'
+			? pickedUrl
+			: logo.kind === 'keep'
+				? storedLogo.url(m.saved?.branding.has_logo ?? false)
+				: null
 	);
 	const emails = $derived(m.preview);
 </script>
@@ -83,7 +88,8 @@
 						type="file"
 						accept={LOGO_ACCEPT}
 						aria-label="Logo image"
-						class="file:bg-muted file:text-foreground hover:file:bg-muted/70 min-w-0 max-w-full text-xs file:mr-3 file:rounded-md file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+						aria-invalid={m.ariaInvalid('logo')}
+						class="aria-invalid:text-destructive file:bg-muted file:text-foreground hover:file:bg-muted/70 min-w-0 max-w-full text-xs file:mr-3 file:rounded-md file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium"
 						onchange={(e) => m.pick(e.currentTarget.files?.[0])}
 					/>
 					{#if logo.kind === 'replace' || (logo.kind === 'keep' && saved.branding.has_logo)}

@@ -8,6 +8,10 @@ export type ParsedDmarc = {
   v: string | null;
   p: string | null;
   sp: string | null;
+  /**
+   * `np=` (RFC 9989): the policy for subdomains that do not exist.
+   */
+  np: string | null;
   pct: number | null;
   /**
    * Raw pct value when the tag was present but not an integer 0–100.
@@ -20,6 +24,17 @@ export type ParsedDmarc = {
   fo: string | null;
   ri: number | null;
   rf: string | null;
+  /**
+   * `t=` (RFC 9989), lowercase: `y` asks receivers not to apply the policy
+   * (testing), `n` (the default) to apply it.
+   */
+  t: string | null;
+  /**
+   * Tags RFC 9989 dropped that the record still publishes (`rf`, `ri`),
+   * in record order; receivers ignore them. Defaulted: results stored by
+   * an older checker lack it and are shown until their re-check.
+   */
+  obsolete_tags: Array<string>;
   unknown_tags: Array<string>;
   /**
    * True when the first tag was not `v`.

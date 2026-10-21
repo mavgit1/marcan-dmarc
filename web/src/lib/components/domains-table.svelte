@@ -1,17 +1,11 @@
-<script lang="ts" module>
-	/** The list's closest order to "worst first": lowest DNS score first (not checked yet before). */
-	export const WORST_FIRST_SORT = 'dns_score';
-</script>
-
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
-	import { untrack } from 'svelte';
-	import { getDomains } from '$lib/api';
+	import { getAttentionDomains, getDomains } from '$lib/api';
 	import type { DomainSummary } from '$lib/types/DomainSummary';
 	import type { Page } from '$lib/types/Page';
 	import DataTable from '$lib/components/data-table.svelte';
 	import type { ColumnDef } from '$lib/components/data-table';
+	import IssueBadges from '$lib/components/issue-badges.svelte';
 	import Loaded from '$lib/components/loaded.svelte';
 	import PolicyBadge from '$lib/components/policy-badge.svelte';
 	import StatusBadge from '$lib/components/status-badge.svelte';
@@ -25,15 +19,21 @@
 	import { systemHealth } from '$lib/state/system-health.svelte';
 	import { statusFg, statusFigure } from '$lib/tokens';
 	import SearchIcon from '@lucide/svelte/icons/search';
+	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
 	 * The one domain list: Domains page and organization page. It loads its own rows from
 	 * `GET /api/domains`, filtered, sorted and paged on the server (volumes narrowed by the
-	 * global time range, coverage all-time).
+	 * global time range, coverage all-time). With `attention`, only the domains with an open
+	 * issue, from `GET /api/domains/attention` (the dashboard's list, every page): in their
+	 * attention rank over the whole scope, the issues column first, no other order; a chip
+	 * "Needs attention" says so and clears it (`onClearAttention`).
 	 */
 	let {
 		organizationId,
 		showOrganization = true,
+		attention = false,
+		onClearAttention,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-useless-assignment -- written for the parent's bind:filtered
 		filtered = $bindable(false)
 	}: {
@@ -41,6 +41,10 @@
 		organizationId: number | null;
 		/** Hide when every row belongs to the same organization. */
 		showOrganization?: boolean;
+		/** Only the domains with an open issue, worst first. */
+		attention?: boolean;
+		/** Clears the attention filter (the chip's ×); without it, no chip. */
+		onClearAttention?: () => void;
 		/** Out: the filter box narrows the list (the page's figures above it do not follow it). */
 		filtered?: boolean;
 	} = $props();
@@ -63,21 +67,22 @@
 
 	const list = new ServerList('domain');
 	/** Another scope shows skeletons; another filter keeps the table (and its sort) on screen. */
-	const scopeKey = $derived(`${organizationId}|${filters.since}`);
+	const scopeKey = $derived(`${organizationId}|${filters.since}|${attention}`);
 	/** The page goes back to the first whenever the scope or the filter changes. */
 	const listKey = $derived(`${scopeKey}|${search}`);
 
 	const domains = resource({
 		key: () => scopeKey,
-		load: () =>
-			getDomains({
+		load: () => {
+			const params = {
 				organization_id: organizationId,
 				since: filters.since,
 				q: search,
-				sort: list.sort,
 				limit: PAGE_SIZE,
 				offset: list.offsetFor(listKey)
-			}),
+			};
+			return attention ? getAttentionDomains(params) : getDomains({ ...params, sort: list.sort });
+		},
 		// New domains and their first DNS results during an import (throttled to ~15 s).
 		reloadOn: () => [search, list.sort, list.offsetFor(listKey), systemHealth.importTick, systemHealth.dnsTick],
 		markUpdated: true
@@ -94,7 +99,7 @@
 		return `${plural(d.reporter_count, 'reporter')} in range · ${plural(d.report_count, 'report')}`;
 	}
 
-	const columns = $derived.by((): ColumnDef<DomainSummary>[] => [
+	const listColumns = $derived.by((): ColumnDef<DomainSummary>[] => [
 		{ id: 'domain', header: 'Domain', accessor: (d) => d.domain, sortKey: 'domain' },
 		...(showOrganization
 			? [
@@ -142,23 +147,45 @@
 		}
 	]);
 
-	// A sort named in the URL (`?sort=dns_score`: the dashboard's "more need attention" link)
-	// opens the list in that order, if the table has that column.
-	const urlSort = page.url.searchParams.get('sort');
-	if (urlSort && untrack(() => columns).some((c) => c.sortKey === urlSort.replace(/^-/, ''))) {
-		list.sort = urlSort;
-	}
+	/** The issues column, after the domain: the attention filter's. */
+	const issuesColumn: ColumnDef<DomainSummary> = {
+		id: 'issues',
+		header: 'Issues',
+		accessor: (d) => d.assessment.issues.map((i) => i.label).join(', ')
+	};
+
+	/** With the attention filter: the issues first, and the server's rank as the only order. */
+	const columns = $derived(
+		attention
+			? [listColumns[0], issuesColumn, ...listColumns.slice(1)].map((c) => ({ ...c, sortKey: undefined }))
+			: listColumns
+	);
 </script>
 
-<div class="relative mb-3 max-w-md">
-	<SearchIcon class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-	<Input
-		type="search"
-		class="pl-8"
-		placeholder={showOrganization ? 'Filter by domain or organization' : 'Filter by domain'}
-		bind:value={query}
-		aria-label={showOrganization ? 'Filter domains by domain or organization' : 'Filter domains by name'}
-	/>
+<div class="mb-3 flex flex-wrap items-center gap-2">
+	<div class="relative w-full max-w-md">
+		<SearchIcon class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+		<Input
+			type="search"
+			class="pl-8"
+			placeholder={showOrganization ? 'Filter by domain or organization' : 'Filter by domain'}
+			bind:value={query}
+			aria-label={showOrganization ? 'Filter domains by domain or organization' : 'Filter domains by name'}
+		/>
+	</div>
+	{#if attention && onClearAttention}
+		<span class="bg-muted inline-flex h-7 items-center gap-1 rounded-full border pr-1 pl-3 text-xs font-medium">
+			Needs attention
+			<button
+				type="button"
+				class="text-muted-foreground hover:text-foreground hover:bg-background inline-flex size-5 items-center justify-center rounded-full"
+				aria-label="Clear the Needs attention filter"
+				onclick={onClearAttention}
+			>
+				<XIcon class="size-3" />
+			</button>
+		</span>
+	{/if}
 </div>
 
 {#snippet loaded(page: Page<DomainSummary>)}
@@ -169,8 +196,12 @@
 		getRowHref={domainHref}
 		dense
 		server={list.table(listKey, page)}
-		emptyHeadline={search ? 'No matching domains' : 'No domains'}
-		emptyDescription={search ? 'No domain in this scope matches the filter.' : undefined}
+		emptyHeadline={search ? 'No matching domains' : attention ? 'Nothing needs attention' : 'No domains'}
+		emptyDescription={search
+			? 'No domain in this scope matches the filter.'
+			: attention
+				? 'No domain in this scope has an open issue.'
+				: undefined}
 	>
 		{#snippet cell({ column, row })}
 			{#if column.id === 'domain'}
@@ -178,6 +209,8 @@
 				{#if row.parked}
 					<StatusBadge tone="neutral" class="ml-1.5">Parked</StatusBadge>
 				{/if}
+			{:else if column.id === 'issues'}
+				<IssueBadges issues={row.assessment.issues} />
 			{:else if column.id === 'organization'}
 				<a href={resolve(`/organizations/${row.organization.id}`)} class="hover:underline">
 					{row.organization.name}

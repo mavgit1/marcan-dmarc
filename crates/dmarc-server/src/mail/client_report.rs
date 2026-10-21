@@ -1,44 +1,40 @@
 //! The client report: one organization's month in a short email, for
-//! someone who never opens Marcan. Its length follows its content:
+//! someone who never opens Marcan. The figures carry it:
 //!
 //! 1. A verdict for the organization: all domains protected, or how many
 //!    need attention ([`report_verdict`]).
 //! 2. The calendar month's mail with the change against the month before
 //!    ([`Statistics`] over the organization and the month): messages,
 //!    passed, blocked by policy, forwarded, failed but delivered.
-//! 3. One short block per domain that has something to say: an open issue,
-//!    a pending policy step (ready, or raise `pct`), or a change in the
-//!    month. The block words the issues, the next step and what it would
-//!    affect, the DNS grade when it is not passing, and the changes.
-//! 4. The protected and unchanged domains on one line, and the parked
-//!    domains on another.
+//! 3. One line per domain over the 30 days before sending
+//!    ([`report_place`]): its policy, the step it can take now when there
+//!    is one ("ready for p=quarantine"), its messages, the share that
+//!    passed DMARC, and the failures delivered, blocked and forwarded when
+//!    there are any; then the open issues no figure shows, as the badges of
+//!    the domain list read them ("DNS grade D").
+//! 4. The month's changes, per domain, and the parked domains on one line.
 //!
-//! A quiet month is the verdict, the mail line, the two domain lines and
-//! the sign-off. Only what Marcan is sure of goes in: no sender names or
-//! IPs, no reporters; a DNS grade from an older checker is left out. What
-//! goes where, and every colour, is `dmarc_assess`'s ([`report_place`],
-//! [`report_verdict`], [`parked_line`]); this words and lays it out. Pure:
-//! view types in, text and HTML out.
+//! Only what Marcan is sure of goes in: no sender names or IPs, no
+//! reporters; a DNS grade from an older checker is left out. What goes
+//! where, and every colour, is `dmarc_assess`'s ([`report_place`],
+//! [`report_verdict`], [`parked_line`]); the words are `wording`'s; this
+//! lays them out. Pure: view types in, text and HTML out.
 
 use super::frame::{finish, Body, Content};
 use super::text::{escape, format_month, status_colours, Letterhead, CLIENT_REPORT_FOOTER};
 use crate::view::alerts::AlertItem;
 use crate::view::domain::{needing_attention, DomainSummary};
 use crate::view::stats::Statistics;
-use crate::wording::alerts::step_name;
-use crate::wording::issues::issue_name;
-use crate::wording::readiness;
-use crate::wording::{
-    capitalized, count_noun, format_count, format_pct, join_and, one_or_many, plural,
-};
+use crate::wording::client_reports::{line_figures, note_words, policy_words, step_words, Figure};
+use crate::wording::{count_noun, format_count, format_pct, join_and, one_or_many, plural};
 use chrono::{DateTime, Datelike, Months, NaiveDate, TimeZone, Utc};
 use dmarc_assess::{
     parked_line, report_place, report_verdict, worst_first, ParkedLine, PolicyReadiness,
-    PolicyStep, ReportBlock, ReportDomainFacts, ReportPlace, ReportVerdict, Status, Trend,
-    TrendDirection, READINESS_WINDOW_DAYS,
+    ReportDomainFacts, ReportLine, ReportPlace, ReportVerdict, Status, Trend, TrendDirection,
+    READINESS_WINDOW_DAYS,
 };
 
-/// How many changes a domain's block words; the rest are counted.
+/// How many changes a domain's list words; the rest are counted.
 pub const CHANGES_SHOWN: usize = 3;
 
 /// The calendar month a report covers: `[start, end)`, unix seconds.
@@ -84,25 +80,22 @@ impl ReportMonth {
     }
 }
 
-/// One domain of the report: its figures and issues over the 30 days
-/// before sending, its next policy step, and how many senders' mail fails
-/// DMARC in the readiness window (what the step would affect).
+/// One domain of the report: its issues over the 30 days before sending,
+/// and its next policy step with the figures of the same 30 days.
 pub struct ReportDomain {
     pub summary: DomainSummary,
     pub readiness: PolicyReadiness,
-    pub failing_senders: i64,
 }
 
 impl ReportDomain {
-    /// What the report judges the domain by, with its `changes` in the month.
-    fn facts(&self, changes: usize) -> ReportDomainFacts<'_> {
+    /// What the report judges the domain by.
+    fn facts(&self) -> ReportDomainFacts<'_> {
         let d = &self.summary;
         ReportDomainFacts {
             assessment: &d.assessment,
             readiness: &self.readiness,
             parked: d.row.parked,
             dns_current: d.row.dns.is_some() && !d.dns_updating,
-            changes,
         }
     }
 }
@@ -121,38 +114,48 @@ pub struct ClientReportInput<'a> {
     pub letterhead: &'a Letterhead,
 }
 
-/// One line of a domain's block: its label, the value, the value's colour
-/// (`None`: not a verdict), and the changes listed under it.
-struct Row {
-    label: &'static str,
-    lead: String,
-    rest: String,
-    status: Option<Status>,
-    items: Vec<String>,
+/// How a piece of a line is shown in the HTML version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Look {
+    Plain,
+    /// The domain's name, in bold.
+    Name,
+    /// A figure or word in a verdict's colour.
+    Coloured(Status),
 }
 
-impl Row {
-    fn new(
-        label: &'static str,
-        lead: String,
-        rest: impl Into<String>,
-        status: Option<Status>,
-    ) -> Self {
-        Self {
-            label,
-            lead,
-            rest: rest.into(),
-            status,
-            items: Vec::new(),
-        }
+/// A line in pieces, so that the plain text and the HTML say the same.
+#[derive(Default)]
+struct Pieces(Vec<(String, Look)>);
+
+impl Pieces {
+    fn push(&mut self, text: impl Into<String>, look: Look) {
+        self.0.push((text.into(), look));
+    }
+
+    fn plain(&mut self, text: impl Into<String>) {
+        self.push(text, Look::Plain);
     }
 
     fn text(&self) -> String {
-        format!("{}{}", self.lead, self.rest)
+        self.0.iter().map(|(t, _)| t.as_str()).collect()
+    }
+
+    fn html(&self) -> String {
+        self.0
+            .iter()
+            .map(|(t, look)| match look {
+                Look::Plain | Look::Coloured(Status::Neutral) => escape(t),
+                Look::Name => format!("<strong>{}</strong>", escape(t)),
+                Look::Coloured(status) => format!(
+                    "<strong style=\"color:{}\">{}</strong>",
+                    status_colours(*status).0,
+                    escape(t)
+                ),
+            })
+            .collect()
     }
 }
-
-const LABEL_WIDTH: usize = 12;
 
 /// The organization's verdict in words: every domain protected (no open
 /// issue), or how many need attention.
@@ -223,150 +226,79 @@ fn were(n: i64) -> &'static str {
     one_or_many(n, "was", "were")
 }
 
-/// The open issues the block names, worst first; `None` without any.
-fn issues_row(block: &ReportBlock) -> Option<Row> {
-    if block.issues.is_empty() {
-        return None;
-    }
-    let names: Vec<&str> = block.issues.iter().map(|&k| issue_name(k)).collect();
-    Some(Row::new(
-        "Attention",
-        capitalized(&join_and(&names)),
-        ".",
-        Some(block.issues_status),
-    ))
-}
-
-/// Delivered compliance, the figure behind delivered failures (the block
-/// says when). The count is the mail the rate is over (passed
-/// and delivered failures), not blocked or forwarded mail.
-fn compliance_row(d: &DomainSummary) -> Option<Row> {
-    let rate = d.verdicts.delivered_compliance;
-    let pct = rate.pct?;
-    Some(Row::new(
-        "Compliance",
-        format_pct(pct),
-        format!(
-            " of delivered mail over the last {} days passed DMARC ({}).",
-            READINESS_WINDOW_DAYS,
-            count_noun(d.row.mail.mail().delivered(), "message")
-        ),
-        Some(rate.status),
-    ))
-}
-
-/// The next policy step, in the words of the domain page's verdict
-/// ([`readiness::verdict`]).
-fn readiness_row(r: &PolicyReadiness) -> Row {
-    let verdict = readiness::verdict(r);
-    Row::new(
-        "Next step",
-        verdict.lead,
-        format!(": {}", verdict.detail),
-        Some(r.status),
-    )
-}
-
-/// What moving to `next` would act on: the window's mail that fails DMARC
-/// and is not forwarded, and how many senders it comes from.
-fn impact_row(r: &PolicyReadiness, next: PolicyStep, failing_senders: i64) -> Row {
-    let days = READINESS_WINDOW_DAYS;
-    let text = if r.window.failed == 0 {
-        format!(
-            "Moving to {} would affect none of the last {days} days' mail.",
-            step_name(next)
-        )
+/// A domain's line: `novatraffic.ch, p=none: 9,973 messages, 97.7% passed
+/// DMARC, 224 failed but were delivered, 5 forwarded. DNS grade D.`
+fn domain_line(domain: &ReportDomain, line: &ReportLine) -> Pieces {
+    let d = &domain.summary;
+    let mut pieces = Pieces::default();
+    let name = if d.row.parked {
+        format!("{} (parked)", d.row.domain)
     } else {
-        format!(
-            "Moving to {} would affect {} from {} over the last {days} days.",
-            step_name(next),
-            count_noun(r.window.failed, "message"),
-            count_noun(failing_senders, "sender")
-        )
+        d.row.domain.clone()
     };
-    Row::new("Impact", text, "", None)
-}
-
-/// The stored DNS grade, coloured `status` (the block shows only a current
-/// grade that does not pass).
-fn dns_row(d: &DomainSummary, status: Status) -> Option<Row> {
-    let grade = d.row.dns.as_ref()?.grade.clone();
-    Some(Row::new(
-        "DNS grade",
-        grade,
-        " for the domain's DMARC, SPF, DKIM and related records.",
-        Some(status),
-    ))
-}
-
-/// The month's changes, the worst three worded; `None` without any.
-fn changes_row(events: &[&AlertItem], month: &str) -> Option<Row> {
-    if events.is_empty() {
-        return None;
+    pieces.push(name, Look::Name);
+    pieces.plain(format!(", {}", policy_words(&d.policy_label())));
+    if let Some(status) = line.step {
+        pieces.plain(", ");
+        pieces.push(step_words(&domain.readiness), Look::Coloured(status));
     }
+    pieces.plain(": ");
+    for (i, (figure, words)) in line_figures(line).into_iter().enumerate() {
+        if i > 0 {
+            pieces.plain(", ");
+        }
+        match figure {
+            Figure::DeliveredFailures => {
+                pieces.push(words, Look::Coloured(line.delivered_failures_status));
+            }
+            Figure::Messages | Figure::Passed | Figure::Blocked | Figure::Forwarded => {
+                pieces.plain(words);
+            }
+        }
+    }
+    pieces.plain(".");
+    let labels: Vec<&str> = line
+        .notes
+        .iter()
+        .filter_map(|&kind| {
+            d.assessment
+                .worded_issues
+                .iter()
+                .find(|w| w.issue.kind == kind)
+                .map(|w| w.label.as_str())
+        })
+        .collect();
+    if !labels.is_empty() {
+        pieces.plain(format!(" {}.", note_words(&labels)));
+    }
+    pieces
+}
+
+/// A domain's changes in the month, the worst three worded: the line over
+/// them and the list.
+fn changes(domain: &str, events: &[&AlertItem], month: &str) -> (String, Vec<String>) {
     let mut ordered: Vec<&AlertItem> = events.to_vec();
     // Newest first, then worst first (stable): the worst, most recent lead.
     ordered.sort_by_key(|i| std::cmp::Reverse((i.row.created_at, i.row.id)));
     worst_first(&mut ordered, |i| i.row.event.severity);
-    let mut row = Row::new(
-        "Changes",
+    let lead = format!(
+        "{domain}: {} in {month}{}",
         plural(events.len(), "change"),
-        format!(
-            " in {month}{}",
-            if events.len() > CHANGES_SHOWN {
-                ", the most important:"
-            } else {
-                ":"
-            }
-        ),
-        None,
+        if events.len() > CHANGES_SHOWN {
+            ", the most important:"
+        } else {
+            ":"
+        }
     );
-    row.items = ordered
+    let mut items: Vec<String> = ordered
         .iter()
         .take(CHANGES_SHOWN)
         .map(|i| i.text.clone())
         .collect();
     if events.len() > CHANGES_SHOWN {
-        row.items
-            .push(format!("and {} more.", events.len() - CHANGES_SHOWN));
+        items.push(format!("and {} more.", events.len() - CHANGES_SHOWN));
     }
-    Some(row)
-}
-
-/// The lines `block` holds, worded.
-fn rows(
-    domain: &ReportDomain,
-    block: &ReportBlock,
-    events: &[&AlertItem],
-    month: &str,
-) -> Vec<Row> {
-    let (d, r) = (&domain.summary, &domain.readiness);
-    let mut rows = Vec::new();
-    rows.extend(issues_row(block));
-    rows.extend(compliance_row(d).filter(|_| block.compliance));
-    rows.extend(block.next_step.then(|| readiness_row(r)));
-    rows.extend(
-        block
-            .impact
-            .map(|next| impact_row(r, next, domain.failing_senders)),
-    );
-    rows.extend(block.dns.and_then(|status| dns_row(d, status)));
-    rows.extend(changes_row(events, month).filter(|_| block.changes));
-    rows
-}
-
-/// The protected and unchanged domains (no block, not parked) on one line;
-/// `None` without any.
-fn green_line(names: &[&str]) -> Option<String> {
-    match names {
-        [] => None,
-        [one] => Some(format!("{one} is protected and unchanged.")),
-        all => Some(format!(
-            "{} domains are protected and unchanged: {}.",
-            all.len(),
-            all.join(", ")
-        )),
-    }
+    (lead, items)
 }
 
 /// The parked line in words: all publish `p=reject`, or the ones that do
@@ -417,56 +349,20 @@ fn paragraph(text: &mut Vec<String>, html: &mut String, line: &str, status: Opti
     }
 }
 
-fn block(domain: &ReportDomain, rows: &[Row], text: &mut Vec<String>, html: &mut String) {
-    let d = &domain.summary;
-    let name = if d.row.parked {
-        format!("{} (parked: sends no mail)", d.row.domain)
-    } else {
-        d.row.domain.clone()
-    };
-    let mut lines = vec![name.clone()];
-    html.push_str(&format!(
-        "<h2 style=\"font-size:15px;margin:20px 0 6px\">{}</h2>\
-         <table style=\"border-collapse:collapse;font-size:14px\">",
-        escape(&name)
-    ));
-    for row in rows {
-        lines.push(format!(
-            "  {:<width$}{}",
-            row.label,
-            row.text(),
-            width = LABEL_WIDTH
-        ));
-        for item in &row.items {
-            lines.push(format!("  {:<width$}- {item}", "", width = LABEL_WIDTH));
-        }
-        let lead = match row.status {
-            Some(status) => format!(
-                "<strong style=\"color:{}\">{}</strong>",
-                status_colours(status).0,
-                escape(&row.lead)
-            ),
-            None => escape(&row.lead),
-        };
-        let items = if row.items.is_empty() {
-            String::new()
-        } else {
-            let lis: String = row
-                .items
-                .iter()
-                .map(|i| format!("<li>{}</li>", escape(i)))
-                .collect();
-            format!("<ul style=\"margin:4px 0;padding-left:18px\">{lis}</ul>")
-        };
-        html.push_str(&format!(
-            "<tr><td style=\"color:#737373;padding:3px 16px 3px 0;vertical-align:top;white-space:nowrap\">{}</td>\
-             <td style=\"padding:3px 0\">{lead}{}{items}</td></tr>",
-            escape(row.label),
-            escape(&row.rest)
-        ));
-    }
-    html.push_str("</table>");
+/// A paragraph that leads into a list, in both versions: `- item` lines in
+/// the text, a `<ul>` in the HTML.
+fn list(text: &mut Vec<String>, html: &mut String, lead: &str, items: &[Pieces]) {
+    let mut lines = vec![lead.to_owned()];
+    lines.extend(items.iter().map(|i| format!("- {}", i.text())));
     text.push(lines.join("\n"));
+    let lis: String = items
+        .iter()
+        .map(|i| format!("<li style=\"margin:4px 0\">{}</li>", i.html()))
+        .collect();
+    html.push_str(&format!(
+        "<p style=\"margin-bottom:4px\">{}</p><ul style=\"margin:0 0 12px;padding-left:20px\">{lis}</ul>",
+        escape(lead)
+    ));
 }
 
 pub fn render(input: &ClientReportInput<'_>) -> Content {
@@ -475,19 +371,7 @@ pub fn render(input: &ClientReportInput<'_>) -> Content {
     let mut text: Vec<String> = Vec::new();
     let mut html = String::new();
 
-    let events_of = |domain: &ReportDomain| -> Vec<&AlertItem> {
-        let id = domain.summary.row.id;
-        input
-            .events
-            .iter()
-            .filter(|e| e.row.domain_id == id)
-            .collect()
-    };
-    let facts: Vec<ReportDomainFacts<'_>> = input
-        .domains
-        .iter()
-        .map(|d| d.facts(events_of(d).len()))
-        .collect();
+    let facts: Vec<ReportDomainFacts<'_>> = input.domains.iter().map(ReportDomain::facts).collect();
 
     let verdict = report_verdict(&facts);
     paragraph(
@@ -505,7 +389,7 @@ pub fn render(input: &ClientReportInput<'_>) -> Content {
             None,
         );
 
-        // Blocks in the order the attention list ranks them, then by name.
+        // Lines in the order the attention list ranks them, then by name.
         let summaries: Vec<DomainSummary> =
             input.domains.iter().map(|d| d.summary.clone()).collect();
         let ranked: Vec<i64> = needing_attention(&summaries)
@@ -514,27 +398,44 @@ pub fn render(input: &ClientReportInput<'_>) -> Content {
             .collect();
         let mut order: Vec<(&ReportDomain, &ReportDomainFacts<'_>)> =
             input.domains.iter().zip(&facts).collect();
-        order.sort_by_key(|(d, _)| {
-            ranked
-                .iter()
-                .position(|&id| id == d.summary.row.id)
-                .unwrap_or(usize::MAX)
+        order.sort_by_cached_key(|(d, _)| {
+            let rank = ranked.iter().position(|&id| id == d.summary.row.id);
+            (rank.unwrap_or(usize::MAX), d.summary.row.domain.clone())
         });
-        let mut green: Vec<&str> = Vec::new();
-        for (domain, facts) in order {
-            match report_place(facts) {
-                ReportPlace::Block(b) => {
-                    let rows = rows(domain, &b, &events_of(domain), &month);
-                    block(domain, &rows, &mut text, &mut html);
-                }
-                ReportPlace::Quiet => green.push(&domain.summary.row.domain),
-                ReportPlace::ParkedOnly => {}
+        let lines: Vec<Pieces> = order
+            .iter()
+            .filter_map(|(domain, facts)| match report_place(facts) {
+                ReportPlace::Line(line) => Some(domain_line(domain, &line)),
+                ReportPlace::ParkedOnly => None,
+            })
+            .collect();
+        if !lines.is_empty() {
+            let lead = format!("Over the last {READINESS_WINDOW_DAYS} days:");
+            list(&mut text, &mut html, &lead, &lines);
+        }
+
+        for (domain, _) in &order {
+            let id = domain.summary.row.id;
+            let events: Vec<&AlertItem> = input
+                .events
+                .iter()
+                .filter(|e| e.row.domain_id == id)
+                .collect();
+            if events.is_empty() {
+                continue;
             }
+            let (lead, items) = changes(&domain.summary.row.domain, &events, &month);
+            let items: Vec<Pieces> = items
+                .into_iter()
+                .map(|i| {
+                    let mut p = Pieces::default();
+                    p.plain(i);
+                    p
+                })
+                .collect();
+            list(&mut text, &mut html, &lead, &items);
         }
-        green.sort_unstable();
-        if let Some(line) = green_line(&green) {
-            paragraph(&mut text, &mut html, &line, None);
-        }
+
         if let Some(line) = parked_line(&facts) {
             paragraph(
                 &mut text,
@@ -626,7 +527,6 @@ mod tests {
                 ReportDomain {
                     readiness: summary_readiness(&summary.row, &mail, NOW),
                     summary,
-                    failing_senders: 3,
                 }
             })
             .collect()
@@ -698,10 +598,10 @@ mod tests {
         assert_eq!(january.name(), "December 2026");
     }
 
-    /// A quiet month: the verdict, the mail with its change, the protected
-    /// domains, the parked ones, and the sign-off. Nothing else.
+    /// A quiet month: the verdict, the mail with its change, a line of
+    /// figures per domain, the parked ones, and the sign-off.
     #[test]
-    fn a_green_month_is_five_lines() {
+    fn a_green_month_is_its_figures() {
         let domains = domains(vec![
             row(1, "acme.example", "reject", 12_000, 0),
             row(2, "acme-shop.example", "reject", 480, 0),
@@ -721,7 +621,9 @@ All 4 domains are protected.
 
 In September 2026, receivers reported 12,480 messages, up 8.0% on August: 12,300 passed DMARC (up 8.2%), 150 were blocked by policy (down 9.6%), 20 were forwarded (unchanged) and 10 failed but were delivered (none the month before).
 
-2 domains are protected and unchanged: acme-shop.example, acme.example.
+Over the last 30 days:
+- acme-shop.example, p=reject: 480 messages, 100.0% passed DMARC.
+- acme.example, p=reject: 12,000 messages, 100.0% passed DMARC.
 
 2 parked domains publish p=reject.
 
@@ -731,15 +633,16 @@ This report shows how mail sent from your domains is authenticated (DMARC).
 Sent by Marcan, free software you may run yourself under the Beneficiary Copyleft License 1.0, source code: https://github.com/mavgit1/marcan-dmarc/tree/v", env!("CARGO_PKG_VERSION"), "
 ")
         );
-        assert_eq!(body(&report.text).split("\n\n").count(), 4);
         assert!(
             report.html.contains("<p><strong style=\"color:"),
             "{}",
             report.html
         );
         assert!(
-            !report.html.contains("<h2"),
-            "no domain blocks: {}",
+            report
+                .html
+                .contains("<li style=\"margin:4px 0\"><strong>acme.example</strong>, p=reject: 12,000 messages, 100.0% passed DMARC.</li>"),
+            "{}",
             report.html
         );
     }
@@ -759,11 +662,10 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         );
     }
 
-    /// A domain with an open issue gets a block: the issue, the figure
-    /// behind it, the next step and what it would affect, a failing DNS
-    /// grade; the others stay on the protected line.
+    /// A domain with an open issue leads, its figures saying what the issue
+    /// names: no status word stands without a number behind it.
     #[test]
-    fn a_domain_with_an_issue_gets_a_block() {
+    fn a_domain_with_an_issue_reads_as_its_figures() {
         let mut shop = row(2, "acme-shop.example", "none", 1_000, 60);
         let dns = shop.dns.as_mut().unwrap();
         dns.grade = "D".into();
@@ -780,27 +682,57 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
             text.starts_with("2 of 3 domains need attention.\n\n"),
             "{text}"
         );
-        for line in [
-            "acme-shop.example\n  Attention   ",
-            "  Compliance  94.0% of delivered mail over the last 30 days passed DMARC (1,000 messages).\n",
-            "  Next step   Not ready for p=quarantine yet: 94.0% delivered compliance over 30 days (needs 99%).\n",
-            "  Impact      Moving to p=quarantine would affect 60 messages from 3 senders over the last 30 days.\n",
-            "  DNS grade   D for the domain's DMARC, SPF, DKIM and related records.",
-            "\n\nacme.example is protected and unchanged.\n\nParked domains should publish p=reject; acme.biz does not.",
-        ] {
-            assert!(text.contains(line), "missing {line:?} in\n{text}");
-        }
         assert!(
-            text.contains("Delivered failures, failing DNS grade and not enforcing (p=none)."),
+            text.contains(concat!(
+                "Over the last 30 days:\n",
+                "- acme-shop.example, p=none: 1,000 messages, 94.0% passed DMARC, 60 failed but were delivered. DNS grade D.\n",
+                "- acme.example, p=reject: 12,000 messages, 100.0% passed DMARC.\n\n",
+                "Parked domains should publish p=reject; acme.biz does not."
+            )),
             "{text}"
         );
+        for gone in [
+            "Attention",
+            "not enforcing",
+            "Not ready",
+            "failing DNS grade",
+        ] {
+            assert!(!text.contains(gone), "{gone:?} in\n{text}");
+        }
+        // The failures carry the issue's colour; nothing else on the line
+        // is coloured.
         assert!(
-            !text.contains("acme.biz (parked"),
-            "no parked block: {text}"
+            report.html.contains(
+                "<strong>acme-shop.example</strong>, p=none: 1,000 messages, 94.0% passed DMARC, <strong style=\"color:#b91c1c\">60 failed but were delivered</strong>. DNS grade D.</li>"
+            ),
+            "{}",
+            report.html
         );
-        assert!(report
-            .html
-            .contains("<h2 style=\"font-size:15px;margin:20px 0 6px\">acme-shop.example</h2>"));
+    }
+
+    /// A step that can be taken now is said beside the policy, coloured,
+    /// in the domain page's words.
+    #[test]
+    fn a_step_to_take_now_is_said_beside_the_policy() {
+        let domains = domains(vec![row(1, "acme.example", "none", 1_000, 0)]);
+        let mail = month_mail();
+        let report = render(&input(&domains, &[], &mail, &NOTICE));
+        assert!(
+            report.text.contains(
+                "- acme.example, p=none, ready for p=quarantine: 1,000 messages, 100.0% passed DMARC.\n"
+            ),
+            "{}",
+            report.text
+        );
+        assert!(
+            report.html.contains(
+                "p=none, <strong style=\"color:#15803d\">ready for p=quarantine</strong>: "
+            ),
+            "{}",
+            report.html
+        );
+        let page = crate::wording::readiness::verdict(&domains[0].readiness);
+        assert_eq!(page.lead, "Ready for p=quarantine");
     }
 
     #[test]
@@ -818,63 +750,32 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
                 event: AlertEvent { kind, severity },
             })
         };
+        let opened = |issue| AlertKind::IssueOpened {
+            issue,
+            mail: None,
+            stopped: None,
+        };
+        let resolved = |issue| AlertKind::IssueResolved {
+            issue,
+            mail: None,
+            stopped: None,
+        };
         let events = [
-            event(
-                1,
-                AlertKind::IssueResolved {
-                    issue: AlertedIssue::ReportsStopped,
-                    mail: None,
-                    stopped: None,
-                },
-                Status::Pass,
-            ),
-            event(
-                2,
-                AlertKind::IssueOpened {
-                    issue: AlertedIssue::DeliveredFailures,
-                    mail: None,
-                    stopped: None,
-                },
-                Status::Fail,
-            ),
-            event(
-                3,
-                AlertKind::IssueResolved {
-                    issue: AlertedIssue::ReportsStopped,
-                    mail: None,
-                    stopped: None,
-                },
-                Status::Pass,
-            ),
-            event(
-                4,
-                AlertKind::IssueOpened {
-                    issue: AlertedIssue::ReportsStopped,
-                    mail: None,
-                    stopped: None,
-                },
-                Status::Warn,
-            ),
-            event(
-                5,
-                AlertKind::IssueResolved {
-                    issue: AlertedIssue::DeliveredFailures,
-                    mail: None,
-                    stopped: None,
-                },
-                Status::Pass,
-            ),
+            event(1, resolved(AlertedIssue::ReportsStopped), Status::Pass),
+            event(2, opened(AlertedIssue::DeliveredFailures), Status::Fail),
+            event(3, resolved(AlertedIssue::ReportsStopped), Status::Pass),
+            event(4, opened(AlertedIssue::ReportsStopped), Status::Warn),
+            event(5, resolved(AlertedIssue::DeliveredFailures), Status::Pass),
         ];
         let mail = month_mail();
         let report = render(&input(&domains, &events, &mail, &NOTICE));
         let text = body(&report.text);
         assert!(text.starts_with("acme.example is protected.\n\n"), "{text}");
         assert!(
-            text.contains("\n\nacme.example\n  Changes     5 changes in September 2026, the most important:\n              - New issue: delivered failures.\n              - New issue: reports stopped.\n              - Resolved: delivered failures.\n              - and 2 more."),
+            text.contains("\n\nacme.example: 5 changes in September 2026, the most important:\n- New issue: delivered failures.\n- New issue: reports stopped.\n- Resolved: delivered failures.\n- and 2 more."),
             "{text}"
         );
-        assert!(!text.contains("protected and unchanged"), "{text}");
-        assert!(report.html.contains("<li>and 2 more.</li>"));
+        assert!(report.html.contains(">and 2 more.</li>"));
     }
 
     /// With an operator key nothing names Marcan, the sign-off included.
@@ -894,10 +795,10 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         assert!(report.text.starts_with("Acme IT\n\nDMARC report for Acme, September 2026\n\nacme.example is protected.\n\n"), "{}", report.text);
     }
 
-    /// The count beside the rate is the delivered mail it is over: blocked
-    /// and forwarded mail stay out of it, as they stay out of the rate.
+    /// The line's figures add up: passed, delivered failures, blocked and
+    /// forwarded are the messages.
     #[test]
-    fn the_compliance_count_is_the_delivered_mail() {
+    fn the_figures_add_up_to_the_messages() {
         let mut r = row(1, "acme.example", "reject", 1_000, 50);
         // 900 passed, 50 failed and were delivered, 20 forwarded, 30 blocked.
         r.mail.compliant_messages = 900;
@@ -907,102 +808,11 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         let report = render(&input(&domains, &[], &mail, &NOTICE));
         assert!(
             report.text.contains(
-                "  Compliance  94.7% of delivered mail over the last 30 days passed DMARC (950 messages).\n"
+                "- acme.example, p=reject: 1,000 messages, 90.0% passed DMARC, 50 failed but were delivered, 30 blocked, 20 forwarded.\n"
             ),
             "{}",
             report.text
         );
-    }
-
-    /// `under` of 400 messages evaluated under `p=quarantine`, reports under
-    /// it for `days`; the rest still under `p=none`.
-    fn quarantined(days: i64, under: i64) -> PolicyReadiness {
-        dmarc_assess::policy_readiness(
-            &dmarc_assess::ReadinessFacts {
-                window_mail: dmarc_assess::Mail {
-                    total: 400,
-                    compliant: 400,
-                    ..Default::default()
-                },
-                policy: Some("quarantine"),
-                pct: None,
-                parked: false,
-                policy_messages: under,
-                policy_first_report_at: Some(NOW - days * DAY),
-                other_policy: Some("none"),
-            },
-            NOW,
-        )
-    }
-
-    fn readiness_text(r: &PolicyReadiness) -> String {
-        readiness_row(r).text()
-    }
-
-    /// Too little history reads as the days covered under the current
-    /// policy so far, like the UI.
-    #[test]
-    fn short_history_reads_as_days_covered() {
-        let text = readiness_text(&quarantined(12, 400));
-        assert!(
-            text.ends_with(": reports cover 12 of 30 days under p=quarantine so far."),
-            "{text}"
-        );
-        let r = quarantined(12, 400);
-        let impact = impact_row(&r, r.next_step().expect("a next step"), 0).text();
-        assert_eq!(
-            impact,
-            "Moving to p=reject would affect none of the last 30 days' mail."
-        );
-    }
-
-    /// Mail still evaluated under the old policy reads as its share.
-    #[test]
-    fn old_policy_mail_reads_as_its_share() {
-        let text = readiness_text(&quarantined(40, 352));
-        assert_eq!(
-            text,
-            "Not ready for p=reject yet: receivers still apply the old policy to 12.0% of mail."
-        );
-    }
-
-    /// The client report's next step reads like the domain page's verdict
-    /// (`Readiness`, which the UI shows): every state the report words, from
-    /// one function.
-    #[test]
-    fn the_next_step_reads_like_the_domain_page() {
-        use crate::view::readiness::Readiness;
-        use crate::wording::readiness::tests::{not_ready, readiness};
-        use dmarc_assess::{PolicyStep, ReadinessReason, ReadinessState};
-        let (q, r) = (PolicyStep::Quarantine, PolicyStep::Reject);
-        let history = ReadinessReason::NotEnoughHistory {
-            window_full_at: NOW,
-        };
-        let states = [
-            ReadinessState::Ready { next: q },
-            ReadinessState::Ready { next: r },
-            ReadinessState::RaisePct { pct: 50 },
-            not_ready(q, ReadinessReason::TooLittleMail),
-            not_ready(r, history),
-            not_ready(r, ReadinessReason::OldPolicyApplied),
-            not_ready(q, ReadinessReason::BelowThreshold),
-        ];
-        for state in states {
-            for pct in [Some(97.2), None] {
-                let judged = readiness(state, 4_120, pct);
-                let page = Readiness::new(judged.clone(), false, "v=DMARC1; p=none");
-                let row = readiness_row(&judged);
-                assert_eq!(row.text(), format!("{}: {}", page.lead, page.detail));
-                assert_eq!(row.status, Some(page.judged.status));
-            }
-        }
-        // In a whole report: the block's line is the page's sentence.
-        let domains = domains(vec![row(1, "acme.example", "none", 1_000, 60)]);
-        let page = Readiness::new(domains[0].readiness.clone(), false, "v=DMARC1; p=none");
-        let mail = month_mail();
-        let report = render(&input(&domains, &[], &mail, &NOTICE));
-        let line = format!("  Next step   {}: {}\n", page.lead, page.detail);
-        assert!(report.text.contains(&line), "{line:?} in\n{}", report.text);
     }
 
     #[test]
@@ -1015,14 +825,14 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         let mail = month_mail();
         let report = render(&input(&domains, &[], &mail, &NOTICE));
         assert!(
-            !report.text.contains("  DNS grade   "),
+            !report.text.contains("DNS grade"),
             "an outdated or passing grade is not shown: {}",
             report.text
         );
         assert!(
-            report.text.contains(
-                "old.example\n  Attention   Failing DNS grade and not enforcing (p=none)."
-            ),
+            report
+                .text
+                .contains("- old.example, p=none, ready for p=quarantine: 300 messages, 100.0% passed DMARC.\n"),
             "{}",
             report.text
         );

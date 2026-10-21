@@ -1,5 +1,6 @@
 import { getContext, onDestroy, setContext } from 'svelte';
 import { Action, type Feedback } from '../action.svelte';
+import { SAVE_HELD } from './settings-form.svelte';
 
 /** One part of a Settings page's form: a settings model (a `SettingsForm`: a group's, or a list's). */
 export type PagePart = {
@@ -14,6 +15,8 @@ export type PagePart = {
 	 * shows it beside a disabled Save.
 	 */
 	readonly blocked?: string | null;
+	/** Why the part holds Save (`blocked`, else why it cannot be saved); the save bar states it. */
+	readonly held?: { readonly message: string } | null;
 	/** Saved after the other parts: a group whose switch, switched on, needs them saved first. */
 	readonly saveLast?: boolean;
 	/** Save the part's draft; a failure keeps it dirty with its error. */
@@ -62,9 +65,21 @@ export class PageForm {
 		return this.#list.find((p) => p.blocked)?.blocked ?? null;
 	}
 
+	/**
+	 * Why Save is disabled while the page is unsaved, said in the save bar: the page's `blocked`,
+	 * else the first unsaved part that cannot be saved (its `held`); `null` when Save may run.
+	 * Every disabled Save has one, so none is disabled silently.
+	 */
+	get reason(): string | null {
+		const blocked = this.blocked;
+		if (blocked !== null || !this.dirty) return blocked;
+		const stuck = this.#list.find((p) => p.dirty && !p.canSave);
+		return stuck ? (stuck.held?.message ?? SAVE_HELD) : null;
+	}
+
 	/** Every unsaved part may be saved, and nothing blocks the page. */
 	get canSave(): boolean {
-		return this.blocked === null && this.#list.every((p) => !p.dirty || p.canSave);
+		return this.reason === null;
 	}
 
 	/** Back to the saved values everywhere; clears the status line. */

@@ -91,9 +91,9 @@ pub use queries_export::{
     AuthIssueExportRow, DnsSnapshotExportRow, SenderExportRow,
 };
 pub use queries_identity::{
-    get_identity_snapshots, identity_snapshot_is_fresh, list_sender_ips_by_volume,
-    list_sender_names, replace_sender_names, spf_pass_domains, upsert_identity_snapshot,
-    IdentitySnapshot,
+    delete_unused_identity_snapshots, get_identity_snapshots, identity_snapshot_is_fresh,
+    list_sender_ips_by_volume, list_sender_names, replace_sender_names, spf_pass_domains,
+    upsert_identity_snapshot, IdentitySnapshot,
 };
 pub use queries_imap::{
     clear_imap_attempts, count_imap_quarantine, get_cursor, get_imap_attempts, imap_pass_status,
@@ -114,21 +114,24 @@ pub use queries_reports::{
     find_report_by_report_id, get_report_summary, list_records_for_report, list_reports, RecordRow,
     ReportListQuery, ReportSort, ReportSummaryRow, StoredReport,
 };
-pub use queries_senders::{list_senders, SenderListQuery, SenderSort, SenderSummaryRow};
+pub use queries_senders::{
+    list_senders, new_failing_senders, NewSenderRow, SenderListQuery, SenderSort, SenderSummaryRow,
+};
 pub use queries_system::{
     database_size_bytes, delete_reports_older_than, last_ingest_at, report_totals,
     retention_cutoff, ReportTotals,
 };
 pub use record_checks::{DkimCheckRow, OverrideReason, RecordChecks, SpfCheckRow};
 pub use settings::{
-    get_alerts_held_at, get_client_reports_held_at, get_custom_dkim_selectors,
-    get_demo_dns_records, get_last_digest_at, get_logo, get_logo_info, get_setting, load_settings,
-    save_settings, set_alerts_held_at, set_client_reports_held_at, set_custom_dkim_selectors,
-    set_demo_dns_records, set_last_digest_at, set_logo, set_setting, AlertSettings, AppSettings,
-    BrandingSettings, ClientReportSettings, DigestFrequency, DnsSettings, ImapSecurity,
-    LicenseSettings, LogoInfo, LogoType, MailboxSettings, MonitoringSettings, OnboardingSettings,
-    OnboardingState, PixelSize, ReportingMode, ReportingSettings, RetentionSettings, SendingGroup,
-    SendingLogin, SendingSettings, SettingsGroup, SmtpSecurity, StoredLogo, Weekday,
+    clear_update_check, get_alerts_held_at, get_client_reports_held_at, get_custom_dkim_selectors,
+    get_demo_dns_records, get_last_digest_at, get_logo, get_logo_info, get_setting,
+    get_update_check, load_settings, save_settings, set_alerts_held_at, set_client_reports_held_at,
+    set_custom_dkim_selectors, set_demo_dns_records, set_last_digest_at, set_logo, set_setting,
+    set_update_check, AlertSettings, AppSettings, BrandingSettings, ClientReportSettings,
+    DigestFrequency, DnsSettings, ImapSecurity, LicenseSettings, LogoInfo, LogoType,
+    MailboxSettings, MonitoringSettings, OnboardingSettings, OnboardingState, PixelSize,
+    ReportingMode, ReportingSettings, RetentionSettings, SeenVersion, SendingGroup, SendingLogin,
+    SendingSettings, SettingsGroup, SmtpSecurity, StoredLogo, UpdateCheck, UpdateSettings, Weekday,
     CLIENT_REPORT_DAY_RANGE, DEFAULT_CLIENT_REPORT_DAY, DEFAULT_CLIENT_REPORT_HOUR,
     DEFAULT_DIGEST_HOUR, DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS,
     DEFAULT_REPORT_FRESHNESS_WARNING_HOURS, DEFAULT_REPORT_RETENTION_MONTHS,
@@ -188,8 +191,31 @@ pub async fn init(path: &Path) -> Result<SqlitePool, StoreError> {
     let pool = SqlitePool::connect_with(options).await?;
 
     // Path is relative to this crate: crates/dmarc-store → ../../migrations
+    let (before, _) = applied_migrations(&pool).await?;
     sqlx::migrate!("../../migrations").run(&pool).await?;
+    let (after, version) = applied_migrations(&pool).await?;
+    let version = version.unwrap_or(0);
+    match after - before {
+        0 => tracing::info!("database schema at migration {version} (none applied now)"),
+        n => tracing::info!("database schema at migration {version} ({n} applied now)"),
+    }
     Ok(pool)
+}
+
+/// How many migrations the database has applied, and the newest one's
+/// version; `(0, None)` before the first run created sqlx's table.
+async fn applied_migrations(pool: &SqlitePool) -> Result<(i64, Option<i64>), sqlx::Error> {
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations')",
+    )
+    .fetch_one(pool)
+    .await?;
+    if !exists {
+        return Ok((0, None));
+    }
+    sqlx::query_as("SELECT COUNT(*), MAX(version) FROM _sqlx_migrations WHERE success = 1")
+        .fetch_one(pool)
+        .await
 }
 
 /// Pre-create the database file as owner-only (0600). The database holds the

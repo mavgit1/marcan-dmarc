@@ -2,13 +2,13 @@
 //! as [`AlertEvent`]s of an [`AlertKind`].
 
 use super::state::{
-    AlertFigures, AlertState, DeliveredFigures, DmarcRecordFacts, DnsState, OpenIssue,
+    AlertFigures, AlertState, DeliveredFigures, DmarcRecordFacts, DnsState, NewSender, OpenIssue,
     ReadinessEvidence, RecordChange, RecordDelta, StoppedFigures,
 };
 use crate::dns::{CheckKind, Severity};
 use crate::domain::IssueKind;
 use crate::mail::{enforcement, EnforcementState, HealthState};
-use crate::readiness::PolicyStep;
+use crate::readiness::{PolicyStep, READINESS_WINDOW_DAYS};
 use crate::status::Status;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -76,11 +76,16 @@ pub enum AlertKind {
     /// issues, health and readiness start over from this evaluation instead
     /// of raising events of their own.
     ParkedChanged { parked: bool },
+    /// A sender with no mail as the domain before the window had at least
+    /// [`NEW_SENDER_MIN_FAILURES`](super::NEW_SENDER_MIN_FAILURES) failing
+    /// messages in the window (`window_days`). Once per sender: it stays
+    /// known while it keeps failing.
+    NewFailingSender { sender: NewSender, window_days: i64 },
 }
 
 impl AlertKind {
     /// Every kind's name, as stored and as the UI's wording table keys it.
-    pub const NAMES: [&'static str; 7] = [
+    pub const NAMES: [&'static str; 8] = [
         "issue_opened",
         "issue_resolved",
         "health_changed",
@@ -88,6 +93,7 @@ impl AlertKind {
         "policy_changed",
         "readiness_reached",
         "parked_changed",
+        "new_failing_sender",
     ];
 
     /// The kind's name (the serialized tag).
@@ -100,6 +106,7 @@ impl AlertKind {
             Self::PolicyChanged { .. } => "policy_changed",
             Self::ReadinessReached { .. } => "readiness_reached",
             Self::ParkedChanged { .. } => "parked_changed",
+            Self::NewFailingSender { .. } => "new_failing_sender",
         }
     }
 }
@@ -254,6 +261,23 @@ pub fn alert_events(
                 ));
             }
         }
+
+        // New failing senders: only between two states that measured them
+        // (a state stored before Marcan did is their baseline).
+        if let (Some(known), Some(now)) =
+            (&previous.new_failing_senders, &current.new_failing_senders)
+        {
+            let known: BTreeSet<&str> = known.iter().map(|s| s.source_ip.as_str()).collect();
+            for sender in now.iter().filter(|s| !known.contains(s.source_ip.as_str())) {
+                events.push(AlertEvent::new(
+                    AlertKind::NewFailingSender {
+                        sender: sender.clone(),
+                        window_days: READINESS_WINDOW_DAYS,
+                    },
+                    new_sender_status(sender),
+                ));
+            }
+        }
     }
 
     if let Some((_, after)) = dns_pair {
@@ -288,6 +312,17 @@ fn record_change_event(change: &RecordChange, after: &DnsState) -> AlertEvent {
         },
         severity_status(after.worst.get(&change.check).copied()),
     )
+}
+
+/// A new failing sender is red when any of its failing mail was delivered
+/// (spoofed mail, or a new system's, reached inboxes), amber when the policy
+/// blocked it all.
+fn new_sender_status(sender: &NewSender) -> Status {
+    if sender.delivered_failures > 0 {
+        Status::Fail
+    } else {
+        Status::Warn
+    }
 }
 
 /// A tightened policy is green; a loosened one amber, or red when spoofed

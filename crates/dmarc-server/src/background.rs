@@ -1,6 +1,7 @@
 //! The background work and its supervisor: the IMAP polling loop, the DNS
 //! snapshot warm loop, the reverse-DNS identity warm loop, the alert job, the
-//! monthly client reports and the daily report retention clean-up. One
+//! monthly client reports, the version check and the daily report
+//! retention clean-up. One
 //! cancellation token stops every loop between units of work (a snapshot, a
 //! mailbox batch, an evaluation run); shutdown waits a grace period for
 //! them, then aborts what is left.
@@ -11,10 +12,12 @@
 use crate::alerts::job::{self as alert_job, ALERT_INTERVAL};
 use crate::client_reports::job::{self as client_report_job, CLIENT_REPORT_INTERVAL};
 use crate::snapshots;
+use crate::updates::{self, UPDATE_CHECK_TICK, UPDATE_CHECK_WAKE_GAP};
 use crate::AppState;
 use dmarc_store::{
-    delete_alert_events_older_than, delete_reports_older_than, load_settings, retention_cutoff,
-    unix_now, RetentionSettings, StoreError, REPORT_RETENTION_MONTHS_RANGE,
+    delete_alert_events_older_than, delete_reports_older_than, delete_unused_identity_snapshots,
+    load_settings, retention_cutoff, unix_now, RetentionSettings, StoreError,
+    REPORT_RETENTION_MONTHS_RANGE,
 };
 use futures::FutureExt;
 use sqlx::SqlitePool;
@@ -121,6 +124,20 @@ impl Background {
             move |token| client_report_job::run(reports_state.clone(), token),
         ));
 
+        // Asks only while switched on, at most once a day (the record of the
+        // last attempt is stored); woken when switched on.
+        let (pool, child) = (state.pool.clone(), token.child_token());
+        tasks.spawn(every(
+            "updates",
+            Schedule::OrWhenWoken {
+                interval: UPDATE_CHECK_TICK,
+                min_gap: UPDATE_CHECK_WAKE_GAP,
+                wake: state.update_check_wake.clone(),
+            },
+            child,
+            move |token| updates::run(pool.clone(), token),
+        ));
+
         let (pool, child) = (state.pool.clone(), token.child_token());
         tasks.spawn(every("retention", RETENTION_INTERVAL, child, move |_| {
             let pool = pool.clone();
@@ -213,7 +230,8 @@ impl From<Duration> for Schedule {
 
 /// Run `work` now and then on `schedule` until `token` is cancelled.
 /// `work` receives the token so it can stop between units. The one schedule
-/// of every background loop (warm passes, alerts, client reports, retention).
+/// of every background loop (warm passes, alerts, client reports, the
+/// version check, retention).
 /// A run that panics is logged with the loop's `name` and ends that run
 /// only: the next one follows on schedule.
 pub(crate) async fn every<F, Fut>(
@@ -303,7 +321,8 @@ const RETENTION_PAUSE: Duration = Duration::from_millis(100);
 
 /// One retention pass: delete every report that ended, and every alert event
 /// created, more than
-/// [`RetentionSettings::report_retention_months`] ago, [`RETENTION_CHUNK`]
+/// [`RetentionSettings::report_retention_months`] ago, then the reverse-DNS
+/// snapshots of IPs no remaining record names, [`RETENTION_CHUNK`]
 /// rows per transaction. A settings read that fails, or a stored retention
 /// that does not read as months, skips the pass with an error rather than
 /// falling back to the default, which could delete what a longer stored
@@ -333,6 +352,16 @@ pub async fn apply_retention(pool: &SqlitePool) {
         Ok(0) => {}
         Ok(deleted) => tracing::info!(deleted, months, "retention: deleted old reports"),
         Err(e) => tracing::warn!(error = %e, "retention: deleting old reports failed"),
+    }
+    // A sender page or export only shows IPs that kept records name, so a
+    // snapshot is kept exactly while some record (of any domain) names its IP.
+    let snapshots = delete_in_chunks(RETENTION_CHUNK, RETENTION_PAUSE, |limit| {
+        delete_unused_identity_snapshots(pool, limit)
+    });
+    match snapshots.await {
+        Ok(0) => {}
+        Ok(deleted) => tracing::info!(deleted, "retention: deleted unused reverse-DNS snapshots"),
+        Err(e) => tracing::warn!(error = %e, "retention: deleting reverse-DNS snapshots failed"),
     }
     let events = delete_in_chunks(RETENTION_CHUNK, RETENTION_PAUSE, |limit| {
         delete_alert_events_older_than(pool, cutoff, limit)

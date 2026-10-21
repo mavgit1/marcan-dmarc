@@ -3,7 +3,7 @@
 
 use super::readiness::Readiness;
 use crate::snapshots::dns::{dns_outdated, DnsService};
-use crate::wording::issues::{issue_finding, issue_label, IssueFigures};
+use crate::wording::issues::{issue_finding, issue_label, policy_label, IssueFigures};
 use dmarc_assess::{
     assess_domain, attention_ranks, policy_readiness, AttentionCandidate, CheckState,
     DomainAssessment, DomainFacts, Issue, MailVerdicts, PolicyReadiness, ReadinessFacts, Status,
@@ -205,6 +205,18 @@ pub struct DomainSummary {
     pub attention_rank: Option<i64>,
 }
 
+impl DomainSummary {
+    /// The policy as its badge reads: `p=none`, or the state shown in its
+    /// place without a record ("No record", "Not checked yet").
+    pub fn policy_label(&self) -> String {
+        policy_label(&summary_figures(
+            &self.row,
+            &self.verdicts,
+            &self.assessment,
+        ))
+    }
+}
+
 /// The `p=` of a stored policy.
 fn policy_p(policy: Option<&PublishedPolicy>) -> Option<&str> {
     policy.and_then(|p| p.p.as_deref())
@@ -316,6 +328,7 @@ fn judged_readiness(
             window_mail: mail.mail.mail(),
             policy: policy_p(policy),
             pct: policy.and_then(|p| p.pct),
+            testing: policy.and_then(|p| p.testing).unwrap_or(false),
             parked,
             policy_messages: mail.policy_messages,
             policy_first_report_at: mail.policy_first_report_at,

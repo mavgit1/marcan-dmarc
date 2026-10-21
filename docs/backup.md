@@ -1,4 +1,4 @@
-# Backup & upgrades
+# Backup
 
 All of Marcan's state is one SQLite file, `marcan.db`, in its data directory (`/data` inside the container; in the Compose examples a named volume that Docker calls `<project>_marcan_data`, such as `marcan_marcan_data` when the Compose project, by default the directory's name, is `marcan`). Almost all of it can be rebuilt, though, which makes the simplest backup the one you probably already have.
 
@@ -26,13 +26,13 @@ What this does not bring back, all of it harmless:
   - the mailbox and domain warnings and the poll interval: **Settings → Mailbox**,
   - Sending, Alerts and Client reports: their own pages under **Settings** (the SMTP password is not in any list),
   - DNS resolvers: **Settings → DNS checks**,
-  - the operator key: **Settings → License**; Branding (name and logo): **Settings → Branding**; Retention: **Settings → Data**.
+  - the operator key and the version check: **Settings → License**; Branding (name and logo): **Settings → Branding**; Retention: **Settings → Data**.
 
 Keep the lists current when you change domains, sender names or recipients. They change rarely.
 
 ## Retention
 
-Marcan deletes reports older than the retention period, **12 months** by default (**Settings → Data → Retention**), once a day, together with their records and original XML, and alerts older than the same period from the **Alerts** list. A database backup holds only what was retained when it was made. A re-import of the mailbox brings older reports back until the next daily clean-up.
+Marcan deletes reports older than the retention period, **12 months** by default (**Settings → Data → Retention**), once a day, together with their records and original XML, and alerts older than the same period from the **Alerts** list. The reverse-DNS names of sender IPs that no remaining report mentions go in the same clean-up. A database backup holds only what was retained when it was made. A re-import of the mailbox brings older reports back until the next daily clean-up.
 
 ## Database backup
 
@@ -62,26 +62,4 @@ Do not copy `marcan.db` with `cp` while Marcan runs: recent changes may still be
 
 3. Start Marcan again: `docker compose start marcan`.
 
-## Upgrade
-
-Marcan does not check for new versions itself. The [Releases](./releases) page lists every release, what changed and what to do before upgrading; the `vX.Y.Z` tag on GitHub carries the same notes.
-
-The image has three tags per release: `X.Y.Z` is exactly that release, `X.Y` the latest patch release of that minor version, `latest` the newest release. Pin `X.Y.Z` for anything you rely on, as the Compose examples do, so nothing changes until you change the version.
-
-1. Take a database backup first, or make sure your lists are saved.
-2. If the release changed the Compose files, fetch its `deploy/` files again, as in [Deployment](./deployment#default-caddy-with-basic-auth) with the new tag (in a clone: `git fetch --tags && git checkout vX.Y.Z`). Keep your `.env`.
-3. Set the new version and restart:
-
-   ```bash
-   # set MARCAN_VERSION=<new version> in .env
-   docker compose pull
-   docker compose up -d
-   ```
-
-Database migrations run on start and cannot be undone. A database migrated by a newer version cannot be opened by an older one, so to go back, restore the backup and start the old version again.
-
-After an upgrade that changes the DNS checks, domains show their last result marked **updating** until they have been checked again, which happens first thing in the background.
-
-## Reprocessing old reports
-
-Marcan keeps each report's original XML in the database for as long as it keeps the report, so a later release can process old reports again, even ones the mailbox no longer holds. There is no command for it yet; when a release needs it, its notes will say so.
+To go back to an older version after an upgrade, the order differs: see [Migrations and going back](./upgrade#migrations-and-going-back).

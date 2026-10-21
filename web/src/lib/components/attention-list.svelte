@@ -3,20 +3,18 @@
 	import type { DomainSummary } from '$lib/types/DomainSummary';
 	import DataTable from '$lib/components/data-table.svelte';
 	import type { ColumnDef } from '$lib/components/data-table';
+	import IssueBadges from '$lib/components/issue-badges.svelte';
 	import StatusBadge from '$lib/components/status-badge.svelte';
-	import type { IssueKind } from '$lib/types/IssueKind';
-	import { meta } from '$lib/state/meta.svelte';
+	import type { WordedIssue } from '$lib/types/WordedIssue';
 	import { formatInt, plural } from '$lib/format';
-	import type { StatusTone } from '$lib/tokens';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import { WORST_FIRST_SORT } from '$lib/components/domains-table.svelte';
 
 	type AttentionRow = {
 		domainId: number;
 		domain: string;
 		parked: boolean;
 		messages: number;
-		issues: { kind: IssueKind; label: string; tone: StatusTone }[];
+		issues: WordedIssue[];
 		rank: number;
 	};
 
@@ -33,15 +31,12 @@
 		total: number;
 	} = $props();
 
-	/** The rest: the Domains page, lowest DNS score first (worst first among its sorts). */
+	/**
+	 * The rest: the Domains page filtered to the same list (`?attention=1`, the same server query
+	 * and rank, every page). The scope goes along as it does to every page (`filters`).
+	 */
 	const more = $derived(Math.max(total - domains.length, 0));
-	const moreHref = $derived(resolve(`/domains?sort=${WORST_FIRST_SORT}` as '/domains'));
-
-	/** What each issue means, the badge's tooltip: the server's catalogue (`meta.issue_catalogue`). */
-	const meaning = $derived(new Map(meta.current?.issue_catalogue.map((i) => [i.kind, i.meaning]) ?? []));
-	$effect(() => {
-		meta.load().catch(() => {});
-	});
+	const moreHref = resolve('/domains?attention=1' as '/domains');
 
 	/**
 	 * Every open issue (the server's `assessment.issues`, worst first, each with its badge), one
@@ -58,7 +53,7 @@
 				domain: d.domain,
 				parked: d.parked,
 				messages: d.total_messages,
-				issues: d.assessment.issues.map((i) => ({ kind: i.kind, label: i.label, tone: i.status })),
+				issues: d.assessment.issues,
 				rank: d.attention_rank
 			});
 		}
@@ -99,13 +94,7 @@
 						<StatusBadge tone="neutral" class="ml-1.5">Parked</StatusBadge>
 					{/if}
 				{:else if column.id === 'issues'}
-					<div class="flex flex-wrap gap-1.5">
-						{#each row.issues as issue (issue.kind)}
-							<span title={meaning.get(issue.kind)}>
-								<StatusBadge tone={issue.tone}>{issue.label}</StatusBadge>
-							</span>
-						{/each}
-					</div>
+					<IssueBadges issues={row.issues} />
 				{:else if column.id === 'messages'}
 					<span class="tabular-nums">{formatInt(row.messages)}</span>
 				{:else}

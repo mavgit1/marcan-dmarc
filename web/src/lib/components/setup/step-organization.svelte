@@ -3,6 +3,7 @@
 	import { updateOrganization } from '$lib/api';
 	import type { OrganizationSummary } from '$lib/types/OrganizationSummary';
 	import { Action } from '$lib/components/action.svelte';
+	import InlineCode from '$lib/components/inline-code.svelte';
 	import FeedbackAlert from '$lib/components/settings/feedback-alert.svelte';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { untrack } from 'svelte';
@@ -35,6 +36,22 @@
 		});
 	}
 </script>
+
+<!-- The first step opens with how reports reach Marcan; the later steps go into each part. -->
+<section aria-labelledby="setup-how-reports" class="mb-4 space-y-1">
+	<h3 id="setup-how-reports" class="text-sm font-medium">How reports reach Marcan</h3>
+	<p class="text-muted-foreground text-xs leading-relaxed">
+		Each of your domains publishes a DMARC record whose <InlineCode>rua=</InlineCode> points at the report mailbox, directly
+		or through an address that forwards to it. If that mailbox is on another domain, that domain publishes a
+		<InlineCode>_report._dmarc</InlineCode> authorization record for each of yours. Receivers then send one report a day per
+		domain, and Marcan reads the mailbox without changing anything in it.
+	</p>
+	<p class="text-muted-foreground text-xs leading-relaxed">
+		Only SPF or DKIM aligned with the From domain counts, and enforcement goes <InlineCode>p=none</InlineCode>,
+		<InlineCode>quarantine</InlineCode>, <InlineCode>reject</InlineCode>; readiness tells you when a domain is ready for
+		the next step.
+	</p>
+</section>
 
 {#if readonly}
 	<div class="space-y-4">

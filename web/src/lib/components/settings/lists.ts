@@ -13,6 +13,7 @@ import {
 	saveSenderNames
 } from '$lib/api';
 import { plural } from '$lib/format';
+import { settings } from '$lib/state/settings.svelte';
 import { listTokens } from '$lib/text';
 import type { ClientReportChanges } from '$lib/types/ClientReportChanges';
 import type { DkimSelectorsSummary } from '$lib/types/DkimSelectorsSummary';
@@ -141,8 +142,11 @@ export function recipientChangeLines(changes: ClientReportChanges): string[] {
 }
 
 /**
- * The Client reports page's recipients, `organization,email` per line. The full truth: saving
- * replaces every recipient, so the preview says who starts and who stops getting a report.
+ * The Client reports page's recipients, `organization,email` (or `organization,none`) per line, a
+ * projection of the organizations like the Domains list: an organization the text names gets
+ * exactly its lines, one it leaves out keeps its recipients. The preview says who starts and who
+ * stops getting a report. A save reloads the settings: their send line counts the saved
+ * recipients.
  */
 export const RECIPIENT_LIST: ListSpec<RecipientsSummary> = {
 	label: 'Recipients',
@@ -150,7 +154,12 @@ export const RECIPIENT_LIST: ListSpec<RecipientsSummary> = {
 	key: 'client-report-recipients',
 	get: getClientReportRecipients,
 	preview: previewClientReportRecipients,
-	save: saveClientReportRecipients,
+	save: async (text) => {
+		const summary = await saveClientReportRecipients(text);
+		// Saved either way; a failed reload only leaves the send line as it was until the next load.
+		settings.reload().catch(() => {});
+		return summary;
+	},
 	same: (a, b) => a.trim() === b.trim(),
 	changes: ({ changes }) => ({
 		summary: describeRecipientChanges(changes),

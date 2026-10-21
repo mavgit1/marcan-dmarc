@@ -11,8 +11,9 @@
 //! - `wording/`: the server's sentences, written once for the emails and the
 //!   UI: alert events, issues, policy readiness, undelivered client reports.
 //! - `background.rs`: the supervisor: the IMAP loop, the DNS and identity warm
-//!   loops, the alert job, the client report job and the retention clean-up on
-//!   one `every` helper under one cancellation token, with graceful shutdown.
+//!   loops, the alert job, the client report job, the version check and the
+//!   retention clean-up on one `every` helper under one cancellation token,
+//!   with graceful shutdown.
 //! - `snapshots/`: persisted DNS and reverse-DNS results; [`DnsService`] on
 //!   [`AppState`] holds the checker, the attempt backoff and the refreshes in
 //!   flight (no statics).
@@ -26,6 +27,8 @@
 //!   `MailSender` on [`AppState`], each failure a `SendError` by step and
 //!   permanent or not; the alert, digest and client report emails, rendered
 //!   from view types in one frame that ends in `footer()`.
+//! - `updates.rs`: the daily version check against the docs site's
+//!   `latest.json` (on by default; nothing is fetched while it is off).
 //! - `license.rs`: operator keys (Ed25519, verified offline), the free-software
 //!   notice and `SOURCE_URL`.
 //! - `imap_backend.rs`: the IMAP worker's `Backend` over the store.
@@ -49,6 +52,7 @@ pub mod mail;
 pub mod since;
 mod snapshots;
 pub mod static_assets;
+pub mod updates;
 pub mod view;
 pub mod wording;
 
@@ -64,6 +68,7 @@ use dmarc_imap::ImapWorker;
 use mail::{MailSender, PacedSender};
 use sqlx::SqlitePool;
 use std::sync::{Arc, RwLock};
+use tokio::sync::Notify;
 use tower_http::trace::TraceLayer;
 
 /// Everything a request handler or background task works with, built once in
@@ -83,6 +88,9 @@ pub struct AppState {
     pub mail: Arc<dyn MailSender>,
     /// The `Host` names requests may carry (any, unless `main` narrows it).
     pub allowed_hosts: Arc<AllowedHosts>,
+    /// Wakes the version check (`updates.rs`) when it is switched on, so the
+    /// first answer does not wait for the hourly look.
+    pub update_check_wake: Arc<Notify>,
 }
 
 impl AppState {
@@ -95,6 +103,7 @@ impl AppState {
             names: Arc::new(RwLock::new(Arc::new(SenderNames::bundled()))),
             mail: Arc::new(PacedSender::smtp()),
             allowed_hosts: Arc::new(AllowedHosts::any()),
+            update_check_wake: Arc::new(Notify::new()),
         }
     }
 

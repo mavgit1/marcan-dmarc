@@ -3,7 +3,7 @@
 	import EmailLookCard from '$lib/components/settings/email-look-card.svelte';
 	import SettingsLink from '$lib/components/settings/settings-link.svelte';
 	import Skeleton from '$lib/components/skeleton.svelte';
-	import { meta } from '$lib/state/meta.svelte';
+	import { storedLogo } from '$lib/state/logo.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import type { EmailPreview } from '$lib/types/EmailPreview';
 
@@ -35,11 +35,7 @@
 				// No preview: the section keeps its skeleton; the Branding page shows the same.
 			});
 	});
-	$effect(() => {
-		meta.load().catch(() => {});
-	});
-
-	const logoUrl = $derived(meta.current?.branding.logo ?? null);
+	const logoUrl = $derived(storedLogo.url(branding?.has_logo ?? false));
 	const without = $derived(preview ? (preview.current.notice_shown ? preview.current : preview.other) : null);
 	const licensed = $derived(preview ? (preview.current.notice_shown ? preview.other : preview.current) : null);
 </script>

@@ -9,7 +9,7 @@
 //! whole group each time: the store's own group (`SendingGroup`,
 //! `AlertSettings`, `ClientReportSettings`, `BrandingSettings`,
 //! `DnsSettings`, `MonitoringSettings`, `RetentionSettings`,
-//! `OnboardingSettings`), or `MailboxGroup` (the mailbox with the worker's
+//! `OnboardingSettings`, `UpdateSettings`), or `MailboxGroup` (the mailbox with the worker's
 //! defaults applied). A field means the same in and out, and an empty string
 //! means "not set" where the field says so. Only a secret is absent to keep
 //! the stored one (a password, the operator key), and the reporting group,
@@ -25,7 +25,7 @@ use dmarc_assess::{ClientReportHold, Status};
 use dmarc_store::{
     AlertSettings, AppSettings, BrandingSettings, ClientReportSettings, DnsSettings, ImapSecurity,
     LicenseSettings, LogoInfo, LogoType, MonitoringSettings, OnboardingSettings, PixelSize,
-    ReportingMode, ReportingSettings, RetentionSettings, SendingGroup,
+    ReportingMode, ReportingSettings, RetentionSettings, SendingGroup, UpdateSettings,
 };
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -46,6 +46,7 @@ pub struct SettingsResponse {
     pub license: LicenseSettingsResponse,
     pub branding: BrandingSettingsResponse,
     pub onboarding: OnboardingSettings,
+    pub updates: UpdateSettings,
 }
 
 /// The operator license: whether a key is stored, whether it holds and whom
@@ -132,9 +133,10 @@ pub struct SoftwareLine {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[ts(export)]
 pub struct OperatorLetterhead {
-    /// With a valid operator key: the logo at full height on its own line and
-    /// `name` as a bold heading under it. Without one, secondary to Marcan:
-    /// the logo smaller and `name` in regular weight after it, on one line.
+    /// With a valid operator key: the logo at full height and `name` in bold
+    /// beside it. Without one, secondary to Marcan: the logo smaller and
+    /// `name` in regular weight beside it. Either way one row, the logo left
+    /// of the name, both vertically centred.
     pub prominent: bool,
     /// The size the logo is shown at, in pixels: its own size fitted into
     /// the letterhead's box, keeping its shape; `null` without a logo.
@@ -419,6 +421,7 @@ impl SettingsResponse {
             license: LicenseSettingsResponse::new(&settings.license),
             branding: BrandingSettingsResponse::new(&settings.branding, logo),
             onboarding: settings.onboarding.clone(),
+            updates: settings.updates,
         }
     }
 }

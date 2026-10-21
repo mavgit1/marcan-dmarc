@@ -110,7 +110,7 @@
 			<SettingRow title="Delivery">
 				{#snippet hint()}
 					Changes what the
-					<a href={resolve('/guide')} class="text-foreground underline underline-offset-2">Setup guide</a>
+					<a href={resolve('/guide')} class="text-foreground underline underline-offset-2">Setup</a>
 					asks you to publish.
 				{/snippet}
 				<p class="text-muted-foreground mb-3 text-xs leading-relaxed">{REPORT_DELIVERY_INTRO}</p>

@@ -10,7 +10,7 @@
 
 ## Why does my domain show red although all mail passes?
 
-The DNS grade rates DNS configuration, not mail. `p=none` is a critical finding, because with it spoofed mail is still delivered. Health, which rates the mail, can be **Protected** at the same time. Move to `p=quarantine` or `p=reject` once every legitimate sender passes: the domain's page says when it is ready (see [When to move to the next policy step](./dashboard#when-to-move-to-the-next-policy-step)).
+The DNS grade rates DNS configuration, not mail. `p=none` is a critical finding, because with it spoofed mail is still delivered. Health, which rates the mail, can be **Protected** at the same time. Move to `p=quarantine` or `p=reject` once every legitimate sender passes: the domain's page says when it is ready (see [Policy readiness](./readiness)).
 
 ## Why do Marcan's numbers differ from the reporter's?
 
@@ -42,7 +42,7 @@ Yes. The login comes from the reverse proxy: Authelia or OAuth2-Proxy give every
 
 ## Is Marcan free?
 
-For your own domains, yes, completely. If you run it for clients, including administering it on a client's own server, you tell them it is software they could run themselves, or buy a license instead. See [License & pricing](./license).
+For your own domains, yes, completely. If you run it for clients, including administering it on a client's own server, you tell them it is software they could run themselves, or buy a license instead. See [License](./license) and [Pricing](./pricing).
 
 ## What will Marcan not do?
 

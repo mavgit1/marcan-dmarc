@@ -4,7 +4,7 @@
 	import LogoMark from '$lib/components/logo-mark.svelte';
 	import StatusBadge from '$lib/components/status-badge.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { NAV_FOOTER, NAV_GROUPS, isNavActive, type NavItem } from '$lib/nav';
+	import { DOCS_URL, NAV_FOOTER, NAV_GROUPS, isNavActive, type NavItem } from '$lib/nav';
 	import { meta } from '$lib/state/meta.svelte';
 
 	const pathname = $derived(page.url.pathname);
@@ -16,7 +16,8 @@
 	});
 	/**
 	 * Under the mark: the notice line while the server says it is shown (it is unless an operator
-	 * key switched it off), else the "Operator license" badge.
+	 * key switched it off), else the "Operator license" badge. Under Settings: the version, the docs
+	 * and "0.3.1 available" on the same line when the version check found a newer one.
 	 */
 	const current = $derived(meta.current);
 	const footLink = 'hover:text-foreground underline-offset-2 hover:underline';
@@ -88,6 +89,21 @@
 				{@render navItem(item)}
 			{/each}
 		</Sidebar.Menu>
+		{#if current}
+			<p
+				class="text-muted-foreground truncate px-2 text-[11px] leading-tight whitespace-nowrap group-data-[collapsible=icon]:hidden"
+			>
+				Marcan <span class="tabular-nums">{current.version}</span>
+				·
+				<a href={DOCS_URL} target="_blank" rel="noopener" class={footLink}>Docs</a>
+				{#if current.available}
+					·
+					<a href={current.available.url} target="_blank" rel="noopener" class="text-foreground {footLink}"
+						><span class="tabular-nums">{current.available.version}</span> available</a
+					>
+				{/if}
+			</p>
+		{/if}
 	</Sidebar.Footer>
 	<Sidebar.Rail />
 </Sidebar.Root>

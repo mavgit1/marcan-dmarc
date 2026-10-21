@@ -66,8 +66,12 @@ describe('PageForm', () => {
 		expect(form.save.feedback).toEqual({ ok: false, message: 'Login refused.' });
 		const remove = add(form, part('Bad', { ok: true, message: 'Saved' }, log, false));
 		expect(form.canSave).toBe(false);
+		// Never silent: a part that names no reason still gets one.
+		expect(form.reason).toBe('Correct the marked fields first.');
 		remove();
 		expect(form.canSave).toBe(true);
+		add(form, { ...part('Days', { ok: true, message: 'Saved' }, log, false), held: { message: 'Keep 1 to 120.' } });
+		expect(form.reason).toBe('Keep 1 to 120.');
 	});
 
 	it('saves a saveLast part after the others, whatever its place', async () => {
@@ -116,6 +120,7 @@ describe('PageForm', () => {
 		const recipients = part('Recipients', { ok: true, message: 'Saved' }, log);
 		add(form, recipients);
 		expect(form.blocked).toBe('Add at least one recipient first.');
+		expect(form.reason).toBe('Add at least one recipient first.');
 		expect(form.canSave).toBe(false);
 		reason.blocked = null;
 		expect(form.blocked).toBeNull();

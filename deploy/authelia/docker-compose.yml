@@ -1,10 +1,10 @@
-# Marcan + Caddy + Authelia (own user file, 2FA). Guide: https://marcan.kaitiaki.tech/deployment
+# Marcan + Caddy + Authelia (own user file, 2FA). Guide: https://marcan.kaitiaki.tech/deploy-authelia
 # Run from this directory:
 #   cp .env.example .env  &&  cp config/users.yml.example config/users.yml  (edit both)
 #   docker compose up -d
 services:
   marcan:
-    image: ghcr.io/mavgit1/marcan:${MARCAN_VERSION:-0.2.1}
+    image: ghcr.io/mavgit1/marcan:${MARCAN_VERSION:-0.3.0}
     # To run your own build instead, replace the line above with:  build: ../..
     container_name: marcan-app
     restart: unless-stopped

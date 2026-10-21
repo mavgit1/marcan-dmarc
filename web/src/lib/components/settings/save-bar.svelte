@@ -17,26 +17,26 @@
 	 * while there is something to save (and while a save runs, failed, or just said how it went,
 	 * for `SAVED_SHOWN_MS`); with nothing unsaved the page ends with its last section. While
 	 * unsaved, a held navigation (another page) makes the bar show itself: it asks to save or
-	 * discard, shakes once (unless reduced motion is asked for) and scrolls into view. `blocked`
-	 * is why the unsaved page cannot be saved as it is: Save is disabled and the reason stands
-	 * beside it.
+	 * discard, shakes once (unless reduced motion is asked for) and scrolls into view. `reason`
+	 * is why the unsaved page cannot be saved as it is: it alone disables Save, so a disabled
+	 * Save always says why, in the warn tone beside it (the page marks the field it is about).
 	 */
 	let {
 		dirty,
 		save,
-		canSave = true,
-		blocked = null,
+		reason = null,
 		onDiscard
 	}: {
 		dirty: boolean;
 		/** The page's save; its feedback is the status line. */
 		save: Action;
-		/** False while the draft is known to be invalid. */
-		canSave?: boolean;
-		/** Why Save cannot run ("Enter a server first."); `null` when it can. */
-		blocked?: string | null;
+		/** Why Save cannot run ("Enter a server first."); `null` when it can (`PageForm.reason`). */
+		reason?: string | null;
 		onDiscard: () => void;
 	} = $props();
+
+	/** Why Save is disabled now: only while there is something to save. */
+	const held = $derived(dirty ? reason : null);
 
 	const failed = $derived(save.feedback && !save.feedback.ok ? save.feedback.message : null);
 	const saved = $derived(!dirty && save.feedback?.ok ? save.feedback.message : null);
@@ -87,10 +87,16 @@
 		<p class="mr-auto min-w-0 text-xs" role={failed ? 'alert' : 'status'}>
 			{#if failed}
 				<span class="text-status-fail-fg break-words">{failed}</span>
+			{/if}
+			{#if held}
+				<!-- Save is disabled: its reason, also after a refused save and while a navigation is held. -->
+				<span class={['text-status-warn-fg break-words', asked && 'font-medium']}>
+					{asked ? `Fix or discard the changes first: ${held}` : held}
+				</span>
+			{:else if failed}
+				<!-- Said above. -->
 			{:else if dirty && asked}
 				<span class="text-status-warn-fg font-medium">Save or discard the changes first</span>
-			{:else if dirty && blocked}
-				<span class="text-muted-foreground">{blocked}</span>
 			{:else if dirty}
 				<span class="text-muted-foreground">Unsaved changes</span>
 			{:else if saved}
@@ -103,7 +109,7 @@
 		{#if dirty}
 			<Button type="button" variant="ghost" size="sm" onclick={onDiscard} disabled={save.busy}>Discard</Button>
 		{/if}
-		<BusyButton type="submit" size="sm" busy={save.busy} busyLabel="Saving…" disabled={!dirty || !canSave || !!blocked}>
+		<BusyButton type="submit" size="sm" busy={save.busy} busyLabel="Saving…" disabled={!dirty || !!held}>
 			Save
 		</BusyButton>
 	</div>

@@ -1012,12 +1012,11 @@ async fn the_report_reads_the_month_and_words_what_needs_attention() {
         "{text}"
     );
     for line in [
-        "\n\nacme-shop.example\n  Attention   ",
-        "  Changes     1 change in February 2030:\n              - DMARC policy changed: p none → quarantine.\n",
+        "\n\nOver the last 30 days:\n- acme-shop.example, p=none, ready for p=quarantine: 1,209 messages, 99.3% passed DMARC, 9 failed but were delivered. DNS grade D, no reports for 19 days.\n- acme-mail.example, p=quarantine: 1,612 messages, 99.3% passed DMARC, 12 failed but were delivered. No reports for 11 days.\n\n",
+        "\n\nacme-mail.example: 1 change in February 2030:\n- DMARC policy changed: p none → quarantine.\n",
     ] {
         assert!(text.contains(line), "missing {line:?} in\n{text}");
     }
-    assert!(!text.contains("protected and unchanged"), "{text}");
     assert!(!text.contains("parked"), "{text}");
 
     enable_sending(&a.pool).await;

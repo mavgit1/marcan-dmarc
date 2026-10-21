@@ -10,6 +10,7 @@ import type { OnboardingSettings } from "./OnboardingSettings";
 import type { ReportingSettingsResponse } from "./ReportingSettingsResponse";
 import type { RetentionSettings } from "./RetentionSettings";
 import type { SendingSettingsResponse } from "./SendingSettingsResponse";
+import type { UpdateSettings } from "./UpdateSettings";
 
 export type SettingsResponse = {
   mailbox: MailboxSettingsResponse;
@@ -29,4 +30,5 @@ export type SettingsResponse = {
   license: LicenseSettingsResponse;
   branding: BrandingSettingsResponse;
   onboarding: OnboardingSettings;
+  updates: UpdateSettings;
 };

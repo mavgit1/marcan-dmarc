@@ -19,7 +19,8 @@
 		idPrefix,
 		layout,
 		onUsernameBlur,
-		usernameNote
+		usernameNote,
+		invalidField = null
 	}: {
 		model: ImapModel;
 		/** The saved settings: whether a password is stored. */
@@ -29,6 +30,8 @@
 		onUsernameBlur?: () => void;
 		/** Under the username (the setup's "different address" link). */
 		usernameNote?: Snippet;
+		/** The field marked invalid (`aria-invalid`): the one the disabled button's reason names. */
+		invalidField?: string | null;
 	} = $props();
 
 	const form = $derived(m);
@@ -36,6 +39,7 @@
 	const id = (name: string) => `${idPrefix}-${name}`;
 	/** The setup's fields carry their `name`, as a plain form's do. */
 	const named = (name: string) => (required ? name : undefined);
+	const invalid = (field: string) => invalidField === field || undefined;
 </script>
 
 {#snippet label(forId: string, text: string)}
@@ -48,6 +52,7 @@
 		id={id('host')}
 		name={named('host')}
 		bind:value={form.draft.host}
+		aria-invalid={invalid('host')}
 		placeholder="imap.example.com"
 		autocomplete="off"
 		{required}
@@ -67,6 +72,7 @@
 		name={named('port')}
 		type="number"
 		bind:value={form.draft.port}
+		aria-invalid={invalid('port')}
 		placeholder={String(m.defaultPort)}
 		{required}
 		class="mt-1 text-sm"
@@ -80,6 +86,7 @@
 		name={named('username')}
 		bind:value={form.draft.username}
 		onblur={onUsernameBlur}
+		aria-invalid={invalid('username')}
 		placeholder="dmarc@example.com"
 		autocomplete="username"
 		{required}
@@ -96,6 +103,7 @@
 		bind:value={form.draft.password}
 		stored={saved.mailbox.has_password && !m.mailboxChanged}
 		clean={!form.dirty}
+		invalid={invalidField === 'password'}
 		placeholder={m.passwordRequired ? 'Enter password' : 'New password'}
 		autocomplete="current-password"
 		class="mt-1"

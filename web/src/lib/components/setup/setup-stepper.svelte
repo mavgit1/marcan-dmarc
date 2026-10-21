@@ -22,7 +22,7 @@
 	/**
 	 * The setup, one step at a time in a fixed order, with Back and Continue. Each step is done
 	 * by what the server stored and answers (`SETUP_STEPS`); it opens on the first step that is
-	 * not. A step can be opened from the list once reached. `readonly` (the setup guide) shows
+	 * not. A step can be opened from the list once reached. `readonly` (Tools → Setup) shows
 	 * the same steps over the current state, saving nothing, every step open.
 	 */
 	let {
@@ -123,7 +123,7 @@
 	<Card.Header class="space-y-4 border-b pb-4">
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div class="space-y-1">
-				<Card.Title class="text-lg font-semibold">{readonly ? 'Setup guide' : 'Set up Marcan'}</Card.Title>
+				<Card.Title class="text-lg font-semibold">{readonly ? 'Setup' : 'Set up Marcan'}</Card.Title>
 				<Card.Description>
 					{readonly
 						? 'The setup steps over what is set up now; change things under Settings, or run the setup again.'

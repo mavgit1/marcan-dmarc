@@ -23,21 +23,22 @@ pub use alerts::{
     alert_events, alert_state, catalogue_entry, catalogue_id, worst_first, AlertEvent,
     AlertFigures, AlertGroup, AlertKind, AlertState, AlertedIssue, BimiRecordFacts, CatalogueKind,
     DeliveredFigures, DkimKeyFacts, DkimSelectorFacts, DmarcRecordFacts, DnsRecords, DnsState,
-    MtaStsPolicyFacts, MtaStsRecordFacts, Observed, OpenIssue, ReadinessEvidence, RecordChange,
-    RecordDelta, SpfRecordFacts, StoppedFigures, TlsRptRecordFacts, ALERT_CATALOGUE, ALERT_FORMAT,
+    MtaStsPolicyFacts, MtaStsRecordFacts, NewSender, Observed, OpenIssue, ReadinessEvidence,
+    RecordChange, RecordDelta, SpfRecordFacts, StoppedFigures, TlsRptRecordFacts, ALERT_CATALOGUE,
+    ALERT_FORMAT, NEW_SENDER_MIN_FAILURES,
 };
 pub use client_report::{
-    parked_line, report_block, report_place, report_verdict, ParkedLine, ReportBlock,
-    ReportDomainFacts, ReportPlace, ReportVerdict,
+    parked_line, report_line, report_place, report_verdict, ParkedLine, ReportDomainFacts,
+    ReportLine, ReportPlace, ReportVerdict,
 };
 pub use dns::{
     assign_points, authorization_summary, authorization_verdict, critical_count, dkim_summary,
     dmarc_record_status, dns_grade_status, dns_status, grade_from_score, key_status,
     mta_sts_fetch_status, mta_sts_max_age_short, mta_sts_mode_status, no_issue_above_info,
     pct_status, score_from_findings, selector_verdict, severity_points, sort_findings,
-    spf_all_status, spf_void_lookups_exceeded, worst_check, AuthState, AuthVerdict, CheckKind,
-    DnsStatus, Finding, KeyStrength, SelectorFacts, SelectorState, SelectorVerdict, Severity,
-    SpfLookupLoad, GRADE_BANDS, MTA_STS_GOOD_MAX_AGE, MTA_STS_MIN_MAX_AGE, RSA_GOOD_BITS,
+    spf_all_status, spf_void_lookups_exceeded, testing_status, worst_check, AuthState, AuthVerdict,
+    CheckKind, DnsStatus, Finding, KeyStrength, SelectorFacts, SelectorState, SelectorVerdict,
+    Severity, SpfLookupLoad, GRADE_BANDS, MTA_STS_GOOD_MAX_AGE, MTA_STS_MIN_MAX_AGE, RSA_GOOD_BITS,
     RSA_MIN_BITS, SPF_LOOKUP_LIMIT, SPF_LOOKUP_WARN_AT, SPF_VOID_LIMIT,
 };
 pub use domain::{

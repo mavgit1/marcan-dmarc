@@ -14,3 +14,6 @@ web/src/lib/types/** linguist-generated=true
 
 # Export snapshots: the exact bytes the CSV exports write (BOM, CRLF).
 crates/dmarc-server/tests/snapshots/*.csv -text
+
+# Databases made by released versions, opened by the schema-upgrade test.
+crates/dmarc-store/tests/fixtures/*.db binary

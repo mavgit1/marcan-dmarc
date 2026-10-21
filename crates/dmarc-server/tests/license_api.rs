@@ -4,15 +4,18 @@
 //! emails follow (the notice as the footer's last
 //! sentence, the operator name as the From name).
 
-use axum::http::StatusCode;
+use axum::body::Body;
+use axum::http::{header, HeaderMap, Request, StatusCode};
 use dmarc_server::mail::MemorySender;
 use dmarc_server::{router_with_state, AppState};
 use dmarc_store::{
     init, save_settings, AlertSettings, DigestFrequency, LicenseSettings, SendingGroup,
     SendingSettings, Weekday,
 };
+use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use tower::ServiceExt;
 mod common;
 use common::{get_ok, post_bytes, post_json, put_json, send, TEST_OPERATOR_KEY};
 
@@ -95,8 +98,8 @@ async fn without_a_key_the_notice_is_shown() {
         meta["billing_url"],
         "https://billing.stripe.com/p/login/3cIdRa2g90ar77I1vdeEo01"
     );
-    // The UI carries no operator branding: meta has the logo for the Branding page only.
-    assert_eq!(meta["branding"], json!({ "logo": null }));
+    // The UI carries no operator branding, and meta (read on every page) no logo.
+    assert_eq!(meta.get("branding"), None);
 
     let settings = get_ok(&a.app, "/api/settings").await;
     assert_eq!(
@@ -213,7 +216,7 @@ async fn branding_is_free_and_validated() {
     assert_eq!(body["branding"]["operator_name"], "Acme IT");
     let meta = get_ok(&a.app, "/api/meta").await;
     // The name is for the emails; the UI frame never shows it.
-    assert_eq!(meta["branding"], json!({ "logo": null }));
+    assert_eq!(meta.get("branding"), None);
     // Branding never touches the notice.
     assert_eq!(meta["notice_shown"], true);
 
@@ -355,6 +358,7 @@ async fn the_branding_preview_follows_the_draft_and_the_license() {
 #[tokio::test]
 async fn the_logo_is_uploaded_checked_by_its_bytes_and_removed() {
     let a = app().await;
+    assert_eq!(logo(&a, None).await.0, StatusCode::NOT_FOUND);
     // The declared type does not matter: the bytes are a PNG.
     let (status, body) = post_bytes(
         &a.app,
@@ -368,13 +372,17 @@ async fn the_logo_is_uploaded_checked_by_its_bytes_and_removed() {
         body["branding"],
         json!({ "operator_name": "", "has_logo": true, "logo_type": "png", "logo_bytes": PNG.len() })
     );
-    let logo = get_ok(&a.app, "/api/meta").await["branding"]["logo"].clone();
-    assert!(
-        logo.as_str()
-            .unwrap()
-            .starts_with("data:image/png;base64,iVBORw0KGgo"),
-        "{logo}"
-    );
+    // The image is its own GET, with its type and a tag that revalidates it.
+    let (status, headers, bytes) = logo(&a, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bytes, PNG);
+    assert_eq!(headers[header::CONTENT_TYPE], "image/png");
+    assert_eq!(headers[header::CACHE_CONTROL], "private, no-cache");
+    let etag = headers[header::ETAG].to_str().unwrap().to_owned();
+    let (status, headers, bytes) = logo(&a, Some(&etag)).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    assert_eq!(headers[header::ETAG], etag.as_str());
+    assert!(bytes.is_empty());
 
     // Saving the name keeps the logo.
     put_json(
@@ -383,7 +391,7 @@ async fn the_logo_is_uploaded_checked_by_its_bytes_and_removed() {
         json!({ "operator_name": "Acme IT" }),
     )
     .await;
-    assert_eq!(get_ok(&a.app, "/api/meta").await["branding"]["logo"], logo);
+    assert_eq!(logo(&a, Some(&etag)).await.0, StatusCode::NOT_MODIFIED);
 
     // Not an image, too big, or a form: refused, the logo stays.
     let (status, body) = post_bytes(
@@ -414,16 +422,31 @@ async fn the_logo_is_uploaded_checked_by_its_bytes_and_removed() {
     )
     .await;
     assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
-    assert_eq!(get_ok(&a.app, "/api/meta").await["branding"]["logo"], logo);
+    assert_eq!(logo(&a, Some(&etag)).await.0, StatusCode::NOT_MODIFIED);
 
     let (status, body) = send(&a.app, "DELETE", "/api/settings/branding/logo", None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["branding"]["has_logo"], false);
     assert_eq!(body["branding"]["operator_name"], "Acme IT");
-    assert_eq!(
-        get_ok(&a.app, "/api/meta").await["branding"]["logo"],
-        Value::Null
-    );
+    assert_eq!(logo(&a, Some(&etag)).await.0, StatusCode::NOT_FOUND);
+}
+
+/// `(status, headers, body)` of `GET /api/settings/branding/logo`, sent with
+/// `If-None-Match` when `etag` is given.
+async fn logo(a: &App, etag: Option<&str>) -> (StatusCode, HeaderMap, Vec<u8>) {
+    let mut request = Request::builder().uri("/api/settings/branding/logo");
+    if let Some(etag) = etag {
+        request = request.header(header::IF_NONE_MATCH, etag);
+    }
+    let response = a
+        .app
+        .clone()
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let (parts, body) = response.into_parts();
+    let bytes = body.collect().await.unwrap().to_bytes().to_vec();
+    (parts.status, parts.headers, bytes)
 }
 
 #[tokio::test]
@@ -497,10 +520,12 @@ async fn the_emails_carry_the_notice_and_the_operator_name() {
     assert!(!branded.text.contains("free software"));
     let html = branded.html.as_deref().unwrap();
     // The logo goes along as an inline attachment the HTML names by Content-ID.
-    // At its own size, as attributes for desktop Outlook and as CSS.
+    // At its own size, as attributes for desktop Outlook and as CSS, in one
+    // row with the name beside it (which names it, so its alt is empty).
     assert!(html.contains(
-        "<img src=\"cid:logo\" alt=\"Acme IT\" width=\"1\" height=\"1\" style=\"width:1px;height:1px;"
-    ));
+        "<img src=\"cid:logo\" alt=\"\" width=\"1\" height=\"1\" style=\"width:1px;height:1px;display:block;border:0\"></td>\
+         <td style=\"vertical-align:middle;padding:0 0 0 12px;font-size:20px;font-weight:700;color:#111827\">Acme IT</td></tr></table>"
+    ), "{html}");
     let cids: Vec<&str> = branded.images.iter().map(|i| i.cid).collect();
     assert_eq!(cids, ["logo"], "the logo alone, no Marcan mark");
     let logo = &branded.images[0];

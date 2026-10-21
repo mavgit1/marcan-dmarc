@@ -12,6 +12,8 @@ web/build/
 
 # Local SQLite databases
 *.db
+# except the old databases the schema-upgrade test opens
+!crates/dmarc-store/tests/fixtures/*.db
 *.db-shm
 *.db-wal
 *.bak

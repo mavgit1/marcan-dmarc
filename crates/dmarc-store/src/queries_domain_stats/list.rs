@@ -78,7 +78,8 @@ impl From<DomainSummaryFetch> for DomainSummaryRow {
 /// time window. Callers append `AND …` clauses over `d` / `org`, then `) s`
 /// and an order over `s`.
 fn domain_summary_query(scope: Scope) -> QueryBuilder<'static, Sqlite> {
-    let policy_columns = applied_policy_columns(&["p", "sp", "pct", "adkim", "aspf"]);
+    let policy_columns =
+        applied_policy_columns(&["p", "sp", "pct", "adkim", "aspf", "testing", "np"]);
     let mut qb: QueryBuilder<'_, Sqlite> = QueryBuilder::new(format!(
         r#"
     SELECT * FROM (

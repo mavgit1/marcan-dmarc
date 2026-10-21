@@ -2,7 +2,14 @@
 // save and discard do to the draft, what holds Save and the test, and how unsaved edits hold a
 // navigation.
 import { describe, expect, it, vi } from 'vitest';
-import { holdForUnsaved, SettingsForm, unsavedSettings, type SharedSource } from './settings-form.svelte';
+import {
+	holdForUnsaved,
+	invalid,
+	SettingsForm,
+	unsavedSettings,
+	type Invalid,
+	type SharedSource
+} from './settings-form.svelte';
 
 type Saved = { text: string; defaults: string[] };
 type Draft = { enabled: boolean; text: string; password: string };
@@ -42,11 +49,11 @@ class TextForm extends SettingsForm<Saved, Draft> {
 	protected normalize(d: Draft): Draft {
 		return { ...d, text: d.text.trim() };
 	}
-	protected check(d: Draft): string | null {
-		return d.text.includes('!') ? 'No exclamation marks.' : null;
+	protected check(d: Draft): Invalid | null {
+		return invalid('text', d.text.includes('!') ? 'No exclamation marks.' : null);
 	}
-	protected whyBlocked(d: Draft): string | null {
-		return d.enabled && !d.text ? 'Enter a text first.' : null;
+	protected whyBlocked(d: Draft): Invalid | null {
+		return invalid('enabled', d.enabled && !d.text ? 'Enter a text first.' : null);
 	}
 	protected whyNoTest(d: Draft): string | null {
 		return d.text === 'untestable' ? 'Not this one.' : null;
@@ -101,13 +108,21 @@ describe('SettingsForm', () => {
 		form.feature!.set(true);
 		expect(form.draft.enabled).toBe(true);
 		expect(form.blocked).toBe('Enter a text first.');
+		expect(form.held).toEqual({ field: 'enabled', message: 'Enter a text first.' });
 		expect(form.testBlocked).toBeNull();
 		form.draft.text = 'hi!';
 		expect(form.problem).toBe('No exclamation marks.');
 		expect(form.canSave).toBe(false);
 		expect(form.blocked).toBeNull();
+		// A disabled Save always has its reason, and marks the field it is about.
+		expect(form.held).toEqual({ field: 'text', message: 'No exclamation marks.' });
+		expect(form.fieldProblem('text')).toBe('No exclamation marks.');
+		expect(form.ariaInvalid('text')).toBe(true);
+		expect(form.ariaInvalid('enabled')).toBeUndefined();
 		form.draft.text = 'untestable';
 		expect(form.canSave).toBe(true);
+		expect(form.held).toBeNull();
+		expect(form.ariaInvalid('text')).toBeUndefined();
 		expect(form.testBlocked).toBe('Not this one.');
 		stop();
 	});

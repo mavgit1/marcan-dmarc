@@ -15,7 +15,7 @@
 	import { focusUrlHash, onFocusAnchor } from '$lib/state/anchor-focus.svelte';
 
 	/**
-	 * The setup guide: the setup's own steps over what is set up now, read-only (the same
+	 * Tools → Setup: the setup's own steps over what is set up now, read-only (the same
 	 * stepper as /setup, saving nothing), then a short DMARC, SPF and DKIM reference.
 	 */
 
@@ -52,7 +52,12 @@
 			text: 'Where aggregate reports go. Several addresses are allowed, comma-separated: mailto:a@x.com,mailto:b@y.net.'
 		},
 		{ tag: 'sp=', text: 'Policy for subdomains; inherits p= when absent.' },
-		{ tag: 'pct=', text: 'Share of failing mail the policy applies to (default 100).' },
+		{ tag: 'np=', text: 'Policy for subdomains that do not exist (RFC 9989); inherits sp= when absent.' },
+		{
+			tag: 'pct=',
+			text: 'Share of failing mail the policy applies to (default 100). Receivers following RFC 9989 ignore it.'
+		},
+		{ tag: 't=y', text: 'Testing (RFC 9989): receivers following it do not apply the policy, like pct=0.' },
 		{
 			tag: 'adkim= / aspf=',
 			text: 'Alignment: r (relaxed, same organizational domain, default) or s (strict, exact match).'

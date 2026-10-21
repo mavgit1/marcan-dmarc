@@ -71,7 +71,7 @@ pub struct IssueFigures<'a> {
 /// The policy as a badge: `p=none`, the published value Marcan does not
 /// know, or, without a record, the state shown in its place everywhere
 /// ("No record", "Not checked yet", "Check failed").
-fn policy_label(f: &IssueFigures<'_>) -> String {
+pub fn policy_label(f: &IssueFigures<'_>) -> String {
     let Some(p) = f.policy else {
         return match f.policy_source {
             PolicySource::NotChecked => "Not checked yet",

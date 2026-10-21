@@ -21,6 +21,11 @@ export type AlertItem = {
    * "Warning", "Good" or "Note".
    */
   severity_label: string;
+  /**
+   * The source IP of the sender the event is about, whose sender page
+   * the line links to (a new failing sender); `null` for the others.
+   */
+  sender_ip: string | null;
   id: number;
   domain_id: number;
   domain: string;

@@ -83,12 +83,12 @@ pub fn render(input: &DigestInput<'_>) -> Content {
         let link = domain_link(input.base_url, g.domain_id);
         text.push_str(&format!("\n  {}\n", g.domain));
         for item in &g.items {
-            text.push_str(&format!("    {}\n", text_line(item)));
+            text.push_str(&format!("    {}\n", text_line(item, input.base_url)));
         }
         html.push_str(&html_domain_heading(g.domain, link.as_deref()));
         html.push_str("<ul style=\"padding:0;margin:0\">");
         for item in &g.items {
-            html.push_str(&html_line(item));
+            html.push_str(&html_line(item, input.base_url));
         }
         html.push_str("</ul>");
     }

@@ -189,7 +189,7 @@
 	{#snippet actions()}
 		<Button variant="outline" size="sm" href={resolve('/guide')}>
 			<BookOpenIcon />
-			Setup guide
+			Setup
 		</Button>
 	{/snippet}
 </PageHeader>

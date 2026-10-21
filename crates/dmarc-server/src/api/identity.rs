@@ -7,9 +7,10 @@
 //! `identity`; there is no separate identity endpoint.
 
 use crate::AppState;
-use dmarc_identity::{resolve, Evidence, SenderIdentity};
+use dmarc_identity::{resolve, Evidence, SenderIdentity, SenderNames};
 use dmarc_store::{get_identity_snapshots, spf_pass_domains, StoreError};
 use serde::Serialize;
+use sqlx::SqlitePool;
 use std::collections::{HashMap, HashSet};
 use ts_rs::TS;
 
@@ -27,15 +28,24 @@ pub async fn identities<'a>(
     state: &AppState,
     ips: impl IntoIterator<Item = &'a str>,
 ) -> Result<HashMap<String, SenderIdentity>, StoreError> {
+    identities_named(&state.pool, &state.names(), ips).await
+}
+
+/// [`identities`] with the sender names `names` in effect, for a caller
+/// without the app state (the alert evaluation).
+pub async fn identities_named<'a>(
+    pool: &SqlitePool,
+    names: &SenderNames,
+    ips: impl IntoIterator<Item = &'a str>,
+) -> Result<HashMap<String, SenderIdentity>, StoreError> {
     let mut seen = HashSet::new();
     let ips: Vec<String> = ips
         .into_iter()
         .filter(|ip| seen.insert(*ip))
         .map(str::to_owned)
         .collect();
-    let mut snapshots = get_identity_snapshots(&state.pool, &ips).await?;
-    let mut spf = spf_pass_domains(&state.pool, &ips).await?;
-    let names = state.names();
+    let mut snapshots = get_identity_snapshots(pool, &ips).await?;
+    let mut spf = spf_pass_domains(pool, &ips).await?;
     Ok(ips
         .into_iter()
         .map(|raw| {
@@ -45,7 +55,7 @@ pub async fn identities<'a>(
                 ptr_confirmed: snap.and_then(|s| s.ptr_confirmed),
                 spf_domain: spf.remove(&raw),
             };
-            let identity = resolve(raw.parse().ok(), evidence, &names);
+            let identity = resolve(raw.parse().ok(), evidence, names);
             (raw, identity)
         })
         .collect())

@@ -76,11 +76,17 @@ fn with_tag(record: &str, name: &str, value: Option<&str>) -> String {
 }
 
 /// `record` moved to policy `p` (`quarantine`, `reject`) at `pct` percent:
-/// `pct=` is left out at 100 (its default); every other tag stays as
-/// published.
+/// `pct=` is left out at 100 (its default), and a `t=y` goes too, since a
+/// step applies the policy rather than testing it (RFC 9989); every other
+/// tag stays as published.
 pub fn with_policy(record: &str, p: &str, pct: i64) -> String {
     let pct = (pct < 100).then(|| pct.to_string());
-    with_tag(&with_tag(record, "p", Some(p)), "pct", pct.as_deref())
+    let out = with_tag(&with_tag(record, "p", Some(p)), "pct", pct.as_deref());
+    if crate::dmarc::parse_dmarc_record(record).testing() {
+        with_tag(&out, "t", None)
+    } else {
+        out
+    }
 }
 
 #[cfg(test)]
@@ -182,6 +188,22 @@ mod tests {
         assert_eq!(
             with_policy("v=DMARC1; p=none; pct=10", "quarantine", 25),
             "v=DMARC1; p=quarantine; pct=25"
+        );
+    }
+
+    #[test]
+    fn a_policy_step_ends_testing() {
+        let out = with_policy(
+            "v=DMARC1; p=quarantine; T=Y; rua=mailto:a@example.com",
+            "reject",
+            100,
+        );
+        assert_eq!(out, "v=DMARC1; p=reject; rua=mailto:a@example.com");
+        assert!(!parse_dmarc_record(&out).testing());
+        // t=n is the default and stays as published.
+        assert_eq!(
+            with_policy("v=DMARC1; p=none; t=n", "quarantine", 100),
+            "v=DMARC1; p=quarantine; t=n"
         );
     }
 

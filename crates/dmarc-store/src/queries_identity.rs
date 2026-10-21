@@ -76,6 +76,27 @@ pub async fn upsert_identity_snapshot(
     Ok(())
 }
 
+/// Delete up to `limit` reverse-DNS snapshots of IPs that no stored record
+/// names any more, in one write transaction; returns how many went. Every
+/// sender page and export starts from records, so only those snapshots can
+/// still be shown; an IP that reports again is looked up again.
+pub async fn delete_unused_identity_snapshots(
+    pool: &SqlitePool,
+    limit: i64,
+) -> Result<u64, StoreError> {
+    let mut tx = begin_write(pool).await?;
+    let done = sqlx::query(
+        "DELETE FROM identity_snapshots WHERE ip IN \
+         (SELECT s.ip FROM identity_snapshots s WHERE NOT EXISTS \
+          (SELECT 1 FROM records rec WHERE rec.source_ip = s.ip) LIMIT ?)",
+    )
+    .bind(limit)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(done.rows_affected())
+}
+
 /// Most IPs bound in one `IN (...)` list, well under SQLite's variable limit.
 const IP_CHUNK: usize = 500;
 

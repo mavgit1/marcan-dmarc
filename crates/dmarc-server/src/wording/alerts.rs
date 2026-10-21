@@ -10,7 +10,7 @@ use super::{capitalized, count_noun, format_pct};
 use dmarc_assess::{
     AlertGroup, AlertKind, AlertedIssue, BimiRecordFacts, CatalogueKind, CheckKind,
     DeliveredFigures, DmarcRecordFacts, EnforcementState, HealthState, MtaStsRecordFacts,
-    PolicyStep, RecordDelta, Status,
+    NewSender, PolicyStep, RecordDelta, Status, NEW_SENDER_MIN_FAILURES, READINESS_WINDOW_DAYS,
 };
 
 /// A line's colour in a word: the alert email's plain text, and the badge
@@ -33,6 +33,7 @@ pub fn group_title(group: AlertGroup) -> &'static str {
         AlertGroup::Policy => "Policy",
         AlertGroup::Readiness => "Readiness",
         AlertGroup::Parked => "Parked",
+        AlertGroup::Senders => "Senders",
     }
 }
 
@@ -50,11 +51,21 @@ pub fn catalogue_title(kind: CatalogueKind) -> String {
         CatalogueKind::ReadinessReached => "Ready for the next policy step".to_owned(),
         CatalogueKind::ParkedChanged { parked: true } => "Marked as parked".to_owned(),
         CatalogueKind::ParkedChanged { parked: false } => "No longer parked".to_owned(),
+        CatalogueKind::NewFailingSender => "New failing sender".to_owned(),
     }
 }
 
 /// What makes a kind of alert, in one sentence.
-pub fn catalogue_trigger(kind: CatalogueKind) -> &'static str {
+pub fn catalogue_trigger(kind: CatalogueKind) -> String {
+    match kind {
+        CatalogueKind::NewFailingSender => format!(
+            "A sender that sent nothing as the domain before the last {READINESS_WINDOW_DAYS} days had at least {NEW_SENDER_MIN_FAILURES} messages fail DMARC in them (forwarded mail not counted)."
+        ),
+        _ => catalogue_trigger_line(kind).to_owned(),
+    }
+}
+
+fn catalogue_trigger_line(kind: CatalogueKind) -> &'static str {
     use AlertedIssue::{DeliveredFailures, ReportsStopped};
     match kind {
         CatalogueKind::IssueOpened(DeliveredFailures) => {
@@ -104,6 +115,7 @@ pub fn catalogue_trigger(kind: CatalogueKind) -> &'static str {
         CatalogueKind::ParkedChanged { parked: false } => {
             "The domain is no longer marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one."
         }
+        CatalogueKind::NewFailingSender => unreachable!("worded with its numbers"),
     }
 }
 
@@ -351,7 +363,34 @@ pub fn alert_line(kind: &AlertKind) -> String {
         },
         AlertKind::ParkedChanged { parked: true } => "Marked as parked.".to_owned(),
         AlertKind::ParkedChanged { parked: false } => "No longer parked.".to_owned(),
+        AlertKind::NewFailingSender {
+            sender,
+            window_days,
+        } => new_sender_line(sender, *window_days),
     }
+}
+
+/// "New sender 192.0.2.1 (Example Mail) failed DMARC with 42 messages in the
+/// last 30 days (12 delivered) and sent nothing as the domain before. A new
+/// system sending as the domain, or spoofing: check its sender page."
+fn new_sender_line(sender: &NewSender, window_days: i64) -> String {
+    let name = sender
+        .name
+        .as_ref()
+        .map(|n| format!(" ({n})"))
+        .unwrap_or_default();
+    let delivered = match sender.delivered_failures {
+        0 => "all blocked by policy".to_owned(),
+        d if d >= sender.failed => "all delivered".to_owned(),
+        d => format!("{} delivered", super::format_count(d)),
+    };
+    format!(
+        "New sender {}{name} failed DMARC with {} in the last {} ({delivered}) and sent nothing as the domain before. \
+         A new system sending as the domain, or spoofing: check its sender page.",
+        sender.source_ip,
+        count_noun(sender.failed, "message"),
+        count_noun(window_days, "day"),
+    )
 }
 
 /// The window's delivered mail against the event's threshold: "12
@@ -719,7 +758,39 @@ mod tests {
                 },
                 "DMARC policy changed: p reject → none, pct 100 → 50.",
             ),
+            (
+                new_sender(Some("Example Mail"), 42, 12),
+                "New sender 203.0.113.5 (Example Mail) failed DMARC with 42 messages in the last 30 days (12 delivered) and sent nothing as the domain before. A new system sending as the domain, or spoofing: check its sender page.",
+            ),
+            (
+                new_sender(None, 1_250, 0),
+                "New sender 203.0.113.5 failed DMARC with 1,250 messages in the last 30 days (all blocked by policy) and sent nothing as the domain before. A new system sending as the domain, or spoofing: check its sender page.",
+            ),
+            (
+                new_sender(None, 10, 10),
+                "New sender 203.0.113.5 failed DMARC with 10 messages in the last 30 days (all delivered) and sent nothing as the domain before. A new system sending as the domain, or spoofing: check its sender page.",
+            ),
         ]
+    }
+
+    fn new_sender(name: Option<&str>, failed: i64, delivered_failures: i64) -> AlertKind {
+        AlertKind::NewFailingSender {
+            sender: NewSender {
+                source_ip: "203.0.113.5".into(),
+                name: name.map(str::to_owned),
+                failed,
+                delivered_failures,
+            },
+            window_days: 30,
+        }
+    }
+
+    /// The trigger names the threshold and the window the rule uses.
+    #[test]
+    fn the_new_sender_trigger_names_its_numbers() {
+        let trigger = catalogue_trigger(CatalogueKind::NewFailingSender);
+        assert!(trigger.contains(&format!("last {READINESS_WINDOW_DAYS} days")));
+        assert!(trigger.contains(&format!("at least {NEW_SENDER_MIN_FAILURES} messages")));
     }
 
     #[test]
@@ -799,7 +870,7 @@ mod tests {
             expected.push(vec![
                 shown,
                 catalogue_title(entry),
-                catalogue_trigger(entry).to_owned(),
+                catalogue_trigger(entry),
             ]);
         }
         assert_eq!(

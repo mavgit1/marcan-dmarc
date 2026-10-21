@@ -72,6 +72,7 @@
 						<Input
 							id={id('host')}
 							bind:value={m.draft.host}
+							aria-invalid={m.ariaInvalid('host')}
 							placeholder="smtp.example.com"
 							autocomplete="off"
 							class="mt-1 font-mono text-sm"

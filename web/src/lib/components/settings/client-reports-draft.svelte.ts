@@ -6,9 +6,11 @@ import type { ClientReportSettings } from '$lib/types/ClientReportSettings';
 import type { Meta } from '$lib/types/Meta';
 import type { SettingsResponse } from '$lib/types/SettingsResponse';
 import {
+	invalid,
 	savedSendingBlocks,
 	savedTestRecipient,
 	SettingsForm,
+	type Invalid,
 	type SettingsFormSource,
 	type Writes
 } from './settings-form.svelte';
@@ -89,13 +91,13 @@ export class ClientReportsModel extends SettingsForm<SettingsResponse, ClientRep
 		return { ...d, day_of_month: Number(d.day_of_month), hour_utc: Number(d.hour_utc), reply_to: d.reply_to.trim() };
 	}
 
-	protected check(d: ClientReportSettings): string | null {
-		return dayProblem(d, dayRange(meta.current)) ?? replyToProblem(d);
+	protected check(d: ClientReportSettings): Invalid | null {
+		return invalid('day_of_month', dayProblem(d, dayRange(meta.current))) ?? invalid('reply_to', replyToProblem(d));
 	}
 
-	/** Switched on with an empty list. */
-	protected whyBlocked(d: ClientReportSettings): string | null {
-		return d.enabled && this.#recipientCount() === 0 ? CLIENT_REPORTS_NO_RECIPIENT : null;
+	/** Switched on with an empty list; it marks the recipient list (`recipients`, the page's other part). */
+	protected whyBlocked(d: ClientReportSettings): Invalid | null {
+		return invalid('recipients', d.enabled && this.#recipientCount() === 0 ? CLIENT_REPORTS_NO_RECIPIENT : null);
 	}
 
 	/** The server asks only for sending, not for the reports to be on; the Reply-To on screen goes with it. */

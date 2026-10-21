@@ -36,7 +36,8 @@ pub const LICENSE_URL: &str = "https://marcan.kaitiaki.tech/license";
 
 /// Where an operator manages or cancels the subscription behind a key (the
 /// Stripe customer portal): the one place the UI (through `GET /api/meta`)
-/// reads it from.
+/// reads it from. The License page links it only while a valid key is
+/// stored; the plans and their prices are the docs' Pricing page's alone.
 pub const BILLING_URL: &str = "https://billing.stripe.com/p/login/3cIdRa2g90ar77I1vdeEo01";
 
 /// The free-software notice: the one sentence that ends every email while it

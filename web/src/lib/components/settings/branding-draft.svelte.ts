@@ -1,5 +1,6 @@
 import { deleteLogo, previewBranding, saveBranding, uploadLogo } from '$lib/api';
 import { formatInt } from '$lib/format';
+import { storedLogo } from '$lib/state/logo.svelte';
 import { meta } from '$lib/state/meta.svelte';
 import { settings } from '$lib/state/settings.svelte';
 import type { BrandingPreviewRequest } from '$lib/types/BrandingPreviewRequest';
@@ -8,7 +9,7 @@ import type { EmailPreview } from '$lib/types/EmailPreview';
 import type { LogoType } from '$lib/types/LogoType';
 import type { PixelSize } from '$lib/types/PixelSize';
 import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import { SettingsForm, type SettingsFormSource, type Writes } from './settings-form.svelte';
+import { invalid, SettingsForm, type Invalid, type SettingsFormSource, type Writes } from './settings-form.svelte';
 
 /**
  * What happens to the logo on save: nothing, a picked image replaces it, or it is removed. A
@@ -93,7 +94,7 @@ export function previewNote(p: EmailPreview): 'no_name' | 'notice' | 'licensed' 
 /**
  * The Branding page's model (the branding group): the operator name and the logo change (a
  * picked image, or "Remove logo"), saved together by the save bar through `settings.save`: the
- * name, then the upload or removal. Every save reloads `meta`, whose stored logo this page shows.
+ * name, then the upload or removal, after which the stored logo shown is asked for again.
  * Saving never reads the license; `preview` (the server's "How your emails look" for the draft,
  * asked again once typing pauses) shows the emails as the stored license makes them, and in the
  * other license state. Create it during component initialisation (it owns effects).
@@ -125,8 +126,8 @@ export class BrandingModel extends SettingsForm<SettingsResponse, BrandingDraft>
 		return { operator_name: d.operator_name.trim(), logo: d.logo };
 	}
 
-	protected check(d: BrandingDraft): string | null {
-		return problemWith(d, meta.current?.logo_max_bytes ?? null);
+	protected check(d: BrandingDraft): Invalid | null {
+		return invalid('logo', problemWith(d, meta.current?.logo_max_bytes ?? null));
 	}
 
 	async loadPreview(request: BrandingPreviewRequest): Promise<void> {
@@ -161,7 +162,7 @@ export class BrandingModel extends SettingsForm<SettingsResponse, BrandingDraft>
 			else if (d.logo.kind === 'remove') saved = await settings.save(deleteLogo());
 			return { saved };
 		} finally {
-			meta.reload().catch(() => {});
+			if (d.logo.kind !== 'keep') storedLogo.changed();
 		}
 	}
 }

@@ -22,6 +22,7 @@
 		autocomplete,
 		onRemove,
 		storedLabel,
+		invalid = false,
 		class: className,
 		inputClass
 	}: {
@@ -41,6 +42,8 @@
 		onRemove?: () => void;
 		/** What the locked field reads instead of "Stored": a name for the stored value that does not reveal it. */
 		storedLabel?: string | null;
+		/** Marked invalid (`aria-invalid`): Save or the test waits for this field. */
+		invalid?: boolean;
 		class?: string;
 		inputClass?: string;
 	} = $props();
@@ -89,6 +92,7 @@
 			{placeholder}
 			{autocomplete}
 			aria-label={label}
+			aria-invalid={invalid || undefined}
 			class="min-w-0 flex-1 basis-32"
 			{inputClass}
 		/>

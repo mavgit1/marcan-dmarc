@@ -32,8 +32,6 @@ export type LicenseStateView = {
 	title: string;
 	/** The sentence after "Licensed to <email>." when the key names someone; `null`: none. */
 	detail: string | null;
-	/** Managing the subscription and Branding (while active), or where a license is bought. */
-	links: 'manage' | 'buy';
 };
 
 /** The License page's license state box per server state (`license.state`). */
@@ -41,16 +39,14 @@ export const LICENSE_STATE: Record<LicenseState, LicenseStateView> = {
 	active: {
 		tone: 'pass',
 		title: 'Operator license active.',
-		detail: 'Client emails carry your name, not the free-software notice.',
-		links: 'manage'
+		detail: 'Client emails carry your name, not the free-software notice.'
 	},
 	no_key: {
 		tone: 'neutral',
 		title: 'No operator license.',
-		detail: 'Client emails carry the free-software notice.',
-		links: 'buy'
+		detail: 'Client emails carry the free-software notice.'
 	},
-	invalid: { tone: 'fail', title: 'The stored operator key is not valid.', detail: null, links: 'buy' }
+	invalid: { tone: 'fail', title: 'The stored operator key is not valid.', detail: null }
 };
 
 /**

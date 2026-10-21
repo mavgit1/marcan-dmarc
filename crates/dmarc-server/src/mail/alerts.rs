@@ -53,22 +53,37 @@ pub(crate) fn domain_link(base_url: Option<&str>, domain_id: i64) -> Option<Stri
         .map(|base| format!("{base}/domains/{domain_id}"))
 }
 
-/// One event as a plain-text line: `[Problem] New issue: … (2026-10-13 07:00 UTC)`.
-pub(crate) fn text_line(item: &AlertItem) -> String {
+/// `<base>/senders/<ip>` for an event about a sender; `None` without a base
+/// URL or a sender.
+pub(crate) fn sender_link(base_url: Option<&str>, item: &AlertItem) -> Option<String> {
+    let ip = item.sender_ip.as_deref()?;
+    base_url.map(|base| format!("{base}/senders/{ip}"))
+}
+
+/// One event as a plain-text line: `[Problem] New issue: … (2026-10-13 07:00 UTC)`,
+/// followed by its sender page when it has one.
+pub(crate) fn text_line(item: &AlertItem, base_url: Option<&str>) -> String {
+    let link = sender_link(base_url, item)
+        .map(|l| format!(" {l}"))
+        .unwrap_or_default();
     format!(
-        "[{}] {} ({})",
+        "[{}] {} ({}){link}",
         item.severity_label,
         item.text,
         format_time(item.row.created_at)
     )
 }
 
-/// One event as an HTML list item, coloured by its severity.
-pub(crate) fn html_line(item: &AlertItem) -> String {
+/// One event as an HTML list item, coloured by its severity, with a link to
+/// its sender page when it has one.
+pub(crate) fn html_line(item: &AlertItem, base_url: Option<&str>) -> String {
     let (fg, bg) = status_colours(item.row.event.severity);
+    let link = sender_link(base_url, item)
+        .map(|l| format!(" <a href=\"{}\">Sender page</a>", escape(&l)))
+        .unwrap_or_default();
     format!(
         "<li style=\"margin:4px 0;padding:6px 10px;border-left:3px solid {fg};background:{bg};list-style:none\">\
-         <strong style=\"color:{fg}\">{}</strong> {} \
+         <strong style=\"color:{fg}\">{}</strong> {}{link} \
          <span style=\"color:#737373;font-size:12px\">{}</span></li>",
         escape(item.severity_label),
         escape(&item.text),
@@ -122,7 +137,7 @@ pub fn render(items: &[AlertItem], base_url: Option<&str>, letterhead: &Letterhe
         text.push('\n');
         for item in &g.items {
             text.push_str("  ");
-            text.push_str(&text_line(item));
+            text.push_str(&text_line(item, base_url));
             text.push('\n');
         }
         if let Some(link) = &link {
@@ -131,7 +146,7 @@ pub fn render(items: &[AlertItem], base_url: Option<&str>, letterhead: &Letterhe
         html.push_str(&html_domain_heading(g.domain, link.as_deref()));
         html.push_str("<ul style=\"padding:0;margin:0\">");
         for item in &g.items {
-            html.push_str(&html_line(item));
+            html.push_str(&html_line(item, base_url));
         }
         html.push_str("</ul>");
     }
@@ -334,6 +349,39 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         let message = mail.message("ops@example.com".parse().unwrap());
         assert_eq!(message.subject, "Marcan: 3 changes on 2 domains");
         assert!(message.html.is_some());
+    }
+
+    /// A new failing sender's line links to its sender page, with a base URL.
+    #[test]
+    fn a_new_sender_links_to_its_sender_page() {
+        let sender = vec![item(
+            1,
+            7,
+            "b.example",
+            AlertKind::NewFailingSender {
+                sender: dmarc_assess::NewSender {
+                    source_ip: "203.0.113.5".into(),
+                    name: None,
+                    failed: 12,
+                    delivered_failures: 0,
+                },
+                window_days: 30,
+            },
+            Status::Warn,
+        )];
+        let mail = render(
+            &sender,
+            Some("https://marcan.example.com"),
+            &Letterhead::default(),
+        );
+        assert!(mail.text.contains(
+            "check its sender page. (2026-10-14 07:15 UTC) https://marcan.example.com/senders/203.0.113.5\n"
+        ));
+        assert!(mail.html.contains(
+            "check its sender page. <a href=\"https://marcan.example.com/senders/203.0.113.5\">Sender page</a>"
+        ));
+        let bare = render(&sender, None, &Letterhead::default());
+        assert!(!bare.text.contains("/senders/") && !bare.html.contains("/senders/"));
     }
 
     #[test]

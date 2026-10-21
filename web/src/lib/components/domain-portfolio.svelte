@@ -28,7 +28,9 @@
 		showOrganization = true,
 		emptyHeadline = 'No domains yet',
 		emptyDescription,
-		afterFigures
+		afterFigures,
+		attention = false,
+		onClearAttention
 	}: {
 		organizationId: number | null;
 		showOrganization?: boolean;
@@ -36,6 +38,10 @@
 		emptyDescription?: string;
 		/** Between the cards and the table (the organization page's client report line). */
 		afterFigures?: Snippet;
+		/** The table shows only the domains with an open issue (the Domains page's `?attention=1`). */
+		attention?: boolean;
+		/** Clears that filter. */
+		onClearAttention?: () => void;
 	} = $props();
 
 	/**
@@ -93,5 +99,5 @@
 {#if stats.data?.domain_count === 0}
 	<EmptyState icon={GlobeIcon} headline={emptyHeadline} description={emptyDescription} />
 {:else}
-	<DomainsTable {organizationId} {showOrganization} bind:filtered />
+	<DomainsTable {organizationId} {showOrganization} {attention} {onClearAttention} bind:filtered />
 {/if}

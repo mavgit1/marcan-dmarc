@@ -7,9 +7,11 @@ import type { DigestFrequency } from '$lib/types/DigestFrequency';
 import type { SettingsResponse } from '$lib/types/SettingsResponse';
 import type { Weekday } from '$lib/types/Weekday';
 import {
+	invalid,
 	savedSendingBlocks,
 	savedTestRecipient,
 	SettingsForm,
+	type Invalid,
 	type SettingsFormSource,
 	type Writes
 } from './settings-form.svelte';
@@ -122,10 +124,10 @@ export class AlertsModel extends SettingsForm<SettingsResponse, AlertsDraft> {
 
 	/**
 	 * Switched on without a recipient. Client-side because it holds Save, so the request the
-	 * server would refuse (a 409, the same words) is never sent.
+	 * server would refuse (a 409, the same words) is never sent. It marks the recipients.
 	 */
-	protected whyBlocked(d: AlertsDraft): string | null {
-		return d.enabled && !d.recipients ? ALERTS_NO_RECIPIENT : null;
+	protected whyBlocked(d: AlertsDraft): Invalid | null {
+		return invalid('recipients', d.enabled && !d.recipients ? ALERTS_NO_RECIPIENT : null);
 	}
 
 	protected whyNoTest(): string | null {

@@ -36,6 +36,8 @@ export default defineConfig(({ mode }) => ({
 		// Unit tests of the UI's pure logic (wording, formats, DMARC record edits) and of its
 		// state modules. No DOM: node, with Vite's client environment so `.svelte.ts` modules
 		// (resource, SettingsForm) compile with the client runtime (`vitest.environment.js`).
+		// A component's tests (`*.svelte.test.ts` beside it, `$lib/test/component-test.svelte`)
+		// ask for happy-dom in their first line (`// @vitest-environment happy-dom`).
 		include: ['src/**/*.test.ts'],
 		environment: './vitest.environment.js'
 	},

@@ -1,4 +1,4 @@
-# License & pricing
+# License
 
 All of Marcan's code is public, and nothing is held back for a paid edition. What you owe depends only on whose domains you monitor.
 
@@ -25,25 +25,7 @@ An example you can use in a welcome e-mail or your terms:
 
 > This service runs on Marcan, software whose source code is freely available under the Beneficiary Copyleft License 1.0: you may run, study, modify and share it yourself. Source code of the version we run: https://example.com/source
 
-**Option 2: buy a license.** It removes the duty to tell your clients, for as long as it is active, and lets you keep your own changes to Marcan private.
-
-| License | Client domains | Monthly | Yearly |
-| :--- | :--- | :--- | :--- |
-| **Operator 60** | up to 60 | [$20 per month](https://buy.stripe.com/7sYaEYaMF8GXdw6a1JeEo02) | [$200 per year](https://buy.stripe.com/eVq14oaMF4qH1No4HpeEo03) |
-| **Operator Unlimited** | any number | [$50 per month](https://buy.stripe.com/aFadRa8Exg9p8bM0r9eEo00) | [$500 per year](https://buy.stripe.com/3cIdRa2g90ar77I1vdeEo01) |
-
-- **30-day free trial** on all plans. Cancel during the trial and nothing is charged.
-- Prices are in USD; checkout may show the amount in your local currency. No VAT is charged.
-- Only client domains count. Your own domains and those of your group companies never do.
-- Domains count as registered domains, not as entries in Marcan's domain list: `example.com` and `mail.example.com` are one.
-- One license covers all instances you run yourself, including test instances.
-- It covers running Marcan for your clients. Passing Marcan on to others is always under the Beneficiary Copyleft License, and the license itself cannot be transferred or sublicensed.
-
-Buying a license means agreeing to the [Marcan Operator License v1](/licenses/operator-v1).
-
-Manage or cancel your license: <https://billing.stripe.com/p/login/3cIdRa2g90ar77I1vdeEo01>
-
-Questions, or a license for something these plans don't fit: [marcan@kaitiaki.tech](mailto:marcan@kaitiaki.tech). The same address is the place to ask if you would like Marcan hosted for you, or help setting it up.
+**Option 2: buy a license.** It removes the duty to tell your clients, for as long as it is active, and lets you keep your own changes to Marcan private. The two plans, the 30-day trial and how client domains are counted are on [Pricing](./pricing). Buying a license means agreeing to the [Marcan Operator License v1](/licenses/operator-v1).
 
 ### The operator key and the notice
 
@@ -60,21 +42,21 @@ It is never added to the CSV exports: they are a documented format that other to
 
 The notice helps, but it does not replace telling a client at sign-up (Option 1 above): the first email that carries it may arrive weeks after the client signed up or its first domain was added, with the first alert or the first monthly report, and the license asks for the information by then.
 
-When you subscribe, you receive an **operator key** (**Get a license** on **Settings → License** leads here). Enter it under **Settings → License → Operator key**. Saving a valid key turns the notice off at once, and it stays off as long as the key is stored: the emails then end in "Sent by Acme IT." (or "Sent by Marcan." without an operator name). Removing the key brings the notice back. With the notice off, the sidebar shows a small "Operator license" badge in place of the free-software line.
+When you subscribe (see [Pricing](./pricing)), you receive an **operator key**. Enter it under **Settings → License → Operator key**. Saving a valid key turns the notice off at once, and it stays off as long as the key is stored: the emails then end in "Sent by Acme IT." (or "Sent by Marcan." without an operator name). Removing the key brings the notice back. With the notice off, the sidebar shows a small "Operator license" badge in place of the free-software line.
 
-#### What a key changes
+### What a key changes
 
 The emails are what your clients see, so they carry the attribution. A key changes three things in them: the sender name, the top of the email and its last line. Without a key Marcan comes first in each and your branding second; with one, those three name you only. For an operator named Acme IT:
 
 | | Without an operator key | With a valid operator key |
 | :--- | :--- | :--- |
 | Sender name | Acme IT via Marcan | Acme IT |
-| Top of the email | "Marcan, free software" with Marcan's small mark, then your logo (at most 120 by 32 px) and "Managed by Acme IT" | Your logo (at most 200 by 64 px) and "Acme IT" in bold |
+| Top of the email | "Marcan, free software" with Marcan's small mark, then your logo (at most 120 by 32 px) with "Managed by Acme IT" beside it | Your logo (at most 200 by 64 px) with "Acme IT" in bold beside it |
 | Last line | Sent by Acme IT with Marcan, free software you may run yourself under the Beneficiary Copyleft License 1.0, source code: … | Sent by Acme IT. |
 
 Without an operator name, the sender name is "Marcan" either way; without a key the top is Marcan's line alone and the last line "Sent by Marcan, free software …", with one the top is your logo alone (nothing without a logo) and the last line is "Sent by Marcan.". The email's title (such as "DMARC report for Acme, September 2026") follows the top in both. The subjects stay the same with or without a key: alert emails and digests still begin with Marcan ("Marcan: 3 changes on example.com", "Marcan daily digest: …"), and client reports name the organization ("Acme: DMARC report for September 2026"). That is all the key changes, besides the sidebar line above: every feature works the same with or without it, nothing is hidden or blocked without one, and Marcan never asks you for one.
 
-Once a key is stored, **Settings → License** opens with "Operator license active. Licensed to you@acme.example. Client emails carry your name, not the free-software notice.", marked green, with two links: **Manage subscription** (the billing link above, to manage or cancel the subscription) and **Branding**. The key field then shows whose key it is and how it ends, such as "you@acme.example · …GPL7CQ", never the whole key, with **Replace** and **Remove**. Without a key the page reads "No operator license. Client emails carry the free-software notice." with **Get a license**; a stored key that does not verify reads "The stored operator key is not valid.", and the notice stays on. How the emails look is shown under **Settings → Branding** (see [Branding](#branding)).
+**Settings → License** opens with the duty in one sentence and says that the alert and client report emails carry the notice, with a link to **Branding**. Under it, once a key is stored, the license state reads "Operator license active. Licensed to you@acme.example. Client emails carry your name, not the free-software notice.", marked green, with two links: **Manage or cancel a subscription** (the billing link on [Pricing](./pricing#managing-or-cancelling)) and **Branding**. The key field then shows whose key it is and how it ends, such as "you@acme.example · …GPL7CQ", never the whole key, with **Replace** and **Remove**. Without a key the page reads "No operator license. Client emails carry the free-software notice."; a stored key that does not verify reads "The stored operator key is not valid.", and the notice stays on. In every state a line "Plans and prices: marcan.kaitiaki.tech/pricing" links to [Pricing](./pricing), which lists the plans, the trial and their checkout links; the page itself shows no plans. How the emails look is shown under **Settings → Branding** (see [Branding](#branding)).
 
 Without an operator license the notice stays on: the license requires telling clients the software is free, and the notice keeps that visible. An operator license replaces that duty, so with one the notice is off.
 

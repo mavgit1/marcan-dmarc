@@ -1,10 +1,12 @@
 # Alerts
 
-Marcan already decides what needs attention. Alerts tell you when that **changes**, and only in the ways you act on: a record in DNS is edited, the DMARC policy in DNS changes, a domain's health changes, delivered failures open or clear, reports stop or resume, a domain becomes ready for its next policy step, or you mark a domain as parked.
+Marcan already decides what needs attention. Alerts tell you when that **changes**, and only in the ways you act on: a record in DNS is edited, the DMARC policy in DNS changes, a domain's health changes, delivered failures open or clear, reports stop or resume, a domain becomes ready for its next policy step, you mark a domain as parked, or a sender new to a domain fails DMARC as it.
 
 Alerts are **experimental**: which changes are alerted, and how they are worded, may still change between versions.
 
 Marcan always looks for changes and lists every one under **Alerts** in the sidebar, newest first, narrowed by the organization, domain and time range in the header like every other list. You do not need to set up sending or switch anything on to see them. Each domain page shows its last five changes under **Recent changes**. The settings under **Settings → Alerts** (the **Send alerts** switch and the alert kinds) decide only what is emailed.
+
+<Screenshot name="alerts" alt="The Alerts list, newest first: a DMARC record published, a DMARC tag changed and an SPF include added, each with the domain and when it was found" />
 
 ## Changes only
 
@@ -39,6 +41,7 @@ Every kind of alert, as **Settings → Alerts → Alert kinds** lists it (the wo
 | Readiness | Ready for the next policy step | The domain became ready for its next policy step: quarantine, then reject. |
 | Parked | Marked as parked | The domain was marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one. |
 |  | No longer parked | The domain is no longer marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one. |
+| Senders | New failing sender | A sender that sent nothing as the domain before the last 30 days had at least 10 messages fail DMARC in them (forwarded mail not counted). |
 
 Each change is one sentence that names the numbers it is based on, the same in the app and in the email, and has a colour, the colour of where it led:
 
@@ -53,10 +56,20 @@ Each change is one sentence that names the numbers it is based on, the same in t
 | The DMARC policy in DNS changes | DMARC policy changed: p reject → none, pct 100 → 50. | Green when tightened, amber when loosened, red when spoofed mail would now be delivered |
 | Ready for the next policy step | Ready for p=quarantine: 30 days and 1,204 messages under p=none, 99.6% delivered compliance. | Green |
 | Marked as parked, or no longer | Marked as parked. | None |
+| A new sender fails | New sender 203.0.113.5 (Example Mail) failed DMARC with 42 messages in the last 30 days (12 delivered) and sent nothing as the domain before. A new system sending as the domain, or spoofing: check its sender page. | Red when any of its failing mail was delivered, amber when the policy blocked all of it |
 
-The mail figures cover the last 30 days, the window [policy readiness](./dashboard#when-to-move-to-the-next-policy-step) is judged on; the threshold is the share of delivered mail failing DMARC above which the colour applies (delivered compliance below 99% is amber, below 95% red). The days without reports are measured against the domain warning under **Settings → Mailbox** (14 days by default). A DNS record change names what changed in the record (the tags, terms, selector or address before and after).
+The mail figures cover the last 30 days, the window [policy readiness](./readiness) is judged on; the threshold is the share of delivered mail failing DMARC above which the colour applies (delivered compliance below 99% is amber, below 95% red). The days without reports are measured against the domain warning under **Settings → Mailbox** (14 days by default). A DNS record change names what changed in the record (the tags, terms, selector or address before and after).
 
 Two issues of the dashboard's attention list are alerted when they open and clear: delivered failures and stopped reports. The others (a failing DNS grade, `p=none`, a parked domain without `p=reject` or with passing mail, missing DKIM coverage) stay on the dashboard and in the digest's open issues, without alerts of their own: most follow from a change that is alerted itself (a DNS record, the policy, marking the domain parked). The DNS grade moving is not alerted either: health and the record changes cover it. Health moving to or from "no data" is not alerted; the reports-stopped issue covers that.
+
+## New failing senders
+
+A sender is a source IP, as on the [Senders page](./dashboard#pages). It is **new** for a domain when none of the domain's reports that began before the last 30 days has mail from it; it alerts once it has **at least 10 messages that failed DMARC** for the domain in those 30 days. Forwarded mail is not counted (it is legitimate mail broken on the way, not spoofing); mail blocked by policy is. The sentence names the sender (its name when Marcan knows one), how many messages failed and how many of them were delivered, and the alert email links to its sender page when the base URL is set.
+
+- **Once per domain and sender.** A sender that keeps failing is not alerted again. After 30 days it is no longer new, and the alert has done its job; no "resolved" follows.
+- **No flood.** Like every report-derived alert, the senders start from a baseline: the first look at a domain, its first reports and the first look after a mailbox import take the new senders as they are, without an alert each. So does the first look after upgrading to the version that added this alert.
+- It may mean a new system sending as the domain that is not set up yet (a newsletter tool, a CRM, a new mail provider: add it to SPF and sign with DKIM), or someone spoofing the domain. Its sender page helps tell which: who operates the IP, every domain it sent as, and how SPF and DKIM fared.
+- Client reports leave it out: it points to Marcan's sender pages, which your clients do not see.
 
 DNS record changes compare the parsed records, so a record rewritten with other spacing, case or term order is the same record:
 
@@ -78,7 +91,7 @@ Under **Settings → Alerts**. Alert emails are **off by default**. The switch a
 | Recipients | One address per line. Each recipient gets their own copy; Marcan sends at most one message every 5 seconds, so many recipients take a while. |
 | Digest | Off, daily or weekly, at the hour you choose (UTC), on the day you choose for weekly. Off by default; the hour is 07:00 and the day Monday by default. |
 | Base URL | The address you open Marcan at, such as `https://marcan.example.com`. With it, the emails link to each domain and to the alert list; without it, they have no links. |
-| Alert kinds | Every kind of alert above by group, each with an **Email** checkbox (and Email all / Email none per group); all are on by default, and a kind added in a later version arrives on. Folded to one line ("All 15 emailed", "12 of 15 emailed") until you open it; the alert list's **What creates an alert** link opens it. An unticked kind is left out of the alert emails and of the changes in the digest; the **Alerts** list still shows it. |
+| Alert kinds | Every kind of alert above by group, each with an **Email** checkbox (and Email all / Email none per group); all are on by default, and a kind added in a later version arrives on. Folded to one line ("All 16 emailed", "13 of 16 emailed") until you open it; the alert list's **What creates an alert** link opens it. An unticked kind is left out of the alert emails and of the changes in the digest; the **Alerts** list still shows it. |
 
 **Send a test** sends made-up changes on `example.com` to the test recipient set under [Sending](./mailbox#sending) (the sender address unless you set one), not to the recipients, with the base URL on the page, saved or not, through the Sending account (the switch and sending must be on). The line under the button says where it goes. When it fails it says why, like the sending test.
 
@@ -90,7 +103,7 @@ The digest lists what changed since the last digest and every domain's open issu
 
 Switching the digest on starts its period: the first one goes out at the next digest time, not at once. The digest is an alert email too: with alert emails off, no digest goes out.
 
-Alert emails and digests open like every email Marcan sends (see [What a key changes](./license#what-a-key-changes)): without an operator key, "Marcan, free software" and under it "Managed by Acme IT" with your logo (**Settings → Branding**); with one, your logo and name alone. Then comes the title, such as "3 changes on example.com" or "Daily digest for 2026-10-14". They end with the [free-software notice](./license#the-operator-key-and-the-notice), "Sent by Acme IT with Marcan, free software …", as every email Marcan sends does. With a valid operator key the notice is off and they end in "Sent by Acme IT.".
+Alert emails and digests open like every email Marcan sends: "Marcan, free software" and under it "Managed by Acme IT" with your logo (**Settings → Branding**). Then comes the title, such as "3 changes on example.com" or "Daily digest for 2026-10-14". They end with the [free-software notice](./license), "Sent by Acme IT with Marcan, free software …", as every email Marcan sends does. An operator key changes the top, the sender name and the last line: see [What a key changes](./license#what-a-key-changes).
 
 ## Security
 

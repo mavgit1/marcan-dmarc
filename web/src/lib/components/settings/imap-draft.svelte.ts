@@ -11,7 +11,7 @@ import type { ReportingMode } from '$lib/types/ReportingMode';
 import type { SaveMailboxRequest } from '$lib/types/SaveMailboxRequest';
 import type { SettingsResponse } from '$lib/types/SettingsResponse';
 import { defaultPort, portAfterSecurityChange, sameAccount } from './connection';
-import { SettingsForm, type SettingsFormSource, type Writes } from './settings-form.svelte';
+import { invalid, SettingsForm, type Invalid, type SettingsFormSource, type Writes } from './settings-form.svelte';
 
 /** The editable fields of the mailbox. */
 export type ImapDraft = {
@@ -104,18 +104,21 @@ export function effectiveAddress(d: ImapDraft): string {
 }
 
 /**
- * Why a normalized draft cannot be saved, worded for the save bar (the setup disables its button
- * instead). Client-side because a save starts with a login to the server on screen: this holds
- * that request (and the save) until the connection is complete enough to try.
+ * Why a normalized draft cannot be saved and the field it is about, worded for the save bar (the
+ * setup disables its button and says it there instead). Client-side because a save starts with a
+ * login to the server on screen: this holds that request (and the save) until the connection is
+ * complete enough to try.
  */
-export function problemWith(d: ImapDraft, passwordRequired: boolean): string | null {
-	if (!d.host) return 'Enter the server host.';
-	if (!(d.port > 0)) return 'Enter the server port.';
-	if (!d.username) return 'Enter the username.';
-	if (passwordRequired && !d.password.trim()) return 'Enter the password.';
-	if (d.reportAddress && !looksLikeEmail(d.reportAddress)) return 'The report address is not a valid email address.';
-	if (!effectiveAddress(d)) return 'The login is not an email address: enter the report address.';
-	if (!(d.pollMinutes >= 1)) return 'Check the mailbox at least every minute.';
+export function problemWith(d: ImapDraft, passwordRequired: boolean): Invalid | null {
+	if (!d.host) return invalid('host', 'Enter the server host.');
+	if (!(d.port > 0)) return invalid('port', 'Enter the server port.');
+	if (!d.username) return invalid('username', 'Enter the username.');
+	if (passwordRequired && !d.password.trim()) return invalid('password', 'Enter the password.');
+	if (d.reportAddress && !looksLikeEmail(d.reportAddress))
+		return invalid('reportAddress', 'The report address is not a valid email address.');
+	if (!effectiveAddress(d))
+		return invalid('reportAddress', 'The login is not an email address: enter the report address.');
+	if (!(d.pollMinutes >= 1)) return invalid('pollMinutes', 'Check the mailbox at least every minute.');
 	return null;
 }
 
@@ -192,7 +195,7 @@ export class ImapModel extends SettingsForm<SettingsResponse, ImapDraft> {
 		return normalize(d);
 	}
 
-	protected check(d: ImapDraft): string | null {
+	protected check(d: ImapDraft): Invalid | null {
 		return problemWith(d, this.passwordRequired);
 	}
 

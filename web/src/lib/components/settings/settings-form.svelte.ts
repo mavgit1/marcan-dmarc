@@ -78,6 +78,21 @@ export type SettingsFormOptions<T, D> = SettingsFormSource<T> & {
 	onLoad?: (saved: T, first: boolean) => void;
 };
 
+/**
+ * What is wrong with a draft: the sentence the save bar shows and the field it is about, marked
+ * invalid on the page (a draft key, or a name the page gives a field of another part:
+ * Client reports' `recipients`).
+ */
+export type Invalid = { field: string; message: string };
+
+/** `message` about `field`; `null` without a message. */
+export function invalid(field: string, message: string | null): Invalid | null {
+	return message === null ? null : { field, message };
+}
+
+/** Why Save is disabled when a model names no reason (a safety net: every model names one). */
+export const SAVE_HELD = 'Correct the marked fields first.';
+
 /** What every settings page names when a test or preview has nowhere to go (the server says the same). */
 export const NO_TEST_RECIPIENT = 'Set a test recipient under Sending first.';
 
@@ -144,10 +159,11 @@ export type Writes = { readonly page: SettingsPageId; readonly groups: readonly 
 /**
  * One part of a Settings page as a form, the one base of every settings model (`ImapModel`,
  * `SendingModel`, `AlertsModel`, `ClientReportsModel`, `LicenseModel`, `BrandingModel`,
- * `RetentionModel`, `ResolversModel`, `ListDraft`): the saved value, an editable `draft` of it
- * (bind to its fields), the draft as it would be saved (`normalized`), whether the two differ
+ * `RetentionModel`, `ResolversModel`, `UpdatesModel`, `ListDraft`): the saved value, an editable
+ * `draft` of it (bind to its fields), the draft as it would be saved (`normalized`), whether the two differ
  * (`dirty`), why it cannot be saved (`problem`, which holds Save) or why the page cannot be
- * (`blocked`, said beside a disabled Save), the order it saves in (`saveLast`), save and
+ * (`blocked`), the one reason a disabled Save states (`held`) and the field it marks invalid
+ * (`fieldProblem`, `ariaInvalid`), the order it saves in (`saveLast`), save and
  * discard, and one test or preview (`test`, `testBlocked`). A model is itself the part it joins
  * the page form with (`joinPageForm(model)`). The draft survives app refreshes (a reload only
  * replaces an unedited draft); a save replaces the saved value and bumps `refresh`. Create it
@@ -169,10 +185,13 @@ export abstract class SettingsForm<T, D> implements PagePart {
 	readonly test = new Action();
 	/** The draft as it would be saved. */
 	normalized: D = $derived.by(() => this.normalize(this.draft));
+	/** What is wrong with the draft and where; `null` when it can be saved. */
+	invalid: Invalid | null = $derived.by(() => this.check(this.normalized));
 	/** Why the draft cannot be saved; `null` when it can. Save waits while it says so. */
-	problem: string | null = $derived.by(() => this.check(this.normalized));
+	problem: string | null = $derived(this.invalid?.message ?? null);
+	#blockedBy: Invalid | null = $derived.by(() => this.whyBlocked(this.normalized));
 	/** Why the page cannot be saved as it is, said beside a disabled Save; `null` when it can. */
-	blocked: string | null = $derived.by(() => this.whyBlocked(this.normalized));
+	blocked: string | null = $derived(this.#blockedBy?.message ?? null);
 	/** Why the test cannot run now (the switch off first); `null` when it can. */
 	testBlocked: string | null = $derived.by(() =>
 		this.#feature && !(this.normalized as { enabled?: boolean }).enabled
@@ -248,13 +267,13 @@ export abstract class SettingsForm<T, D> implements PagePart {
 		return JSON.stringify(d) !== JSON.stringify(s);
 	}
 
-	/** Why a normalized draft cannot be saved, worded like the server's own check; default none. */
-	protected check(_draft: D): string | null {
+	/** Why a normalized draft cannot be saved, worded like the server's own check, and its field; default none. */
+	protected check(_draft: D): Invalid | null {
 		return null;
 	}
 
-	/** Why the page cannot be saved as it is (a feature on that cannot work); default none. */
-	protected whyBlocked(_draft: D): string | null {
+	/** Why the page cannot be saved as it is (a feature on that cannot work), and its field; default none. */
+	protected whyBlocked(_draft: D): Invalid | null {
 		return null;
 	}
 
@@ -288,6 +307,28 @@ export abstract class SettingsForm<T, D> implements PagePart {
 	/** Save may run (the page's Save is disabled otherwise); default: nothing is wrong. */
 	get canSave(): boolean {
 		return this.problem === null;
+	}
+
+	/**
+	 * Why this part holds the page's Save, and the field to mark: `blocked`'s reason, else (while
+	 * `canSave` is false) the problem; `null` when it holds nothing. A disabled Save always states
+	 * it (`SaveBar`), so no Save is disabled silently.
+	 */
+	get held(): Invalid | null {
+		if (this.#blockedBy) return this.#blockedBy;
+		if (this.canSave) return null;
+		return this.invalid ?? { field: '', message: SAVE_HELD };
+	}
+
+	/** The reason Save is held when it is about `field` (said under the field where the page has room); else `null`. */
+	fieldProblem(field: string): string | null {
+		const held = this.held;
+		return held?.field === field ? held.message : null;
+	}
+
+	/** `aria-invalid` for `field`'s control: set while Save is held because of it. */
+	ariaInvalid(field: string): true | undefined {
+		return this.fieldProblem(field) !== null || undefined;
 	}
 
 	/** Saved after the other parts of its page (a switch that needs them saved first). */
@@ -335,7 +376,7 @@ export abstract class SettingsForm<T, D> implements PagePart {
 		await this.save.run(async () => {
 			try {
 				const draft = this.normalize($state.snapshot(this.draft) as D);
-				if (!this.canSave) throw new Error(this.check(draft) ?? 'Not saved.');
+				if (!this.canSave) throw new Error(this.check(draft)?.message ?? 'Not saved.');
 				const result = await this.write(draft, saved);
 				this.#saved = result.saved;
 				this.draft = this.toDraft(result.saved);

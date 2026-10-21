@@ -422,14 +422,21 @@ export function pillarModels(dns: DnsCheckResponse | null, overview: DomainOverv
 	if (dmarc && parsed && !failed) {
 		const rua = ruaAuthSummary(dmarc);
 		const sp = dmarc.subdomain_enforcement;
+		const np = dmarc.nonexistent_enforcement;
 		dmarcRows.push({ label: 'Report destinations', value: rua.label, tone: rua.tone });
 		dmarcRows.push(
 			sp
 				? { label: 'Subdomain policy', value: `sp=${parsed.sp}`, tone: sp.status, mono: true }
 				: { label: 'Subdomain policy', value: 'Same as p=' }
 		);
+		if (np) {
+			dmarcRows.push({ label: 'Non-existent subdomains', value: `np=${parsed.np}`, tone: np.status, mono: true });
+		}
 		if (dmarc.pct_below_100 && parsed.pct != null) {
 			dmarcRows.push({ label: 'Applied to', value: `pct=${parsed.pct}`, tone: dmarc.pct_status, mono: true });
+		}
+		if (dmarc.testing_status !== 'neutral') {
+			dmarcRows.push({ label: 'Testing', value: 't=y', tone: dmarc.testing_status, mono: true });
 		}
 	}
 

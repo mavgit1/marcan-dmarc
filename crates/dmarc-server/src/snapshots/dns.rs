@@ -516,6 +516,8 @@ pub fn dns_snapshot(report: &DnsReport) -> Result<DnsSnapshot, serde_json::Error
             policy_pct: parsed.and_then(|p| p.pct).map(i64::from),
             policy_adkim: tag(|p| &p.adkim),
             policy_aspf: tag(|p| &p.aspf),
+            policy_testing: parsed.map(dmarc_dns::dmarc::ParsedDmarc::testing),
+            policy_np: tag(|p| &p.np),
         },
         report_json: serde_json::to_string(report)?,
         checker_version: i64::from(CHECKER_VERSION),

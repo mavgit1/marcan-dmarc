@@ -1,14 +1,19 @@
 //! One evaluation run: every monitored domain's current state against the
 //! stored one.
 
+use crate::api::{identities_named, load_sender_names};
 use crate::error::AppResult;
 use crate::snapshots::dns::complete_report;
 use crate::view::domain::{domain_overview, Judging};
-use dmarc_assess::{alert_events, alert_state, readiness_window_start, AlertState};
+use dmarc_assess::{
+    alert_events, alert_state, readiness_window_start, AlertState, NewSender,
+    NEW_SENDER_MIN_FAILURES,
+};
+use dmarc_identity::SenderNames;
 use dmarc_store::{
     domains_with_reports_stored_since_evaluated, get_alert_states, get_alerts_held_at,
-    get_dns_snapshots, get_domain_overview, list_monitored_domain_ids, readiness_mail,
-    save_alert_evaluations, AlertEvaluation, DnsSnapshot,
+    get_dns_snapshots, get_domain_overview, list_monitored_domain_ids, new_failing_senders,
+    readiness_mail, save_alert_evaluations, AlertEvaluation, DnsSnapshot,
 };
 use sqlx::SqlitePool;
 use std::collections::HashSet;
@@ -29,14 +34,60 @@ pub struct EvaluationSummary {
     pub skipped: Vec<String>,
 }
 
+/// The sender names of one run, loaded when the first domain needs them:
+/// most runs find no new failing sender.
+#[derive(Default)]
+pub struct RunNames(Option<SenderNames>);
+
+impl RunNames {
+    async fn get(&mut self, pool: &SqlitePool) -> AppResult<&SenderNames> {
+        if self.0.is_none() {
+            self.0 = Some(load_sender_names(pool).await?);
+        }
+        Ok(self.0.as_ref().expect("loaded"))
+    }
+}
+
+/// The senders new to domain `id` in the window from `since` with at least
+/// [`NEW_SENDER_MIN_FAILURES`] failing messages, named as the sender pages
+/// name them.
+async fn new_senders(
+    pool: &SqlitePool,
+    id: i64,
+    since: i64,
+    names: &mut RunNames,
+) -> AppResult<Vec<NewSender>> {
+    let rows = new_failing_senders(pool, id, since, NEW_SENDER_MIN_FAILURES).await?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    let names = names.get(pool).await?;
+    let mut identities =
+        identities_named(pool, names, rows.iter().map(|r| r.source_ip.as_str())).await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let identity = identities.remove(&row.source_ip).unwrap_or_default();
+            NewSender {
+                name: identity.name.or(identity.operator_domain),
+                source_ip: row.source_ip,
+                failed: row.failed_messages,
+                delivered_failures: row.delivered_failures,
+            }
+        })
+        .collect())
+}
+
 /// The current [`AlertState`] of domain `id`, judged by `judging` (at its
 /// `now`), or `None` when it is no longer monitored. `snapshot` is its
 /// stored DNS result; without a complete one the state has no DNS part.
+/// `names` names the new failing senders.
 pub async fn current_state(
     pool: &SqlitePool,
     id: i64,
     snapshot: Option<&DnsSnapshot>,
     judging: Judging,
+    names: &mut RunNames,
 ) -> AppResult<Option<AlertState>> {
     let since = readiness_window_start(judging.now);
     let Some(row) = get_domain_overview(pool, id, Some(since)).await? else {
@@ -46,6 +97,7 @@ pub async fn current_state(
     let policy = row.policy.as_ref().and_then(|p| p.p.as_deref());
     let readiness = readiness_mail(pool, id, policy, since).await?;
     let overview = domain_overview(row, &readiness, judging);
+    let senders = new_senders(pool, id, since, names).await?;
     let dns = snapshot.and_then(|snap| {
         let report = complete_report(snap)?;
         let version = u32::try_from(snap.checker_version).unwrap_or_default();
@@ -58,6 +110,7 @@ pub async fn current_state(
         has_reports,
         overview.row.parked,
         dns,
+        senders,
     )))
 }
 
@@ -98,13 +151,14 @@ pub async fn evaluate_all(
     let snapshots = get_dns_snapshots(pool, &names).await?;
     let judging = Judging::load(pool, now).await?;
 
+    let mut names = RunNames::default();
     let mut evaluations = Vec::with_capacity(domains.len());
     let mut skipped = Vec::new();
     for (id, name) in &domains {
         if token.is_cancelled() {
             return Ok(EvaluationSummary::default());
         }
-        let state = match current_state(pool, *id, snapshots.get(name), judging).await {
+        let state = match current_state(pool, *id, snapshots.get(name), judging, &mut names).await {
             Ok(Some(state)) => state,
             Ok(None) => continue,
             Err(e) => {

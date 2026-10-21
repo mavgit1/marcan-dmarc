@@ -8,7 +8,7 @@ import type { ReadinessReason } from "./ReadinessReason";
  */
 export type ReadinessState =
   | { "kind": "ready"; next: PolicyStep }
-  | { "kind": "raise_pct"; pct: number }
+  | { "kind": "raise_pct"; pct: number; testing: boolean }
   | { "kind": "not_ready"; next: PolicyStep; reason: ReadinessReason }
   | { "kind": "enforced" }
   | { "kind": "not_applicable"; reason: NotApplicableReason };

@@ -24,6 +24,7 @@
 		hint,
 		anchor,
 		row = false,
+		invalid = null,
 		example,
 		format
 	}: {
@@ -36,6 +37,11 @@
 		anchor?: string;
 		/** A setting row with a small box, for a short list. */
 		row?: boolean;
+		/**
+		 * Why another part of the page holds Save because of this list ("Add at least one recipient
+		 * to the list first."): the list is marked invalid and the reason stands under it.
+		 */
+		invalid?: string | null;
 		/** A few lines of the list, the top of the Format panel. */
 		example?: string;
 		/** The syntax, as list items under the example. */
@@ -84,16 +90,19 @@
 				bind:this={textarea}
 				bind:value={list.draft.text}
 				aria-label={name}
-				aria-invalid={errors.length > 0 || undefined}
+				aria-invalid={errors.length > 0 || !!invalid || undefined}
 				spellcheck="false"
 				autocomplete="off"
 				disabled={list.save.busy}
 				placeholder={list.spec.placeholder}
 				{rows}
 				class={[
-					'border-input focus-visible:border-ring focus-visible:ring-ring/50 placeholder:text-muted-foreground dark:bg-input/30 block w-full resize-y rounded-lg border bg-transparent px-3 py-2 font-mono leading-relaxed outline-none focus-visible:ring-3 disabled:opacity-50',
+					'border-input focus-visible:border-ring focus-visible:ring-ring/50 placeholder:text-muted-foreground dark:bg-input/30 block w-full resize-y rounded-lg border bg-transparent px-3 py-2 font-mono leading-relaxed outline-none focus-visible:ring-3 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
 					row ? 'text-sm' : 'max-h-[70vh] text-xs'
 				]}></textarea>
+			{#if invalid && errors.length === 0}
+				<p class="text-status-warn-fg text-[11px]">{invalid}</p>
+			{/if}
 			{#if errors.length > 0}
 				<ul
 					class="border-status-fail-border bg-status-fail-bg text-status-fail-fg space-y-0.5 rounded-md border p-3 text-xs"

@@ -240,6 +240,28 @@ async fn attention_domains_are_ranked_over_the_whole_scope() {
     assert_eq!(first["limit"], 1);
     assert_eq!(first["items"].as_array().unwrap().len(), 1);
     assert_eq!(first["items"][0]["domain"], items[0]["domain"]);
+    // The Domains page's attention filter pages on: the next rank, and its
+    // rank in the whole scope.
+    if items.len() > 1 {
+        let (_, second) = get(&app, "/api/domains/attention?limit=1&offset=1").await;
+        assert_eq!(second["total"], body["total"]);
+        assert_eq!(second["offset"], 1);
+        assert_eq!(second["items"][0]["domain"], items[1]["domain"]);
+        assert_eq!(
+            second["items"][0]["attention_rank"],
+            items[1]["attention_rank"]
+        );
+    }
+    // The search narrows the ranked list without re-ranking it.
+    let name = items[0]["domain"].as_str().unwrap().to_uppercase();
+    let (_, found) = get(&app, &format!("/api/domains/attention?q={name}")).await;
+    assert_eq!(found["total"], 1);
+    assert_eq!(
+        found["items"][0]["attention_rank"],
+        items[0]["attention_rank"]
+    );
+    let (_, none) = get(&app, "/api/domains/attention?q=no-such-domain").await;
+    assert_eq!(none["total"], 0);
     let (status, _) = get(&app, "/api/domains/attention?limit=0").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }

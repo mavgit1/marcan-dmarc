@@ -79,20 +79,17 @@ describe('LICENSE_STATE', () => {
 		expect(LICENSE_STATE.active).toEqual({
 			tone: 'pass',
 			title: 'Operator license active.',
-			detail: 'Client emails carry your name, not the free-software notice.',
-			links: 'manage'
+			detail: 'Client emails carry your name, not the free-software notice.'
 		});
 		expect(LICENSE_STATE.no_key).toEqual({
 			tone: 'neutral',
 			title: 'No operator license.',
-			detail: 'Client emails carry the free-software notice.',
-			links: 'buy'
+			detail: 'Client emails carry the free-software notice.'
 		});
 		expect(LICENSE_STATE.invalid).toEqual({
 			tone: 'fail',
 			title: 'The stored operator key is not valid.',
-			detail: null,
-			links: 'buy'
+			detail: null
 		});
 	});
 });

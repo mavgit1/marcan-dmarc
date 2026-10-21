@@ -27,6 +27,11 @@ export type DmarcCheckResult = {
    */
   subdomain_enforcement: Enforcement | null;
   /**
+   * Verdict on `np=` when published (subdomains that do not exist
+   * otherwise follow `sp=`, then `p=`).
+   */
+  nonexistent_enforcement: Enforcement | null;
+  /**
    * `pct=` was published below 100: the same fact as `pct_status`, kept
    * because both are on the wire.
    */
@@ -36,6 +41,11 @@ export type DmarcCheckResult = {
    * mail), `neutral` otherwise.
    */
   pct_status: Status;
+  /**
+   * Verdict on `t=`: `warn` for `t=y` (RFC 9989 receivers do not apply
+   * the policy), `neutral` otherwise. Defaulted, as `obsolete_tags`.
+   */
+  testing_status: Status;
   /**
    * Verdict on the record's presence: `pass` when published, `fail` when
    * absent (DMARC is required), `neutral` when the lookup failed.

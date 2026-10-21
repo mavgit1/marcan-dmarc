@@ -4,7 +4,7 @@ import { settings } from '$lib/state/settings.svelte';
 import type { Meta } from '$lib/types/Meta';
 import type { RetentionSettings } from '$lib/types/RetentionSettings';
 import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import { SettingsForm, type SettingsFormSource, type Writes } from './settings-form.svelte';
+import { invalid, SettingsForm, type Invalid, type SettingsFormSource, type Writes } from './settings-form.svelte';
 
 /** The months a report can be kept, fewest and most. */
 export type MonthRange = { min: number; max: number };
@@ -45,8 +45,8 @@ export class RetentionModel extends SettingsForm<SettingsResponse, RetentionSett
 		return { report_retention_months: Number(d.report_retention_months) };
 	}
 
-	protected check(d: RetentionSettings): string | null {
-		return retentionProblem(d.report_retention_months, this.range);
+	protected check(d: RetentionSettings): Invalid | null {
+		return invalid('report_retention_months', retentionProblem(d.report_retention_months, this.range));
 	}
 
 	protected async write(d: RetentionSettings): Promise<{ saved: SettingsResponse }> {

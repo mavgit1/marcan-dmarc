@@ -1,5 +1,5 @@
 //! The branding group: the operator's name (`PUT /api/settings/branding`)
-//! and logo (`POST` / `DELETE /api/settings/branding/logo`), shown in the
+//! and logo (`GET` / `POST` / `DELETE /api/settings/branding/logo`), shown in the
 //! emails only, and how the emails look with a draft of both
 //! (`POST /api/settings/branding/preview`). Free for everyone: saving never
 //! looks at the operator key; only the preview reads it, to show the emails
@@ -23,9 +23,11 @@ use crate::view::settings::{EmailLook, EmailPreview, SettingsResponse};
 use crate::AppState;
 use axum::body::Bytes;
 use axum::extract::State;
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
 use dmarc_store::{
-    get_logo_info, save_settings, set_logo, AppSettings, BrandingSettings, LogoType, PixelSize,
-    StoredLogo,
+    get_logo, get_logo_info, save_settings, set_logo, AppSettings, BrandingSettings, LogoType,
+    PixelSize, StoredLogo,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -106,6 +108,59 @@ pub async fn put_branding(
     let operator_name = operator_name.unwrap_or_default();
     save_settings(&state.pool, &BrandingSettings { operator_name }).await?;
     settings_response(&state).await
+}
+
+/// The stored logo's entity tag: its media type and bytes hashed, so it
+/// changes with the stored row and nothing else.
+fn logo_etag(logo: &StoredLogo) -> String {
+    let mut ctx = ring::digest::Context::new(&ring::digest::SHA256);
+    ctx.update(logo.logo_type.media_type().as_bytes());
+    ctx.update(&[0]);
+    ctx.update(&logo.bytes);
+    let hex: String = ctx.finish().as_ref()[..16]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    format!("\"{hex}\"")
+}
+
+/// `GET /api/settings/branding/logo`: the stored logo's image with its media
+/// type, for the Branding page and the email previews only (`/api/meta`, read
+/// on every page, does not carry it); 404 without one. Revalidated on every
+/// use by its entity tag (304 while unchanged), so a replaced logo shows.
+pub async fn show_logo(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> AppResult<Response> {
+    let logo = get_logo(&state.pool)
+        .await?
+        .ok_or_else(|| AppError::not_found("No logo is stored."))?;
+    let etag = logo_etag(&logo);
+    let unchanged = headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.split(',').any(|tag| tag.trim() == etag));
+    let mut response = if unchanged {
+        StatusCode::NOT_MODIFIED.into_response()
+    } else {
+        (
+            [(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static(logo.logo_type.media_type()),
+            )],
+            logo.bytes,
+        )
+            .into_response()
+    };
+    let out = response.headers_mut();
+    out.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-cache"),
+    );
+    if let Ok(value) = HeaderValue::from_str(&etag) {
+        out.insert(header::ETAG, value);
+    }
+    Ok(response)
 }
 
 /// `POST /api/settings/branding/logo`: replace the logo with the image in the

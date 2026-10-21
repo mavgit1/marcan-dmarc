@@ -1,11 +1,96 @@
-//! The client reports' send in words, for Settings → Client reports: the
-//! reports of the latest report time that did not reach a recipient, each
-//! with its cause and what becomes of it.
+//! Client reports in words: a domain's line in the report (its figures,
+//! the step it can take now, the notes beside them), and for Settings →
+//! Client reports the reports of the latest report time that did not reach
+//! a recipient, each with its cause and what becomes of it.
 
-use super::one_or_many;
+use super::readiness::verdict;
+use super::{count_noun, format_count, format_pct, one_or_many};
 use crate::client_reports::job::Undelivered;
 use chrono::{DateTime, Utc};
-use dmarc_assess::{ClientReportRetry, CLIENT_REPORT_RETRY_DAYS};
+use dmarc_assess::{ClientReportRetry, PolicyReadiness, ReportLine, CLIENT_REPORT_RETRY_DAYS};
+
+/// One figure of a domain's line, for the renderer to colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Figure {
+    Messages,
+    Passed,
+    DeliveredFailures,
+    Blocked,
+    Forwarded,
+}
+
+/// A domain line's figures, in the order they are read: `9,973 messages`,
+/// `97.7% passed DMARC`, then `224 failed but were delivered`, `30
+/// blocked` and `5 forwarded` when there are any; `no mail reported`
+/// without messages.
+pub fn line_figures(line: &ReportLine) -> Vec<(Figure, String)> {
+    let Some(passed) = line.passed_pct else {
+        return vec![(Figure::Messages, "no mail reported".to_owned())];
+    };
+    let mut figures = vec![
+        (Figure::Messages, count_noun(line.messages, "message")),
+        (
+            Figure::Passed,
+            format!("{} passed DMARC", format_pct(passed)),
+        ),
+    ];
+    let rest = [
+        (
+            Figure::DeliveredFailures,
+            line.delivered_failures,
+            format!(
+                "failed but {} delivered",
+                one_or_many(line.delivered_failures, "was", "were")
+            ),
+        ),
+        (Figure::Blocked, line.blocked, "blocked".to_owned()),
+        (Figure::Forwarded, line.forwarded, "forwarded".to_owned()),
+    ];
+    figures.extend(
+        rest.into_iter()
+            .filter(|(_, n, _)| *n > 0)
+            .map(|(figure, n, words)| (figure, format!("{} {words}", format_count(n)))),
+    );
+    figures
+}
+
+/// The step a domain can take now, in the words of the domain page's
+/// verdict: `ready for p=quarantine`, `raise pct to 100 first`.
+pub fn step_words(r: &PolicyReadiness) -> String {
+    lower_first(&verdict(r).lead)
+}
+
+/// The policy beside a domain's name, its badge mid-sentence: `p=none`,
+/// `no record`, `not checked yet`.
+pub fn policy_words(label: &str) -> String {
+    lower_first(label)
+}
+
+/// The notes beside a domain's figures, the issues' badges as one
+/// sentence: `DNS grade D, 12.0% without DKIM`, `No reports for 9 days`.
+pub fn note_words(labels: &[&str]) -> String {
+    let mut words: Vec<String> = Vec::with_capacity(labels.len());
+    for (i, label) in labels.iter().enumerate() {
+        words.push(if i == 0 {
+            super::capitalized(label)
+        } else {
+            lower_first(label)
+        });
+    }
+    words.join(", ")
+}
+
+/// `text` with its first letter in lower case, unless its first word is an
+/// abbreviation (`DNS grade D`, `DKIM`).
+fn lower_first(text: &str) -> String {
+    let mut chars = text.chars();
+    match (chars.next(), chars.next()) {
+        (Some(first), Some(second)) if first.is_uppercase() && !second.is_uppercase() => {
+            first.to_lowercase().chain(text.chars().skip(1)).collect()
+        }
+        _ => text.to_owned(),
+    }
+}
 
 /// `4 November` (UTC).
 fn day_month(unix: i64) -> String {
@@ -70,6 +155,70 @@ mod tests {
             },
             retry: client_report_retry(permanent, NOV_1, now),
         }
+    }
+
+    fn line(messages: i64, compliant: i64, delivered: i64, blocked: i64) -> ReportLine {
+        ReportLine {
+            messages,
+            #[allow(clippy::cast_precision_loss)]
+            passed_pct: (messages > 0).then(|| compliant as f64 * 100.0 / messages as f64),
+            delivered_failures: delivered,
+            delivered_failures_status: dmarc_assess::Status::Neutral,
+            blocked,
+            forwarded: messages - compliant - delivered - blocked,
+            step: None,
+            notes: Vec::new(),
+        }
+    }
+
+    fn words(line: &ReportLine) -> Vec<String> {
+        line_figures(line).into_iter().map(|(_, w)| w).collect()
+    }
+
+    #[test]
+    fn a_line_says_its_figures_and_leaves_out_the_zeros() {
+        assert_eq!(
+            words(&line(9_973, 9_744, 224, 0)),
+            [
+                "9,973 messages",
+                "97.7% passed DMARC",
+                "224 failed but were delivered",
+                "5 forwarded"
+            ]
+        );
+        assert_eq!(
+            words(&line(410, 400, 1, 9)),
+            [
+                "410 messages",
+                "97.6% passed DMARC",
+                "1 failed but was delivered",
+                "9 blocked"
+            ]
+        );
+        assert_eq!(
+            words(&line(1, 1, 0, 0)),
+            ["1 message", "100.0% passed DMARC"]
+        );
+        assert_eq!(words(&line(0, 0, 0, 0)), ["no mail reported"]);
+    }
+
+    #[test]
+    fn notes_read_as_one_sentence() {
+        assert_eq!(
+            note_words(&["DNS grade D", "12.0% without DKIM"]),
+            "DNS grade D, 12.0% without DKIM"
+        );
+        assert_eq!(
+            note_words(&["12.0% without DKIM", "No reports for 9 days", "No DKIM"]),
+            "12.0% without DKIM, no reports for 9 days, no DKIM"
+        );
+        assert_eq!(
+            lower_first("Ready for p=quarantine"),
+            "ready for p=quarantine"
+        );
+        assert_eq!(lower_first("DNS grade D"), "DNS grade D");
+        assert_eq!(policy_words("No record"), "no record");
+        assert_eq!(policy_words("p=none"), "p=none");
     }
 
     #[test]

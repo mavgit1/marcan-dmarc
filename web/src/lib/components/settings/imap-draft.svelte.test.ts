@@ -197,20 +197,23 @@ describe('problemWith / effectiveAddress', () => {
 		expect(effectiveAddress({ ...ok, username: 'dmarc' })).toBe('');
 	});
 
-	it('names the first missing field, in form order', () => {
-		expect(problemWith({ ...ok, host: '' }, false)).toBe('Enter the server host.');
-		expect(problemWith({ ...ok, port: 0 }, false)).toBe('Enter the server port.');
-		expect(problemWith({ ...ok, username: '' }, false)).toBe('Enter the username.');
-		expect(problemWith(ok, true)).toBe('Enter the password.');
-		expect(problemWith({ ...ok, password: ' ' }, true)).toBe('Enter the password.');
-		expect(problemWith({ ...ok, reportAddress: 'nope' }, false)).toBe(
-			'The report address is not a valid email address.'
+	it('names the first missing field, in form order, and the field', () => {
+		const at = (field: string, message: string) => ({ field, message });
+		expect(problemWith({ ...ok, host: '' }, false)).toEqual(at('host', 'Enter the server host.'));
+		expect(problemWith({ ...ok, port: 0 }, false)).toEqual(at('port', 'Enter the server port.'));
+		expect(problemWith({ ...ok, username: '' }, false)).toEqual(at('username', 'Enter the username.'));
+		expect(problemWith(ok, true)).toEqual(at('password', 'Enter the password.'));
+		expect(problemWith({ ...ok, password: ' ' }, true)).toEqual(at('password', 'Enter the password.'));
+		expect(problemWith({ ...ok, reportAddress: 'nope' }, false)).toEqual(
+			at('reportAddress', 'The report address is not a valid email address.')
 		);
-		expect(problemWith({ ...ok, username: 'dmarc' }, false)).toBe(
-			'The login is not an email address: enter the report address.'
+		expect(problemWith({ ...ok, username: 'dmarc' }, false)).toEqual(
+			at('reportAddress', 'The login is not an email address: enter the report address.')
 		);
 		expect(problemWith({ ...ok, username: 'dmarc', reportAddress: 'r@example.com' }, false)).toBeNull();
-		expect(problemWith({ ...ok, pollMinutes: 0 }, false)).toBe('Check the mailbox at least every minute.');
+		expect(problemWith({ ...ok, pollMinutes: 0 }, false)).toEqual(
+			at('pollMinutes', 'Check the mailbox at least every minute.')
+		);
 	});
 });
 

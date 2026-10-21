@@ -1,6 +1,7 @@
 //! The client reports settings group and the recipient list: off by
-//! default, validated, and a list that replaces the stored recipients whole,
-//! with a preview that says who starts and who stops.
+//! default, validated, and a list that projects the organizations (one
+//! named gets exactly its lines, `none` clears it, one not named keeps its
+//! recipients), with a preview that says who starts and who stops.
 
 use axum::http::StatusCode;
 use serde_json::{json, Value};
@@ -148,12 +149,12 @@ async fn the_preview_names_line_errors_with_a_suggestion() {
     assert_eq!(names, ["Default", "Acme", "Beta"]);
     assert_eq!(
         get_ok(&t.app, "/api/settings/client-reports/recipients").await["text"],
-        ""
+        "Acme,none\nBeta,none\nDefault,none\n"
     );
 }
 
 #[tokio::test]
-async fn the_list_is_the_full_truth() {
+async fn the_list_projects_the_organizations() {
     let t = app().await;
     let (status, saved) = apply(
         &t,
@@ -163,10 +164,11 @@ async fn the_list_is_the_full_truth() {
     assert_eq!(status, StatusCode::OK, "{saved}");
     assert_eq!(saved["changes"]["start"].as_array().unwrap().len(), 3);
 
+    // Every organization, by name; none for one without a recipient.
     let list = get_ok(&t.app, "/api/settings/client-reports/recipients").await;
     assert_eq!(
         list["text"],
-        "Acme,boss@example.com\nAcme,it@example.com\nBeta,ops@other.org\n"
+        "Acme,boss@example.com\nAcme,it@example.com\nBeta,ops@other.org\nDefault,none\n"
     );
 
     // Saving the same list is no change.
@@ -175,22 +177,38 @@ async fn the_list_is_the_full_truth() {
     assert_eq!(same["changes"]["stop"], json!([]));
     assert_eq!(same["changes"]["unchanged_count"], 3);
 
-    // A line taken out stops that report; a new one starts.
-    let next = "Acme,it@example.com\nBeta,ops@other.org\nBeta,cto@other.org\n";
-    let changes = preview(&t, next).await["changes"].clone();
-    assert_eq!(emails(&changes["start"]), ["Beta cto@other.org"]);
+    // A partial paste: Acme named gets exactly its lines; Beta, not named,
+    // keeps its recipient.
+    let changes =
+        preview(&t, "Acme,it@example.com\nAcme,cto@example.com\n").await["changes"].clone();
+    assert_eq!(emails(&changes["start"]), ["Acme cto@example.com"]);
     assert_eq!(emails(&changes["stop"]), ["Acme boss@example.com"]);
     assert_eq!(changes["unchanged_count"], 2);
-    let (status, applied) = apply(&t, next).await;
+    let (status, applied) = apply(&t, "Acme,it@example.com\nAcme,cto@example.com\n").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(applied["changes"], changes);
+    assert_eq!(
+        get_ok(&t.app, "/api/settings/client-reports/recipients").await["text"],
+        "Acme,cto@example.com\nAcme,it@example.com\nBeta,ops@other.org\nDefault,none\n"
+    );
 
-    // An empty list stops every report (the reports are off).
-    let (_, cleared) = apply(&t, "").await;
+    // Removing a line changes nothing; an empty list changes nothing.
+    for text in [
+        "Acme,it@example.com\nAcme,cto@example.com\nDefault,none\n",
+        "",
+    ] {
+        let changes = preview(&t, text).await["changes"].clone();
+        assert_eq!(changes["start"], json!([]), "{text}");
+        assert_eq!(changes["stop"], json!([]), "{text}");
+    }
+
+    // none clears an organization's recipients (the reports are off).
+    let (status, cleared) = apply(&t, "beta,NONE\nAcme,none\n").await;
+    assert_eq!(status, StatusCode::OK, "{cleared}");
     assert_eq!(cleared["changes"]["stop"].as_array().unwrap().len(), 3);
     assert_eq!(
         get_ok(&t.app, "/api/settings/client-reports/recipients").await["text"],
-        ""
+        "Acme,none\nBeta,none\nDefault,none\n"
     );
 }
 
@@ -203,9 +221,10 @@ async fn the_list_is_not_emptied_while_the_reports_are_on() {
     let (status, err) = put_json(&t.app, "/api/settings/client-reports", on).await;
     assert_eq!(status, StatusCode::OK, "{err}");
 
-    // On, an empty list would send nothing: refused like switching on with
-    // one. A list of comments alone is empty too.
-    for empty in ["", "# nobody for now\n"] {
+    // On, a save that leaves nobody would send nothing: refused like
+    // switching on with an empty list. An empty text names no organization
+    // and leaves the list as it is.
+    for empty in ["Acme,none\n", "# nobody for now\nacme,none\n"] {
         let (status, err) = apply(&t, empty).await;
         assert_eq!(status, StatusCode::CONFLICT, "{err}");
         assert_eq!(
@@ -213,9 +232,11 @@ async fn the_list_is_not_emptied_while_the_reports_are_on() {
             "Add at least one recipient to the list first."
         );
     }
+    let (status, kept) = apply(&t, "").await;
+    assert_eq!(status, StatusCode::OK, "{kept}");
     assert_eq!(
         get_ok(&t.app, "/api/settings/client-reports/recipients").await["text"],
-        "Acme,it@example.com\n",
+        "Acme,it@example.com\nBeta,none\nDefault,none\n",
         "a refused save changes nothing"
     );
 
@@ -223,7 +244,7 @@ async fn the_list_is_not_emptied_while_the_reports_are_on() {
     let off = json!({ "enabled": false, "day_of_month": 1, "hour_utc": 7, "reply_to": "" });
     let (status, _) = put_json(&t.app, "/api/settings/client-reports", off).await;
     assert_eq!(status, StatusCode::OK);
-    let (status, cleared) = apply(&t, "").await;
+    let (status, cleared) = apply(&t, "Acme,none\n").await;
     assert_eq!(status, StatusCode::OK, "{cleared}");
     assert_eq!(cleared["changes"]["stop"].as_array().unwrap().len(), 1);
 }

@@ -77,6 +77,13 @@ pub struct PublishedPolicy {
     pub adkim: Option<String>,
     #[sqlx(rename = "policy_aspf")]
     pub aspf: Option<String>,
+    /// `t=y` (RFC 9989): the policy is published for testing, and receivers
+    /// that follow RFC 9989 do not apply it. `false` for any other record.
+    #[sqlx(rename = "policy_testing")]
+    pub testing: Option<bool>,
+    /// `np=` (RFC 9989): the policy for subdomains that do not exist.
+    #[sqlx(rename = "policy_np")]
+    pub np: Option<String>,
 }
 
 impl PublishedPolicy {

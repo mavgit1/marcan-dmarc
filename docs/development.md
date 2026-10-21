@@ -17,7 +17,7 @@ Marcan is a Rust workspace with a SvelteKit UI that is built into the binary.
 | `migrations/` | sqlx migrations, embedded into the binary |
 | `web/` | The UI: SvelteKit static SPA, Svelte 5, Tailwind 4 |
 | `docs/` | This site (VitePress) |
-| `deploy/` | Example Compose stacks |
+| `deploy/` | Example Compose stacks: `caddy/`, `authelia/`, `oauth2-proxy/` |
 
 Judgements live in Rust, in `dmarc-assess`. The one exception is the record outcome (passed, delivered, forwarded, blocked): the facts are computed at ingest into columns on `records`, and the four-way rule over them is a SQL expression in `dmarc-store` (`outcome.rs`) that every count, filter and export reads. The UI only words and colours what the server decided; numbers it shows in help text come from `GET /api/meta`.
 

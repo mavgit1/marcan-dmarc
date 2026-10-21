@@ -1,8 +1,10 @@
 //! `GET /api/meta`: the rules' fixed numbers, for help text and legends; and
 //! what the app frame shows on every page: whether the free-software notice
-//! is shown, where the source, the operator license and its billing are, and
-//! the stored logo for the Branding page (the UI carries no operator branding:
-//! name and logo are for the emails only).
+//! is shown, where the source, the operator license and its billing are,
+//! and the newer version the version check found.
+//! The stored logo is not here: it is its own `GET /api/settings/branding/logo`,
+//! read only where it is shown (the UI carries no operator branding: name and
+//! logo are for the emails only).
 //!
 //! Verdicts never come from here (every response carries its own); this only
 //! lets the guide quote the rules without copying them.
@@ -13,14 +15,15 @@ use crate::client_reports::job::CLIENT_REPORT_NOTICE_DAYS;
 use crate::error::AppResult;
 use crate::extract::Json;
 use crate::license::{Standing, BILLING_URL, LICENSE_URL, SOURCE_URL};
+use crate::updates::{newer_version, RUNNING_VERSION};
 use crate::wording::alerts::{catalogue_title, catalogue_trigger, group_title};
 use crate::wording::issues::{issue_meaning, issue_name};
 use crate::AppState;
 use axum::extract::State;
 use dmarc_assess::{
     severity_points, AlertGroup, IssueKind, Severity, ALERT_CATALOGUE, GRADE_BANDS,
-    RATE_PASS_MIN_PCT, RATE_WARN_MIN_PCT, READINESS_MIN_MESSAGES, READINESS_MIN_POLICY_SHARE_PCT,
-    READINESS_WINDOW_DAYS, RSA_GOOD_BITS, RSA_MIN_BITS,
+    NEW_SENDER_MIN_FAILURES, RATE_PASS_MIN_PCT, RATE_WARN_MIN_PCT, READINESS_MIN_MESSAGES,
+    READINESS_MIN_POLICY_SHARE_PCT, READINESS_WINDOW_DAYS, RSA_GOOD_BITS, RSA_MIN_BITS,
 };
 use dmarc_store::{
     AppSettings, CLIENT_REPORT_DAY_RANGE, OBSERVED_SELECTOR_WINDOW_SECS,
@@ -71,6 +74,10 @@ pub struct Meta {
     /// Every domain is checked for changes this often, right after the DNS
     /// check of that round.
     pub alert_interval_minutes: u64,
+    /// A sender new to a domain (nothing from it before the readiness
+    /// window) alerts from this many failing messages in the window,
+    /// forwarded mail not counted.
+    pub new_sender_min_failures: i64,
     /// The organization page says when its client report goes out from
     /// this many days before.
     pub client_report_notice_days: i64,
@@ -87,7 +94,7 @@ pub struct Meta {
     pub report_retention_months_max: u32,
     /// Where the source code of the version this server runs is.
     pub source_url: String,
-    /// Where an operator license is bought.
+    /// The license page of the docs (the terms, the key and the notice).
     pub license_url: String,
     /// Where the subscription behind an operator key is managed or cancelled.
     pub billing_url: String,
@@ -96,17 +103,21 @@ pub struct Meta {
     pub notice_shown: bool,
     /// The email of the stored operator key, when it is valid.
     pub licensed_to: Option<String>,
-    /// The stored logo, for the Branding page. Changes with the branding settings.
-    pub branding: MetaBranding,
+    /// A newer version than the running one, as the version check last
+    /// named it (the sidebar and Settings → License say so); `null` while
+    /// the check is off, before its first answer, and when the running
+    /// version is the newest.
+    pub available: Option<AvailableVersion>,
 }
 
-/// The operator's stored logo, which the Branding page shows; the UI shows
-/// no operator branding anywhere else.
+/// A newer release the version check found.
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
-pub struct MetaBranding {
-    /// The uploaded logo as a `data:` URL; `null` without one.
-    pub logo: Option<String>,
+pub struct AvailableVersion {
+    /// "0.3.1".
+    pub version: String,
+    /// Its release notes, on the docs site.
+    pub url: String,
 }
 
 /// One kind of alert as the user can choose it. `id` is stable (stored in
@@ -118,7 +129,7 @@ pub struct AlertCatalogueItem {
     pub id: &'static str,
     pub group: AlertGroup,
     pub title: String,
-    pub trigger: &'static str,
+    pub trigger: String,
 }
 
 /// One kind of issue: `name` as sentences say it ("delivered failures"),
@@ -171,6 +182,14 @@ fn alert_groups() -> Vec<AlertGroupTitle> {
 pub async fn get_meta(State(state): State<Arc<AppState>>) -> AppResult<Json<Meta>> {
     let settings = AppSettings::load(&state.pool).await?;
     let standing = Standing::new(&settings.license);
+    let update_check = dmarc_store::get_update_check(&state.pool).await?;
+    let available =
+        newer_version(settings.updates, update_check.as_ref(), RUNNING_VERSION).map(|seen| {
+            AvailableVersion {
+                version: seen.version.clone(),
+                url: seen.url.clone(),
+            }
+        });
     Ok(Json(Meta {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         rate_pass_min_pct: RATE_PASS_MIN_PCT,
@@ -215,6 +234,7 @@ pub async fn get_meta(State(state): State<Arc<AppState>>) -> AppResult<Json<Meta
             .collect(),
         alert_groups: alert_groups(),
         alert_interval_minutes: ALERT_INTERVAL.as_secs() / 60,
+        new_sender_min_failures: NEW_SENDER_MIN_FAILURES,
         client_report_notice_days: CLIENT_REPORT_NOTICE_DAYS,
         logo_max_bytes: LOGO_MAX_BYTES as u32,
         operator_name_max_chars: OPERATOR_NAME_MAX_CHARS as u32,
@@ -227,15 +247,6 @@ pub async fn get_meta(State(state): State<Arc<AppState>>) -> AppResult<Json<Meta
         billing_url: BILLING_URL.to_owned(),
         notice_shown: standing.notice_shown,
         licensed_to: standing.licensed_to,
-        branding: MetaBranding {
-            logo: dmarc_store::get_logo(&state.pool).await?.map(|l| {
-                use base64::Engine;
-                format!(
-                    "data:{};base64,{}",
-                    l.logo_type.media_type(),
-                    base64::engine::general_purpose::STANDARD.encode(&l.bytes)
-                )
-            }),
-        },
+        available,
     }))
 }

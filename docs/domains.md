@@ -26,6 +26,16 @@ The Domains page and each organization's page list 50 domains at a time, with **
 
 Taking `ignored` off a domain monitors it again and re-imports the mailbox, which brings its history back as far as the mailbox still holds the reports. Adding an ignored domain again does the same.
 
+## The domain menu
+
+The **⋯** button at the top right of a domain's page changes that one domain:
+
+- **Move to organization** opens a picker beside the button: choose the organization and **Confirm**. The domain's reports move with it, and its next [client report](./client-reports) goes to the new organization's recipients.
+- **Mark as parked** marks the domain `parked`; on a parked domain the item reads **Unpark**. Either way it is one alert, "Marked as parked" or "No longer parked" (see [Alerts](./alerts#what-is-alerted)), and its [policy readiness](./readiness#parked-domains) switches layout. The **Enforcement** tab offers the same **Mark as parked** beside a "too little mail" verdict.
+- **Ignore domain** asks first, then deletes the domain's reports, drops new ones and opens its organization's page. To undo it, take `ignored` off its line under **Settings → Domains** (see above).
+
+To do the same for many domains at once, edit the list below.
+
 ## Domains as text
 
 **Settings → Domains** holds every domain as one CSV list. Use it to move, add, park or ignore many domains at once. The editor shows what saving will change before you save.

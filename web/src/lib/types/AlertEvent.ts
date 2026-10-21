@@ -4,6 +4,7 @@ import type { CheckKind } from "./CheckKind";
 import type { DeliveredFigures } from "./DeliveredFigures";
 import type { DmarcRecordFacts } from "./DmarcRecordFacts";
 import type { HealthState } from "./HealthState";
+import type { NewSender } from "./NewSender";
 import type { PolicyStep } from "./PolicyStep";
 import type { ReadinessEvidence } from "./ReadinessEvidence";
 import type { RecordDelta } from "./RecordDelta";
@@ -44,4 +45,5 @@ export type AlertEvent =
       evidence?: ReadinessEvidence;
     }
     | { "kind": "parked_changed"; parked: boolean }
+    | { "kind": "new_failing_sender"; sender: NewSender; window_days: number }
   );

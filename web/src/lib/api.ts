@@ -13,6 +13,7 @@ import type { AlertSettings } from '$lib/types/AlertSettings';
 import type { BrandingSettings } from '$lib/types/BrandingSettings';
 import type { ClientReportSettings } from '$lib/types/ClientReportSettings';
 import type { DnsSettings } from '$lib/types/DnsSettings';
+import type { UpdateSettings } from '$lib/types/UpdateSettings';
 import type { AlertItem } from '$lib/types/AlertItem';
 import type { BimiCheckResult } from '$lib/types/BimiCheckResult';
 import type { ConnectImapRequest } from '$lib/types/ConnectImapRequest';
@@ -165,8 +166,13 @@ export async function getAllDomains(params?: ScopeParams): Promise<DomainSummary
 	}
 }
 
-/** The scope's domains with an open issue, the first `limit` in their attention rank over the whole scope, and `total`. */
-export function getAttentionDomains(params?: ScopeParams & { limit?: number }): Promise<Page<DomainSummary>> {
+/**
+ * The scope's domains with an open issue in their attention rank over the whole scope, a page of
+ * them (`limit` from `offset`, narrowed by `q` like the domain list) and `total`.
+ */
+export function getAttentionDomains(
+	params?: ScopeParams & { limit?: number; offset?: number; q?: string | null }
+): Promise<Page<DomainSummary>> {
 	return api.get('domains/attention', { searchParams: searchParams(params) }).json();
 }
 
@@ -372,6 +378,11 @@ export function saveRetention(body: RetentionSettings): Promise<SettingsResponse
 	return api.put('settings/retention', { json: body }).json();
 }
 
+/** The daily version check (on by default); switched off, its last answer is forgotten. */
+export function saveUpdates(body: UpdateSettings): Promise<SettingsResponse> {
+	return api.put('settings/updates', { json: body }).json();
+}
+
 /** The resolvers; none goes back to the built-in ones. */
 export function saveDns(nameservers: string[]): Promise<SettingsResponse> {
 	return api.put('settings/dns', { json: { nameservers } satisfies DnsSettings }).json();
@@ -458,6 +469,14 @@ export function uploadLogo(image: Blob): Promise<SettingsResponse> {
 	return api.post('settings/branding/logo', { body: image, headers: { 'content-type': image.type } }).json();
 }
 
+/**
+ * URL of the stored logo's image (404 without one), for an `<img>`; `revision` makes a new URL
+ * after a save, so a page that showed the old logo asks again.
+ */
+export function logoUrl(revision: number): string {
+	return `/api/settings/branding/logo?r=${revision}`;
+}
+
 /** Remove the logo. */
 export function deleteLogo(): Promise<SettingsResponse> {
 	return api.delete('settings/branding/logo').json();
@@ -520,7 +539,10 @@ export const previewDkimSelectors = (text: string) =>
 	previewList<DkimSelectorsSummary>('settings/dkim-selectors', text);
 export const saveDkimSelectors = (text: string) => saveList<DkimSelectorsSummary>('settings/dkim-selectors', text);
 
-/** The client report recipients, `organization,email` per line; the full truth, saving replaces all. */
+/**
+ * The client report recipients, `organization,email` or `organization,none` per line; a save changes
+ * only the organizations it names.
+ */
 export const getClientReportRecipients = () => getList('settings/client-reports/recipients');
 export const previewClientReportRecipients = (text: string) =>
 	previewList<RecipientsSummary>('settings/client-reports/recipients', text);
