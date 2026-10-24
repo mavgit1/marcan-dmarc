@@ -28,14 +28,14 @@ Download the three files of the release into a new directory on the server, and 
 
 ```bash
 mkdir marcan && cd marcan
-base=https://raw.githubusercontent.com/mavgit1/marcan-dmarc/v0.3.0/deploy/oauth2-proxy
+base=https://raw.githubusercontent.com/mavgit1/marcan-dmarc/main/deploy/oauth2-proxy
 curl -fsSLO "$base/docker-compose.yml"
 curl -fsSLO "$base/Caddyfile"
 curl -fsSLO "$base/.env.example"
 cp .env.example .env
 ```
 
-Use the tag of the release you install in place of `v0.3.0`. A clone of the repository has the same files in `deploy/oauth2-proxy/`; run from there, the volume is `oauth2-proxy_marcan_data` instead of `marcan_marcan_data` (see [The data volume](./deployment#the-data-volume)).
+`main` on GitHub is always the latest release, so these are the current files; for an older release, use its tag in place of `main`. A clone of the repository has the same files in `deploy/oauth2-proxy/`; run from there, the volume is `oauth2-proxy_marcan_data` instead of `marcan_marcan_data` (see [The data volume](./deployment#the-data-volume)).
 
 ## 2. Fill in `.env`
 
@@ -45,7 +45,7 @@ Use the tag of the release you install in place of `v0.3.0`. A clone of the repo
 | `OIDC_ISSUER_URL` | Your provider's issuer, for Entra ID `https://login.microsoftonline.com/<tenant-id>/v2.0` |
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | The client you registered |
 | `ALLOWED_EMAIL_DOMAINS` | Who may sign in, such as `example.com`; several comma-separated |
-| `COOKIE_SECRET` | `openssl rand -base64 32` |
+| `COOKIE_SECRET` | `openssl rand -base64 32 \| tr -- '+/' '-_'` (URL-safe; with a `+` or `/` in it OAuth2-Proxy refuses to start) |
 
 Compose refuses to start while one of them is missing.
 
@@ -70,4 +70,4 @@ Open `https://dmarc.example.com`: you are sent to your provider to sign in, then
 
 ## Upgrade
 
-Read the [release notes](./releases), Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade). The OAuth2-Proxy image is pinned in `docker-compose.yml`; a Marcan release that moves it says so in its [release notes](./releases).
+Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade). The OAuth2-Proxy image is pinned in `docker-compose.yml`; a Marcan release that moves it says so in its [release notes](./releases).

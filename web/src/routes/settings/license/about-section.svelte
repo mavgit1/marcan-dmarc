@@ -3,11 +3,12 @@
 	import SettingsPart from '$lib/components/settings/settings-part.svelte';
 	import SwitchInput from '$lib/components/settings/switch-input.svelte';
 	import type { UpdatesModel } from '$lib/components/settings/updates-draft.svelte';
-	import { DOCS_URL } from '$lib/nav';
+	import { DOCS_URL, ISSUES_URL } from '$lib/nav';
 	import { meta } from '$lib/state/meta.svelte';
 
 	/**
-	 * The foot of the License page, neutral text from `meta`: the version, the license (free
+	 * The foot of the License page, neutral text from `meta`: the version with a link to report a
+	 * bug in it (the version in the link text, so it can be copied), the license (free
 	 * software, no warranty, AGPLv3 plus one duty) and the source code. Not the page's headline:
 	 * that is the license state box. Then the version check (`model`, the updates group), saved by
 	 * the page's save bar: its switch, what it sends, and the newer version the server found
@@ -28,10 +29,11 @@
 <section aria-labelledby="license-about" class="max-w-prose space-y-2">
 	<h2 id="license-about" class="text-sm font-medium">About</h2>
 	<p class="text-muted-foreground text-sm">
-		Marcan <span class="tabular-nums">{version ?? '—'}</span>. Free software, no warranty: Beneficiary Copyleft License
-		1.0, which is AGPLv3 plus one duty. Anyone you let use it may ask for the source code. The client emails tell your
-		clients that it is free software (the free-software notice); an operator license replaces that notice with your
-		name.
+		Marcan <span class="tabular-nums">{version ?? '—'}</span>
+		(<a href={ISSUES_URL} target="_blank" rel="noopener" class={link}>Report a bug in {version ?? 'this version'}</a>).
+		Free software, no warranty: Beneficiary Copyleft License 1.0, which is AGPLv3 plus one duty. Anyone you let use it
+		may ask for the source code. The client emails tell your clients that it is free software (the free-software
+		notice); an operator license replaces that notice with your name.
 	</p>
 	<p class="text-muted-foreground text-sm">
 		Source code:

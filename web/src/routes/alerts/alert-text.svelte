@@ -6,7 +6,7 @@
 	/**
 	 * One event: its colour as a badge (the row's verdict) and its sentence, both worded by the
 	 * server (`severity_label`, `text`: the alert email's words); an event about a sender links to
-	 * its sender page, as the alert email does.
+	 * its sender page, and a newer release to its release notes, as the alert email does.
 	 */
 	let { item }: { item: AlertItem } = $props();
 </script>
@@ -17,6 +17,11 @@
 		>{item.text}{#if item.sender_ip}{' '}<a
 				href={resolve(`/senders/${encodeURIComponent(item.sender_ip)}`)}
 				class="underline underline-offset-2">Sender page</a
+			>{:else if item.release_notes}{' '}<a
+				href={item.release_notes}
+				target="_blank"
+				rel="noopener"
+				class="underline underline-offset-2">Release notes</a
 			>{/if}</span
 	>
 </span>

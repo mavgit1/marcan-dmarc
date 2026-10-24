@@ -65,7 +65,7 @@ Marcan cannot see where an address forwards to, so it does not ask for the repor
 
 ## When a message cannot be imported
 
-A message is **quarantined**, recorded and skipped, so it never stalls the import, when it is not a valid report. For example: its domain is not a valid hostname, a record count is below 0 or above 1,000,000,000, the report period ends before it begins or begins more than a day in the future, or the attachment is larger than 25 MB.
+A message is **quarantined**, recorded and skipped, so it never stalls the import, when it is not a valid report. For example: its domain is not a valid hostname, a record count is below 0 or above 1,000,000,000, the report period ends before it begins or begins more than a day in the future, the attachment is larger than 25 MB, or the report unpacks to more than 50 MB (the reports in one message together, too).
 
 A message that fails for another reason (the server returns nothing for it, the download times out, the database rejects it) is retried on the next passes and quarantined after 5 attempts. The header's status counts skipped reports.
 

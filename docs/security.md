@@ -60,7 +60,7 @@ Marcan opens the report folder read-only and reads messages without marking them
 
 Anyone can send a report to your mailbox, so report content is treated as untrusted:
 
-- Attachments over 25 MB, and archives that unpack to more than 50 MB, are rejected.
+- Attachments over 25 MB are rejected, and so are reports that unpack to more than 50 MB of XML: the limit is checked while unpacking, so a zip or gzip bomb stops there. The reports in one message may unpack to 50 MB together.
 - Implausible values (negative counts, periods in the future, invalid domain names) quarantine the report instead of importing it.
 - In CSV exports, values a spreadsheet could read as a formula get a leading `'`.
 - A valid report from anyone adds the domain it names to the default organization and starts monitoring it, DNS checks included. Ignore the domain to stop that.

@@ -2,6 +2,14 @@
 //!
 //! Parses the standard `feedback` document and auto-detects plain XML,
 //! gzip (`.xml.gz`), or zip archives containing a report XML file.
+//!
+//! The input is whatever anyone mails to the report mailbox, so every path
+//! ends in a [`ParseError`], never a panic, in bounded time and memory: a
+//! report unpacks to at most [`MAX_REPORT_BYTES`] (50 MB) of XML, checked
+//! while decompressing, so a zip or gzip bomb stops there. A report holds
+//! several times its XML size in memory once parsed (one `Record` per
+//! `<record>`), which is why callers that keep many reports at once give
+//! [`parse_report_within`] what is left of their own budget.
 
 mod alignment;
 mod decompress;
@@ -11,6 +19,13 @@ mod xml;
 pub use alignment::{dkim_auth_aligned, spf_auth_aligned, spf_counts_for_dmarc, AlignmentMode};
 pub use types::*;
 
+/// The XML stage on its own, for the fuzz targets in `fuzz/` (not an API).
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzzing {
+    pub use crate::xml::parse_feedback_xml;
+}
+
 use thiserror::Error;
 
 /// Errors produced while decompressing or parsing a DMARC report.
@@ -18,6 +33,10 @@ use thiserror::Error;
 pub enum ParseError {
     #[error("failed to decompress report: {0}")]
     Decompress(String),
+    /// The XML is (or unpacks to) more than this many bytes: refused where
+    /// the limit is crossed, before the rest is decompressed.
+    #[error("report unpacks to more than the {} limit", megabytes(*.0))]
+    TooLarge(u64),
     #[error("no XML entry found in zip archive")]
     EmptyZip,
     #[error("invalid UTF-8 in report XML: {0}")]
@@ -34,19 +53,47 @@ pub enum ParseError {
     NotDmarc,
 }
 
+/// The most XML one report may unpack to: 50 MiB. Aggregate reports are
+/// usually kilobytes; this leaves room for very large senders.
+pub const MAX_REPORT_BYTES: u64 = 50 * 1024 * 1024;
+
+/// `"50 MB"` style (binary megabytes; one decimal when not whole).
+fn megabytes(bytes: u64) -> String {
+    let mb = bytes as f64 / (1024.0 * 1024.0);
+    if mb.fract() == 0.0 {
+        format!("{mb:.0} MB")
+    } else {
+        format!("{mb:.1} MB")
+    }
+}
+
 /// Parse raw report bytes using an optional filename or content-type hint.
 ///
 /// Detection order:
 /// 1. Magic bytes (gzip `1f 8b`, zip `PK`)
 /// 2. Filename / content-type hint (`.gz`, `.zip`, `gzip`, `zip`)
 /// 3. Treat as plain XML
+///
+/// The XML may be at most [`MAX_REPORT_BYTES`]; beyond that it is
+/// [`ParseError::TooLarge`].
 pub fn parse_report(data: &[u8], hint: Option<&str>) -> Result<Report, ParseError> {
-    let xml_bytes = decompress::to_xml_bytes(data, hint)?;
+    parse_report_within(data, hint, MAX_REPORT_BYTES)
+}
+
+/// [`parse_report`] with a smaller limit for the XML (larger ones are capped
+/// at [`MAX_REPORT_BYTES`]): what is left of a budget shared by several
+/// reports.
+pub fn parse_report_within(
+    data: &[u8],
+    hint: Option<&str>,
+    max_xml_bytes: u64,
+) -> Result<Report, ParseError> {
+    let xml_bytes = decompress::to_xml_bytes(data, hint, max_xml_bytes.min(MAX_REPORT_BYTES))?;
     if !looks_like_feedback(&xml_bytes) {
         return Err(ParseError::NotDmarc);
     }
     let raw_xml = String::from_utf8(xml_bytes)?;
-    xml::parse_feedback_xml(&raw_xml)
+    xml::parse_feedback_xml(raw_xml)
 }
 
 /// Whether decoded bytes carry a `<feedback>` document (searched within the
@@ -231,10 +278,34 @@ mod tests {
         let gz = encoder.finish().unwrap();
 
         let err = parse_report(&gz, Some("bomb.xml.gz")).unwrap_err();
-        match err {
-            ParseError::Decompress(msg) => assert!(msg.contains("exceeds 50 MB limit")),
-            other => panic!("expected Decompress error, got {other:?}"),
+        assert!(
+            matches!(err, ParseError::TooLarge(MAX_REPORT_BYTES)),
+            "{err:?}"
+        );
+        assert_eq!(
+            err.to_string(),
+            "report unpacks to more than the 50 MB limit"
+        );
+    }
+
+    #[test]
+    fn the_size_limit_is_inclusive_and_holds_for_every_format() {
+        let len = SAMPLE_XML.len() as u64;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(SAMPLE_XML.as_bytes()).unwrap();
+        let gz = encoder.finish().unwrap();
+        for data in [SAMPLE_XML.as_bytes(), &gz] {
+            assert!(parse_report_within(data, None, len).is_ok());
+            let err = parse_report_within(data, None, len - 1).unwrap_err();
+            assert!(
+                matches!(err, ParseError::TooLarge(l) if l == len - 1),
+                "{err:?}"
+            );
         }
+        // A larger limit than the crate's own is capped at it.
+        let big = parse_report_within(SAMPLE_XML.as_bytes(), None, u64::MAX);
+        assert!(big.is_ok());
+        assert_eq!(megabytes(1_572_864), "1.5 MB");
     }
 
     fn edited(from: &str, to: &str) -> String {

@@ -1103,7 +1103,7 @@ async fn retention_pass_applies_the_stored_months() {
                 severity: dmarc_assess::Status::Neutral,
             }],
         }];
-        dmarc_store::save_alert_evaluations(&t.pool, now - days_ago * 86_400, &run)
+        dmarc_store::save_alert_evaluations(&t.pool, now - days_ago * 86_400, &run, None)
             .await
             .unwrap();
     }

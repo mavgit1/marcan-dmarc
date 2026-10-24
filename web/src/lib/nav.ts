@@ -56,6 +56,9 @@ export const NAV_GROUPS: NavGroup[] = [
 /** The public documentation site (setup, deployment, how verdicts are reached). */
 export const DOCS_URL = 'https://marcan.kaitiaki.tech/';
 
+/** Where bugs are reported and questions asked (the FAQ says what to include). */
+export const ISSUES_URL = 'https://github.com/mavgit1/marcan-dmarc/issues';
+
 /** Pinned to the bottom of the sidebar, apart from the groups. */
 export const NAV_FOOTER: NavItem[] = [{ title: 'Settings', href: '/settings', icon: SettingsIcon }];
 

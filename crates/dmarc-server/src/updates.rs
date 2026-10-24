@@ -5,7 +5,10 @@
 //! fetches the file. The job wakes every [`UPDATE_CHECK_TICK`] (and when the
 //! switch is turned on) and asks once the last attempt, answered or not, is
 //! a day old, so neither a restart nor a site that is down asks more often.
+//! The alert evaluation reads the stored answer too: a newer release is one
+//! "update available" alert (`dmarc_assess::update_events`).
 
+use dmarc_assess::{is_newer_release, release_version};
 use dmarc_store::{
     get_update_check, load_settings, set_update_check, unix_now, SeenVersion, StoreError,
     UpdateCheck, UpdateSettings,
@@ -28,15 +31,6 @@ pub const UPDATE_CHECK_TICK: Duration = Duration::from_hours(1);
 pub const UPDATE_CHECK_WAKE_GAP: Duration = Duration::from_secs(5);
 pub const RUNNING_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// `X.Y.Z` as a tuple that orders as versions do; `None` for anything else.
-fn version(text: &str) -> Option<(u64, u64, u64)> {
-    // Digits only: `u64::from_str` also takes a leading `+`.
-    let num = |p: &str| p.parse().ok().filter(|_| !p.starts_with('+'));
-    let mut parts = text.split('.').map(num);
-    let v = (parts.next()??, parts.next()??, parts.next()??);
-    parts.next().is_none().then_some(v)
-}
-
 /// `{ "version": "X.Y.Z", "url": "..." }` as (version, link). A link that is
 /// not an HTTPS page of the docs site becomes [`RELEASES_URL`].
 fn parse_latest(body: &[u8]) -> Answer {
@@ -46,8 +40,8 @@ fn parse_latest(body: &[u8]) -> Answer {
         url: Option<String>,
     }
     let raw: Raw = serde_json::from_slice(body).map_err(|e| format!("not latest.json: {e}"))?;
-    let (x, y, z) =
-        version(raw.version.trim()).ok_or_else(|| format!("not a version: {:?}", raw.version))?;
+    let (x, y, z) = release_version(raw.version.trim())
+        .ok_or_else(|| format!("not a version: {:?}", raw.version))?;
     let url = match reqwest::Url::parse(raw.url.unwrap_or_default().trim()) {
         Ok(url) if on_docs_site(&url) => url.to_string(),
         _ => RELEASES_URL.to_owned(),
@@ -100,7 +94,7 @@ pub fn newer_version<'a>(
     running: &str,
 ) -> Option<&'a SeenVersion> {
     let seen = check?.seen.as_ref()?;
-    (settings.check && version(&seen.version)? > version(running)?).then_some(seen)
+    (settings.check && is_newer_release(&seen.version, running)).then_some(seen)
 }
 
 /// While on and due, await `fetch` and store the answer; a failure keeps
@@ -157,11 +151,8 @@ mod tests {
 
     #[test]
     fn versions_and_latest_json_parse_strictly() {
-        assert!(version("0.10.0") > version("0.9.9") && version("1.0.0") > version("0.99.99"));
-        assert!(version(RUNNING_VERSION).is_some());
-        for bad in "|0.2|0.2.1.0|v0.2.1|0.2.1-rc1|0..1| 0.2.1|a.b.c|+0.2.1".split('|') {
-            assert_eq!(version(bad), None, "{bad:?}");
-        }
+        // The version rules themselves are dmarc-assess's (`release_version`).
+        assert!(release_version(RUNNING_VERSION).is_some());
         let read = |url: &str| {
             let body = json!({ "version": "0.3.0", "url": url }).to_string();
             parse_latest(body.as_bytes()).unwrap()

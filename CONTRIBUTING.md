@@ -4,7 +4,7 @@ Thank you for helping. Bug reports, ideas and pull requests are welcome on [GitH
 
 ## Before a pull request
 
-- For anything larger than a fix, open an issue first, so we can agree on the approach before you spend time on it.
+- For anything larger than a fix, open an issue first, so we can agree on the approach before you spend time on it. One person reviews pull requests for now, so one may wait; small fixes land fastest.
 - Run `scripts/check.sh`. It runs formatting, tests, lints, the UI checks and a docs build. See [Development](https://marcan.kaitiaki.tech/development).
 - Keep the docs (`docs/`) accurate when behavior, settings or exports change.
 

@@ -109,7 +109,7 @@ pub fn render(input: &DigestInput<'_>) -> Content {
             .iter()
             .map(|i| issue_name(i.kind))
             .collect();
-        let link = domain_link(input.base_url, d.row.id);
+        let link = domain_link(input.base_url, Some(d.row.id));
         text.push_str(&format!("  {}: {}\n", d.row.domain, issues.join("; ")));
         if let Some(link) = &link {
             text.push_str(&format!("    {link}\n"));
@@ -251,10 +251,10 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         );
         let events = [AlertItem::from(dmarc_store::AlertEventRow {
             id: 9,
-            domain_id: 2,
-            domain: "open.example".into(),
-            organization_id: 1,
-            organization: "Acme".into(),
+            domain_id: Some(2),
+            domain: Some("open.example".into()),
+            organization_id: Some(1),
+            organization: Some("Acme".into()),
             created_at: NOW - 3600,
             notified_at: Some(NOW - 3000),
             event: AlertEvent {

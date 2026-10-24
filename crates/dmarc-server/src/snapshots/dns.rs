@@ -53,7 +53,7 @@ const WARM_PAUSE: Duration = Duration::from_millis(500);
 pub(crate) const RETRY_BASE_SECS: i64 = 10 * 60;
 pub(crate) const RETRY_MAX_SECS: i64 = 4 * 60 * 60;
 
-/// For a demo database (one the `demo-data` example made), the resolver that
+/// For a demo database (one a demo example made), the resolver that
 /// answers its domains' TXT lookups from the records stored with it, so their
 /// DNS says what their made-up reports say; PTR and A/AAAA lookups (the
 /// senders' names) still go to the default nameservers. `None` for every

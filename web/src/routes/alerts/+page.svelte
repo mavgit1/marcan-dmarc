@@ -21,6 +21,8 @@
 	import AlertText from './alert-text.svelte';
 
 	const PAGE_SIZE = 50;
+	/** The Domain cell of an event about the installation (a newer release), which has no domain. */
+	const INSTALLATION = 'Marcan';
 
 	/** Newest first, always: the list has no other order. */
 	const list = new ServerList('');
@@ -71,7 +73,7 @@
 			format: (_v, r) => formatDateTime(r.created_at),
 			class: 'whitespace-nowrap tabular-nums'
 		},
-		{ id: 'domain', header: 'Domain', accessor: (r) => r.domain },
+		{ id: 'domain', header: 'Domain', accessor: (r) => r.domain ?? INSTALLATION },
 		{ id: 'change', header: 'Change', accessor: (r) => r.event.kind, class: 'w-full min-w-72 whitespace-normal' }
 	];
 </script>
@@ -108,7 +110,11 @@
 		<DataTable {columns} data={page.items} getRowId={(r) => String(r.id)} dense server={list.table(scopeKey, page)}>
 			{#snippet cell({ column, row })}
 				{#if column.id === 'domain'}
-					<a href={resolve(`/domains/${row.domain_id}`)} class="hover:underline">{row.domain}</a>
+					{#if row.domain_id === null}
+						<span class="text-muted-foreground">{INSTALLATION}</span>
+					{:else}
+						<a href={resolve(`/domains/${row.domain_id}`)} class="hover:underline">{row.domain}</a>
+					{/if}
 				{:else if column.id === 'change'}
 					<span class="block min-w-0" title={catalogueTrigger(meta.current?.alert_catalogue, row.catalogue_id)}>
 						<AlertText item={row} />

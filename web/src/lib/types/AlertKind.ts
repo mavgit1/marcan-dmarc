@@ -42,4 +42,5 @@ export type AlertKind =
     evidence?: ReadinessEvidence;
   }
   | { "kind": "parked_changed"; parked: boolean }
-  | { "kind": "new_failing_sender"; sender: NewSender; window_days: number };
+  | { "kind": "new_failing_sender"; sender: NewSender; window_days: number }
+  | { "kind": "update_available"; version: string; url: string };

@@ -6,6 +6,10 @@ Marcan reads DMARC aggregate reports from an IMAP mailbox, checks your domains' 
 
 **Documentation: <https://marcan.kaitiaki.tech/>**
 
+- **Bugs, questions and ideas:** [GitHub issues](https://github.com/mavgit1/marcan-dmarc/issues); what to include in a bug report is in the [FAQ](https://marcan.kaitiaki.tech/faq#how-do-i-report-a-bug).
+- **Pull requests** are welcome under the CLA in [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Reviews** are one person's work for now, so a pull request may wait: small fixes land fastest, and a larger change should start as an issue.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/dashboard-dark.png">
   <img alt="The Marcan dashboard: message counts, delivered compliance, senders and messages per day by outcome" src="docs/public/screenshots/dashboard-light.png">
@@ -22,7 +26,7 @@ Marcan reads DMARC aggregate reports from an IMAP mailbox, checks your domains' 
 - **DKIM coverage**: how much of your passing mail is signed by your own domain, not passing on SPF alone.
 - **Sender identity from evidence**: names senders from forward-confirmed reverse DNS and SPF, with your own names on top. No guessed IP range lists.
 - **Organizations, parked and ignored domains**, all editable as one CSV list.
-- **Alerts on changes** (experimental), never on a state that persists: DNS records and the DMARC policy, health, failing mail reaching inboxes, reports stopping, readiness for the next policy step, a domain marked as parked, by email with an optional digest.
+- **Alerts on changes** (experimental), never on a state that persists: DNS records and the DMARC policy, health, failing mail reaching inboxes, reports stopping, readiness for the next policy step, a domain marked as parked, a newer Marcan release, by email with an optional digest.
 - **Monthly client reports** (experimental): a short email per organization about its own domains, to the recipients you list: a verdict, the month's mail against the month before, and a few lines only for the domains with something to say (open issues, the next policy step, a failing DNS grade, what changed). Your name and logo in the letterhead, free for everyone: under Marcan's line, the logo at most 120×32 px; with an [operator key](https://marcan.kaitiaki.tech/license#what-a-key-changes), your letterhead alone.
 - **CSV exports** of domains, senders, authentication issues and DNS findings.
 - **Read-only on your mailbox.** It never moves, flags or deletes mail.

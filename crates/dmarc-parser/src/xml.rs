@@ -122,9 +122,9 @@ pub(crate) const MAX_RECORD_COUNT: i64 = 1_000_000_000;
 const MAX_FUTURE_BEGIN_SECS: i64 = 24 * 60 * 60;
 
 /// Parse a decompressed DMARC feedback XML document into a [`Report`].
-pub(crate) fn parse_feedback_xml(raw_xml: &str) -> Result<Report, ParseError> {
+pub fn parse_feedback_xml(raw_xml: String) -> Result<Report, ParseError> {
     let feedback: Feedback =
-        quick_xml::de::from_str(raw_xml).map_err(|e| ParseError::Xml(e.to_string()))?;
+        quick_xml::de::from_str(&raw_xml).map_err(|e| ParseError::Xml(e.to_string()))?;
 
     // The only check of the report period: everything downstream trusts it.
     let DateRange { begin, end } = feedback.report_metadata.date_range;
@@ -249,6 +249,6 @@ pub(crate) fn parse_feedback_xml(raw_xml: &str) -> Result<Report, ParseError> {
             fo: feedback.policy_published.fo,
         },
         records,
-        raw_xml: raw_xml.to_owned(),
+        raw_xml,
     })
 }

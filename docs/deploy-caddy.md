@@ -28,14 +28,14 @@ Download the three files of the release into a new directory on the server, and 
 
 ```bash
 mkdir marcan && cd marcan
-base=https://raw.githubusercontent.com/mavgit1/marcan-dmarc/v0.3.0/deploy/caddy
+base=https://raw.githubusercontent.com/mavgit1/marcan-dmarc/main/deploy/caddy
 curl -fsSLO "$base/docker-compose.yml"
 curl -fsSLO "$base/Caddyfile"
 curl -fsSLO "$base/.env.example"
 cp .env.example .env
 ```
 
-Use the tag of the release you install in place of `v0.3.0`. A clone of the repository has the same files in `deploy/caddy/`. The database goes into the named volume `marcan_marcan_data` (the directory's name, then `marcan_data`), which Compose creates on the first start; see [The data volume](./deployment#the-data-volume).
+`main` on GitHub is always the latest release, so these are the current files; for an older release, use its tag in place of `main`. A clone of the repository has the same files in `deploy/caddy/`. The database goes into the named volume `marcan_marcan_data` (the directory's name, then `marcan_data`), which Compose creates on the first start; see [The data volume](./deployment#the-data-volume).
 
 ## 2. Fill in `.env`
 
@@ -76,6 +76,6 @@ Basic auth means one shared login for everyone, and the browser keeps it until i
 
 ## Upgrade
 
-Read the [release notes](./releases), Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade).
+Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade).
 
 Before 0.3.0 these files were in `deploy/` itself. If you ran the stack from `deploy/` in a clone, its volume is `deploy_marcan_data`: move your `.env` to `deploy/caddy/` and add `COMPOSE_PROJECT_NAME=deploy` to it, so Compose finds the volume again. With a bind mount instead, move `data/` along. A stack in a directory of its own, as above, is not affected.

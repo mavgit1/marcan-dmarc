@@ -84,7 +84,7 @@ The line under the switch says when the reports go out next, to how many organiz
 
 Each organization has a **Preview** button: it shows that organization's report in Marcan, as it would go out now, with its subject and sender name, the HTML version and the plain text one click away. Nothing is sent, and it works with sending off.
 
-<Screenshot name="client-report" alt="The preview of a client report for Example Labs: example.org needs attention, and its line gives its policy, ready for p=quarantine, its messages, the share that passed DMARC, the failures delivered and forwarded, and its DNS grade" />
+<Screenshot name="client-report" alt="The preview of a client report for Nordlicht Logistik: 7 of 8 domains need attention, September against August, then a line per domain with its policy, readiness, messages, the share that passed DMARC, the failures delivered and forwarded, and its DNS grade" />
 
 Beside it, a **Send a preview** button: it sends that organization's report, as it would go out now, to the test recipient set under [Sending](./mailbox#sending) (the sender address unless you set one), with "[Preview]" in the subject; the line under the list says where it goes. The organization does not need to be listed. It uses the Reply-To on the page, saved or not; the switch and sending must be on.
 

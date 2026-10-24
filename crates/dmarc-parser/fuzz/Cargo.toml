@@ -1,0 +1,32 @@
+# Fuzz targets for the attacker-facing input path: attachment bytes to a
+# `Report`. Its own workspace, so the main build, `cargo test` and
+# `scripts/check.sh` never see it. Run with cargo-fuzz on nightly (README.md).
+[package]
+name = "dmarc-parser-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+dmarc-parser = { path = "..", features = ["fuzzing"] }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "parse_report"
+path = "fuzz_targets/parse_report.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "feedback_xml"
+path = "fuzz_targets/feedback_xml.rs"
+test = false
+doc = false
+bench = false

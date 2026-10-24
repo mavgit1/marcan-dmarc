@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A screenshot of the app in the docs' current theme. Files live in
 // public/screenshots/<name>-light.png and <name>-dark.png, made from the demo
-// data (cargo run -p dmarc-store --example demo-data).
+// data (cargo run -p dmarc-store --example realistic-demo -- <dir> --seed 7, see scripts/screenshots/README.md).
 import { withBase } from 'vitepress'
 
 defineProps<{ name: string; alt: string }>()

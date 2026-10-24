@@ -27,10 +27,13 @@ services:
     restart: unless-stopped
     environment:
       OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:41880"
+      # Generic OIDC with discovery from the issuer URL (the default would be Google).
+      OAUTH2_PROXY_PROVIDER: "oidc"
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: "S256"
       OAUTH2_PROXY_UPSTREAMS: "http://marcan:8080/"
       # Every signed-in user can change every setting: allow only your own domain(s).
       OAUTH2_PROXY_EMAIL_DOMAINS: "${ALLOWED_EMAIL_DOMAINS:?set ALLOWED_EMAIL_DOMAINS in .env (e.g. yourcompany.com)}"
-      OAUTH2_PROXY_COOKIE_SECRET: "${COOKIE_SECRET:?set COOKIE_SECRET in .env (openssl rand -base64 32)}"
+      OAUTH2_PROXY_COOKIE_SECRET: "${COOKIE_SECRET:?set COOKIE_SECRET in .env (openssl rand -base64 32 | tr -- '+/' '-_')}"
       OAUTH2_PROXY_CLIENT_ID: "${OIDC_CLIENT_ID:?set OIDC_CLIENT_ID in .env}"
       OAUTH2_PROXY_CLIENT_SECRET: "${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}"
       OAUTH2_PROXY_OIDC_ISSUER_URL: "${OIDC_ISSUER_URL:?set OIDC_ISSUER_URL in .env}"

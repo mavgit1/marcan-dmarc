@@ -17,6 +17,12 @@ pub(crate) struct Limits {
     pub batch_max_bytes: u64,
     /// Messages larger than this are quarantined without being downloaded.
     pub max_message_bytes: u64,
+    /// Store a batch's parsed messages early once their reports hold this
+    /// much XML. The batch limits count compressed bytes, and a parsed
+    /// report holds several times its XML in memory, so without this a
+    /// batch of small gzip bombs (each under the per-report limit) would
+    /// hold gigabytes before it is stored.
+    pub max_pending_xml_bytes: u64,
     /// UIDs per `UID FETCH (UID RFC822.SIZE)` command while scanning.
     pub size_chunk: usize,
     /// Upper bound for connect + login, SELECT, SEARCH, each size chunk and LOGOUT.
@@ -35,6 +41,7 @@ impl Limits {
         batch_max_messages: 50,
         batch_max_bytes: 20 * MIB,
         max_message_bytes: 25 * MIB,
+        max_pending_xml_bytes: 16 * MIB,
         size_chunk: 500,
         command_timeout: Duration::from_secs(60),
         batch_timeout_base: Duration::from_secs(120),

@@ -53,3 +53,7 @@ For your own domains, yes, completely. If you run it for clients, including admi
 ## How do I report a bug?
 
 Open an issue on [GitHub](https://github.com/mavgit1/marcan-dmarc/issues). Include the version (shown under **Settings → License**) and the relevant log lines.
+
+## Feedback and contributing
+
+Bugs, questions and ideas go to the [GitHub issues](https://github.com/mavgit1/marcan-dmarc/issues). Pull requests are welcome under the contributor license agreement in [CONTRIBUTING.md](https://github.com/mavgit1/marcan-dmarc/blob/main/CONTRIBUTING.md). One person reviews them for now, so a pull request may wait: small fixes land fastest, and a larger change should start as an issue, to agree on the approach first.

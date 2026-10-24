@@ -10,4 +10,5 @@ export type AlertGroup =
   | "policy"
   | "readiness"
   | "parked"
-  | "senders";
+  | "senders"
+  | "updates";

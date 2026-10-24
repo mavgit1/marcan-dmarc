@@ -53,6 +53,15 @@ cargo run -p dmarc-server -- --data-dir .demo --bind 127.0.0.1:8090
 
 The docs' screenshots are taken from this data, so they never show real domains.
 
+For screenshots and videos of a busy installation, `realistic-demo` writes nine invented organizations with 43 domains, 90 days of reports, senders, DNS, alerts and client reports, all made up: domains on `.example`, senders on documentation addresses. Its traffic follows a built-in shape, or that of a copy of your own database (`--baseline`, made with sqlite's `.backup`), of which it reads only totals and shares; `--seed` gives another variant:
+
+```bash
+cargo run -p dmarc-store --example realistic-demo -- <dir> [--baseline <copy.db>] [--seed <n>]
+cargo run -p dmarc-server -- --data-dir <dir> --bind 127.0.0.1:8091
+```
+
+Sending is off and the mailbox has no password, so the server sends nothing and connects nowhere.
+
 ## Build a release binary
 
 ```bash
@@ -73,6 +82,11 @@ It builds the UI first (the server embeds `web/build`, and its tests serve it), 
 ```bash
 git config core.hooksPath .githooks
 ```
+
+## Fuzzing
+
+The report parser has cargo-fuzz targets in `crates/dmarc-parser/fuzz` (its own workspace, outside `scripts/check.sh`): attachment bytes through `parse_report`, and text straight into the XML stage.
+They need nightly (`cargo +nightly fuzz run parse_report`); the README there has the full commands, the seed corpus and the limits that make a hang or a memory blow-up a finding.
 
 ## API types
 

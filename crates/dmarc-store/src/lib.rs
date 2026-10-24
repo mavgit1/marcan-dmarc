@@ -51,9 +51,9 @@ pub use outcome::MailCounts;
 pub use queries::Scope;
 pub use queries_alerts::{
     alert_events_in, count_alert_events, delete_alert_events_older_than,
-    domains_with_reports_stored_since_evaluated, get_alert_states, list_alert_events,
-    mark_alert_events_notified, save_alert_evaluations, unnotified_alert_events, AlertEvaluation,
-    AlertEventRow,
+    domains_with_reports_stored_since_evaluated, get_alert_states, get_update_alert_state,
+    list_alert_events, mark_alert_events_notified, save_alert_evaluations, unnotified_alert_events,
+    AlertEvaluation, AlertEventRow, UpdateEvaluation,
 };
 pub use queries_analytics::{
     get_sender_by_ip, list_timeseries, report_span, resolve_source_ip, scope_stats,

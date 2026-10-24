@@ -6,7 +6,7 @@ Read the [release notes](./releases), then, in your stack's directory:
 docker compose pull && docker compose up -d
 ```
 
-The stacks run the `latest` image, so a pull is an upgrade, database migrations included. Pull on purpose, never on a timer (cron, Watchtower or the like). When the notes say the stack files changed, fetch them again from your stack's page under [Deployment](./deployment#choose-a-setup) and keep your `.env`. To stay on one version, edit the `image:` line in `docker-compose.yml` to `ghcr.io/mavgit1/marcan:X.Y.Z` (or `X.Y` for the newest patch of a minor version).
+The stacks run the `latest` image, so a pull is an upgrade, database migrations included. When the notes say the stack files changed, fetch them again from your stack's page under [Deployment](./deployment#choose-a-setup) and keep your `.env`. To stay on one version, edit the `image:` line in `docker-compose.yml` to `ghcr.io/mavgit1/marcan:X.Y.Z` (or `X.Y` for the newest patch of a minor version).
 
 ## If something goes wrong
 
@@ -21,13 +21,20 @@ This loses the alert history, the record of client reports sent, and reports no 
 
 ## Going back to an older version
 
-Migrations run on start and cannot be undone; the log says where the schema stands, as in `database schema at migration 2 (1 applied now)`. Going back therefore needs a [database backup](./backup#the-database-file) taken before the upgrade:
+Migrations run on start and cannot be undone, so an older version refuses a database a newer one has migrated: it logs `migration 2 was previously applied but is missing in the resolved migrations` (with the number of the newer migration) and Docker keeps restarting it. The log says where the schema stands, as in `database schema at migration 2 (1 applied now)`.
+
+The simple way back needs no backup: start over on the old version.
 
 1. Edit the `image:` line in `docker-compose.yml` to the old version, such as `ghcr.io/mavgit1/marcan:0.3.0`.
+2. Start it on an empty data directory (see [Starting over](./backup#starting-over)) and enter the mailbox.
+3. Paste the [four lists](./backup#keep-the-reports-and-the-lists) back.
+4. Press **Re-import mailbox** (**Settings → Data**).
+
+To keep the alert history, the client reports sent and the reports no longer in the mailbox, go back with a [database backup](./backup#the-database-file) taken before the upgrade instead:
+
+1. Edit the `image:` line in `docker-compose.yml` to the old version.
 2. Stop Marcan and copy the backup over `marcan.db`, steps 1 and 2 of [Restore](./backup#restore).
 3. Start it with `docker compose up -d`, not `docker compose start marcan`: `start` would run the existing container of the new version again, which migrates the restored database once more; `up -d` replaces it with the old version's.
-
-Without the backup, the old version refuses the migrated database: it logs `migration 2 was previously applied but is missing in the resolved migrations` (with the number of the newer migration) and Docker keeps restarting it. Start over on the old version instead, as above.
 
 ## After an upgrade
 
@@ -35,7 +42,7 @@ After an upgrade that changes the DNS checks, domains show their last result mar
 
 ## Checking for new versions
 
-Marcan checks for new versions itself. While **Check for new versions daily** is on under **Settings → License** (About), as it is by default, the server fetches a small version file, `https://marcan.kaitiaki.tech/latest.json`, once a day. The docs site is hosted on GitHub Pages, so GitHub sees that request and the server's IP address. The request carries no data about your installation: no version, no identifier, no cookie; the comparison with the running version happens in Marcan. When the file names a newer version, the page says "Marcan X.Y.Z is available" and the sidebar, beside the running version under **Settings**, says "X.Y.Z available", both linking to the release notes. Switched off, nothing is fetched and nothing is shown, and the last answer is forgotten. Your browser never fetches the file.
+Marcan checks for new versions itself. While **Check for new versions daily** is on under **Settings → License** (About), as it is by default, the server fetches a small version file, `https://marcan.kaitiaki.tech/latest.json`, once a day. The docs site is hosted on GitHub Pages, so GitHub sees that request and the server's IP address. The request carries no data about your installation: no version, no identifier, no cookie; the comparison with the running version happens in Marcan. When the file names a newer version, the page says "Marcan X.Y.Z is available" and the sidebar, beside the running version under **Settings**, says "X.Y.Z available", both linking to the release notes. Each newer release is also one **Update available** alert, in the Alerts list and, with alert emails on, in the alert email and the digest (see [New releases](./alerts#new-releases)). Switched off, nothing is fetched and nothing is shown, and the last answer is forgotten. Your browser never fetches the file.
 
 ## Reprocessing old reports
 

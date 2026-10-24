@@ -1,12 +1,12 @@
 # Alerts
 
-Marcan already decides what needs attention. Alerts tell you when that **changes**, and only in the ways you act on: a record in DNS is edited, the DMARC policy in DNS changes, a domain's health changes, delivered failures open or clear, reports stop or resume, a domain becomes ready for its next policy step, you mark a domain as parked, or a sender new to a domain fails DMARC as it.
+Marcan already decides what needs attention. Alerts tell you when that **changes**, and only in the ways you act on: a record in DNS is edited, the DMARC policy in DNS changes, a domain's health changes, delivered failures open or clear, reports stop or resume, a domain becomes ready for its next policy step, you mark a domain as parked, or a sender new to a domain fails DMARC as it. One more is about Marcan itself: a newer release.
 
 Alerts are **experimental**: which changes are alerted, and how they are worded, may still change between versions.
 
 Marcan always looks for changes and lists every one under **Alerts** in the sidebar, newest first, narrowed by the organization, domain and time range in the header like every other list. You do not need to set up sending or switch anything on to see them. Each domain page shows its last five changes under **Recent changes**. The settings under **Settings → Alerts** (the **Send alerts** switch and the alert kinds) decide only what is emailed.
 
-<Screenshot name="alerts" alt="The Alerts list, newest first: a DMARC record published, a DMARC tag changed and an SPF include added, each with the domain and when it was found" />
+<Screenshot name="alerts" alt="The Alerts list, newest first: reports stopping, a new sender failing DMARC, health and DNS changes, each with the domain, its weight and when it was found" />
 
 ## Changes only
 
@@ -42,6 +42,7 @@ Every kind of alert, as **Settings → Alerts → Alert kinds** lists it (the wo
 | Parked | Marked as parked | The domain was marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one. |
 |  | No longer parked | The domain is no longer marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one. |
 | Senders | New failing sender | A sender that sent nothing as the domain before the last 30 days had at least 10 messages fail DMARC in them (forwarded mail not counted). |
+| Updates | Update available | The daily version check (Settings → License) found a Marcan release newer than the one running: once per version, never while the check is off. |
 
 Each change is one sentence that names the numbers it is based on, the same in the app and in the email, and has a colour, the colour of where it led:
 
@@ -58,6 +59,7 @@ Each change is one sentence that names the numbers it is based on, the same in t
 | Ready for the next policy step | Ready for p=quarantine: 30 days and 1,204 messages under p=none, 99.6% delivered compliance. | Green |
 | Marked as parked, or no longer | Marked as parked. | None |
 | A new sender fails | New sender 203.0.113.5 (Example Mail) failed DMARC with 42 messages in the last 30 days (12 delivered) and sent nothing as the domain before. A new system sending as the domain, or spoofing: check its sender page. | Red when any of its failing mail was delivered, amber when the policy blocked all of it |
+| A newer release | Marcan 0.3.2 is available. | Blue (information) |
 
 The mail figures cover the last 30 days, the window [policy readiness](./readiness) is judged on; the threshold is the share of delivered mail failing DMARC above which the colour applies (delivered compliance below 99% is amber, below 95% red). The days without reports are measured against the domain warning under **Settings → Mailbox** (14 days by default). A DNS record change names what changed in the record (the tags, terms, selector or address before and after).
 
@@ -72,6 +74,13 @@ A sender is a source IP, as on the [Senders page](./dashboard#pages). It is **ne
 - It may mean a new system sending as the domain that is not set up yet (a newsletter tool, a CRM, a new mail provider: add it to SPF and sign with DKIM), or someone spoofing the domain. Its sender page helps tell which: who operates the IP, every domain it sent as, and how SPF and DKIM fared.
 - Client reports leave it out: it points to Marcan's sender pages, which your clients do not see.
 
+## New releases
+
+The [version check](./upgrade#checking-for-new-versions) asks once a day for the newest release; when it names one newer than the release running, that is one **Update available** alert, linking its release notes in the list and in the emails. It is about the installation, not a domain: the list shows **Marcan** in the Domain column, the emails put it last under "Marcan", and narrowing the list to an organization or domain leaves it out, as do client reports.
+
+- **Once per version.** The same answer the next day raises nothing; a later release raises a new alert. A release no newer than the running one never alerts, and neither does going back to an older image.
+- Nothing while the check is off. The first look after upgrading to the version that added this alert records the newest release as its starting point, like the first look at a domain, so a release the header already names is not alerted.
+
 DNS record changes compare the parsed records, so a record rewritten with other spacing, case or term order is the same record:
 
 | Check | What counts as a change |
@@ -85,14 +94,14 @@ DNS record changes compare the parsed records, so a record rewritten with other 
 
 ## Alert emails
 
-Under **Settings → Alerts**. Alert emails are **off by default**. The switch at the top of the page, **Send alerts**, is saved with the rest of the page; switched on, **Save** waits until there is a recipient ("Add at least one recipient first."). On, every round that finds changes sends **one email** with every change since the last one, grouped by domain, worst first, and the digest goes out when it is set. Off, no alert email of any kind goes out, and the fields below the switch are greyed out and keep their values. Mail goes out through the [Sending](./mailbox#sending) account, so sending must be on too: while it is off, the line under the switch says so.
+Under **Settings → Alerts**. Alert emails are **off by default**. The switch at the top of the page, **Send alerts**, is saved with the rest of the page; switched on, **Save** waits until there is a recipient ("Add at least one recipient first."). On, every round that finds changes sends **one email** with every change since the last one, grouped by domain, worst first (a newer release last), and the digest goes out when it is set. Off, no alert email of any kind goes out, and the fields below the switch are greyed out and keep their values. Mail goes out through the [Sending](./mailbox#sending) account, so sending must be on too: while it is off, the line under the switch says so.
 
 | Field | Notes |
 | :--- | :--- |
 | Recipients | One address per line. Each recipient gets their own copy; Marcan sends at most one message every 5 seconds, so many recipients take a while. |
 | Digest | Off, daily or weekly, at the hour you choose (UTC), on the day you choose for weekly. Off by default; the hour is 07:00 and the day Monday by default. |
 | Base URL | The address you open Marcan at, such as `https://marcan.example.com`. With it, the emails link to each domain and to the alert list; without it, they have no links. |
-| Alert kinds | Every kind of alert above by group, each with an **Email** checkbox (and Email all / Email none per group); all are on by default, and a kind added in a later version arrives on. Folded to one line ("All 16 emailed", "13 of 16 emailed") until you open it; the alert list's **What creates an alert** link opens it. An unticked kind is left out of the alert emails and of the changes in the digest; the **Alerts** list still shows it. |
+| Alert kinds | Every kind of alert above by group, each with an **Email** checkbox (and Email all / Email none per group); all are on by default, and a kind added in a later version arrives on. Folded to one line ("All 17 emailed", "14 of 17 emailed") until you open it; the alert list's **What creates an alert** link opens it. An unticked kind is left out of the alert emails and of the changes in the digest; the **Alerts** list still shows it. |
 
 **Send a test** sends made-up changes on `example.com` to the test recipient set under [Sending](./mailbox#sending) (the sender address unless you set one), not to the recipients, with the base URL on the page, saved or not, through the Sending account (the switch and sending must be on). The line under the button says where it goes. When it fails it says why, like the sending test.
 

@@ -1,19 +1,34 @@
+<!--
+  For maintainers: in each entry, the "before upgrading" sentence first, then one bullet per
+  product change (the app, the API, the exports, the stack files), most important first, and
+  all docs-only changes (new, moved or rewritten pages, screenshots, the sidebar) in one final
+  bullet "Docs: ..." that names them in a few words.
+-->
+
 # Releases
 
 Newest first. Each release is tagged `vX.Y.Z` and the image `ghcr.io/mavgit1/marcan` carries the same tag; how to move to a new one is in [Upgrade](./upgrade). An entry says what changed and what, if anything, to do before upgrading.
+
+## 0.3.2
+
+Before upgrading: take a backup if you want to be able to go back, since this release has a database migration (the alert events table gains installation-wide events) and 0.3.1 cannot open the migrated database. Nothing else to do.
+
+- New alert, **Update available** (Settings → Alerts, group Updates): while the daily version check is on, a release newer than the running one is one alert, "Marcan 0.3.2 is available.", linking its release notes in the Alerts list, the alert email and the digest; once per version, and the first look after upgrading is its starting point. See [New releases](./alerts#new-releases).
+- **Import hardening**: the reports of one mailbox message share a 50 MiB budget after decompression; an attachment past it is refused and the message quarantined, and a batch is stored early once it holds 16 MiB of reports. A crafted message could otherwise have taken the whole import down. See [Security](./security).
+- **Login stacks**: the OAuth2-Proxy stack now sets `OAUTH2_PROXY_PROVIDER=oidc`; before, every sign-in went to Google whatever issuer was configured. Its cookie-secret command now produces a value OAuth2-Proxy accepts. The Authelia stack stops logging a timeout for every idle connection. Fetch the stack files again when you use one of them.
+- **Settings → License** (About) links "Report a bug in 0.3.2" beside the running version, to the [GitHub issues](https://github.com/mavgit1/marcan-dmarc/issues).
+- Docs: the deploy pages fetch their files from `main` (always the latest release) instead of a tag; the Authelia page spells out the first sign-in with a second factor; the [FAQ](./faq#how-do-i-report-a-bug) and the README say how to report a bug.
 
 ## 0.3.1
 
 Nothing to do before upgrading. Every domain is re-checked once after it.
 
-- The [Pricing](./pricing) page shows the free plan and the two operator plans as cards side by side, with their checkout buttons, then what a license changes and the practical questions. Prices, terms and checkout links are unchanged.
 - The Compose stacks run `ghcr.io/mavgit1/marcan:latest`, and `MARCAN_VERSION` is gone from them and from `.env.example`. An upgrade is `docker compose pull && docker compose up -d` after reading this page; to pin a version, edit the `image:` line. Files fetched before keep reading `MARCAN_VERSION` from your `.env`; with the new files it is ignored. See [Upgrade](./upgrade).
-- In the docs sidebar, the three deployment stacks sit in a collapsible group under **Deployment**, so Setup reads Deployment, Mailbox & reporting setup, Domains & organizations, Sender names.
-- DMARC checks read RFC 9989's `psd=` tag: `y`, `n` and `u` no longer show as an unknown tag, another value is a warning (`dmarc_bad_psd`). Every domain is re-checked once after the upgrade. See [DNS checks](./dns-checks#dmarcbis-rfc-9989).
-- Turning DMARC testing mode (`t=y`) on or off is a **DMARC policy change** alert, like a new `p=`, `sp=` or `pct=`: "DMARC policy changed: testing mode on (t=y)." On under quarantine or reject is amber, off green. See [Alerts](./alerts).
 - **Guide** under Tools replaces the read-only Setup: how reports reach Marcan, the mailbox domain's permission, what Marcan judges, enforcement, alerts and client reports, each with this installation's values, where it stands and a docs link. The setup's first step no longer opens with an intro.
-- [Backup](./backup) and [Upgrade](./upgrade) are shorter and start from one fact: Marcan only reads the mailbox, so with the reports kept there and a copy of the four lists, starting over is the mailbox login, the lists pasted back and **Re-import mailbox**. A copy of the database file is for mail you delete, the alert and client report history, and going back a version.
+- DMARC checks read RFC 9989's `psd=` tag: `y`, `n` and `u` no longer show as an unknown tag, another value is a warning (`dmarc_bad_psd`). See [DNS checks](./dns-checks#dmarcbis-rfc-9989).
+- Turning DMARC testing mode (`t=y`) on or off is a **DMARC policy change** alert, like a new `p=`, `sp=` or `pct=`: "DMARC policy changed: testing mode on (t=y)." On under quarantine or reject is amber, off green. See [Alerts](./alerts).
 - While the version check names a newer release, the header shows "0.3.1 available" beside the status, linking its release notes.
+- Docs: the [Pricing](./pricing) page shows the plans as cards with their checkout buttons (prices and terms unchanged); the deployment stacks sit in a collapsible group in the sidebar; [Backup](./backup) and [Upgrade](./upgrade) are shorter and start from starting over with the mailbox and the four lists.
 
 ## 0.3.0
 

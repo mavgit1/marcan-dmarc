@@ -31,7 +31,7 @@ Download the five files of the release into a new directory on the server:
 
 ```bash
 mkdir -p marcan/config && cd marcan
-base=https://raw.githubusercontent.com/mavgit1/marcan-dmarc/v0.3.0/deploy/authelia
+base=https://raw.githubusercontent.com/mavgit1/marcan-dmarc/main/deploy/authelia
 curl -fsSLO "$base/docker-compose.yml"
 curl -fsSLO "$base/Caddyfile"
 curl -fsSLO "$base/.env.example"
@@ -41,7 +41,7 @@ cp .env.example .env
 cp config/users.yml.example config/users.yml
 ```
 
-Use the tag of the release you install in place of `v0.3.0`. A clone of the repository has the same files in `deploy/authelia/`; run from there, the volume is `authelia_marcan_data` instead of `marcan_marcan_data` (see [The data volume](./deployment#the-data-volume)).
+`main` on GitHub is always the latest release, so these are the current files; for an older release, use its tag in place of `main`. A clone of the repository has the same files in `deploy/authelia/`; run from there, the volume is `authelia_marcan_data` instead of `marcan_marcan_data` (see [The data volume](./deployment#the-data-volume)).
 
 ## 2. Fill in `.env`
 
@@ -76,12 +76,12 @@ docker compose up -d
 
 ```bash
 curl https://dmarc.example.com/healthz   # ok
-docker compose ps                        # marcan-app healthy, marcan-authelia and marcan-caddy up
+docker compose ps                        # marcan-app and marcan-authelia healthy, marcan-caddy up
 ```
 
 Open `https://dmarc.example.com`: you are sent to the portal at `auth.example.com` to sign in, then back to Marcan. Follow the setup (see [First start](./getting-started#first-start)).
 
-Authelia does not send mail in this setup: the one-time code you need when registering a 2FA device is written to `config/notification.txt` (`cat` it on the server). If the portal does not come up, `docker compose logs authelia` names the setting it rejects.
+On the first sign-in the portal asks for a second factor you do not have yet: choose "Register device", then "Add" for a one-time password. Authelia does not send mail in this setup: the one-time code it asks for to confirm it is you is written to `config/notification.txt` (`sudo cat config/notification.txt` on the server; Authelia writes it as root). Then scan the QR code with an authenticator app and enter the six digits it shows. If the portal does not come up, `docker compose logs authelia` names the setting it rejects.
 
 Keep `config/users.yml` and `config/db.sqlite3` out of version control and back them up with the rest.
 
@@ -89,4 +89,4 @@ Authelia is configured through its own configuration file; see its documentation
 
 ## Upgrade
 
-Read the [release notes](./releases), Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade). The Authelia image is pinned in `docker-compose.yml` (`authelia/authelia:4.39`); a Marcan release that moves it says so in its [release notes](./releases).
+Read the [release notes](./releases) first; a [database backup](./backup#the-database-file) is only needed to be able to go back a version. The steps, and how to pin a version, are in [Upgrade](./upgrade). The Authelia image is pinned in `docker-compose.yml` (`authelia/authelia:4.39`); a Marcan release that moves it says so in its [release notes](./releases).

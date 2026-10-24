@@ -24,5 +24,12 @@ tokio = { workspace = true }
 tempfile = { workspace = true }
 anyhow = { workspace = true }
 
+# Its test (built-in defaults: fast, complete, nothing real) runs with
+# `cargo test`.
+[[example]]
+name = "realistic-demo"
+path = "examples/realistic-demo/main.rs"
+test = true
+
 [lints]
 workspace = true

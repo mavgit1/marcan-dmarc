@@ -1,9 +1,19 @@
 # Marcan behind Caddy + Authelia (login portal with 2FA).
 # Marcan has no login of its own: every route except /healthz asks Authelia first.
 
+# Close idle connections to Authelia before its 6 s read timeout does, which
+# would log each one as an error ("Request timeout occurred ...").
+(authelia_keepalive) {
+	transport http {
+		keepalive 5s
+	}
+}
+
 # The Authelia login portal
 {$AUTH_DOMAIN} {
-	reverse_proxy authelia:9091
+	reverse_proxy authelia:9091 {
+		import authelia_keepalive
+	}
 }
 
 {$MARCAN_DOMAIN} {
@@ -18,6 +28,7 @@
 		# Unauthenticated requests are redirected to the portal.
 		forward_auth authelia:9091 {
 			uri /api/authz/forward-auth
+			import authelia_keepalive
 		}
 		reverse_proxy marcan:8080
 	}

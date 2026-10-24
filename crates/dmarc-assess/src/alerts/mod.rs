@@ -31,10 +31,15 @@
 //! the dashboard and raise no event, and neither does the DNS grade moving
 //! (health and the record changes cover it): [`AlertKind`] has no variant
 //! for them.
+//!
+//! One kind is about the installation instead of a domain: a newer Marcan
+//! release ([`AlertKind::UpdateAvailable`], [`update_events`]), once per
+//! version, from the daily version check's answer.
 
 mod catalogue;
 mod events;
 mod state;
+mod update;
 
 pub use catalogue::{
     catalogue_entry, catalogue_id, worst_first, AlertGroup, CatalogueKind, ALERT_CATALOGUE,
@@ -47,6 +52,7 @@ pub use state::{
     RecordDelta, SpfRecordFacts, StoppedFigures, TlsRptRecordFacts, ALERT_FORMAT,
     NEW_SENDER_MIN_FAILURES,
 };
+pub use update::{is_newer_release, release_version, update_events, SeenRelease, UpdateAlertState};
 
 #[cfg(test)]
 mod tests {
@@ -105,6 +111,10 @@ mod tests {
         kinds.push(AlertKind::NewFailingSender {
             sender: sender("192.0.2.1", 10, 0),
             window_days: 30,
+        });
+        kinds.push(AlertKind::UpdateAvailable {
+            version: "0.3.2".into(),
+            url: "https://marcan.kaitiaki.tech/releases".into(),
         });
         kinds
     }
@@ -865,6 +875,10 @@ mod tests {
             AlertKind::NewFailingSender {
                 sender: sender("192.0.2.1", 10, 0),
                 window_days: 30,
+            },
+            AlertKind::UpdateAvailable {
+                version: "0.3.2".into(),
+                url: "https://marcan.kaitiaki.tech/releases".into(),
             },
         ];
         let names: Vec<&str> = samples.iter().map(AlertKind::name).collect();

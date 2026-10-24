@@ -34,6 +34,7 @@ pub fn group_title(group: AlertGroup) -> &'static str {
         AlertGroup::Readiness => "Readiness",
         AlertGroup::Parked => "Parked",
         AlertGroup::Senders => "Senders",
+        AlertGroup::Updates => "Updates",
     }
 }
 
@@ -52,6 +53,7 @@ pub fn catalogue_title(kind: CatalogueKind) -> String {
         CatalogueKind::ParkedChanged { parked: true } => "Marked as parked".to_owned(),
         CatalogueKind::ParkedChanged { parked: false } => "No longer parked".to_owned(),
         CatalogueKind::NewFailingSender => "New failing sender".to_owned(),
+        CatalogueKind::UpdateAvailable => "Update available".to_owned(),
     }
 }
 
@@ -114,6 +116,9 @@ fn catalogue_trigger_line(kind: CatalogueKind) -> &'static str {
         }
         CatalogueKind::ParkedChanged { parked: false } => {
             "The domain is no longer marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one."
+        }
+        CatalogueKind::UpdateAvailable => {
+            "The daily version check (Settings → License) found a Marcan release newer than the one running: once per version, never while the check is off."
         }
         CatalogueKind::NewFailingSender => unreachable!("worded with its numbers"),
     }
@@ -377,6 +382,7 @@ pub fn alert_line(kind: &AlertKind) -> String {
             sender,
             window_days,
         } => new_sender_line(sender, *window_days),
+        AlertKind::UpdateAvailable { version, .. } => format!("Marcan {version} is available."),
     }
 }
 
@@ -803,6 +809,13 @@ mod tests {
             (
                 new_sender(None, 1_250, 0),
                 "New sender 203.0.113.5 failed DMARC with 1,250 messages in the last 30 days (all blocked by policy) and sent nothing as the domain before. A new system sending as the domain, or spoofing: check its sender page.",
+            ),
+            (
+                AlertKind::UpdateAvailable {
+                    version: "0.3.2".into(),
+                    url: "https://marcan.kaitiaki.tech/releases#_0-3-2".into(),
+                },
+                "Marcan 0.3.2 is available.",
             ),
             (
                 new_sender(None, 10, 10),

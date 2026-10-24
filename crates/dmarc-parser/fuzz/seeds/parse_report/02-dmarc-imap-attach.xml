@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<feedback>
+  <report_metadata>
+    <org_name>google.com</org_name>
+    <email>noreply@google.com</email>
+    <report_id>abc-123</report_id>
+    <date_range><begin>1</begin><end>2</end></date_range>
+  </report_metadata>
+  <policy_published>
+    <domain>example.com</domain>
+    <p>none</p>
+  </policy_published>
+</feedback>

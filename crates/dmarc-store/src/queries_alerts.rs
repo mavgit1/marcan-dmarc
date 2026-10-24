@@ -4,11 +4,14 @@
 //!
 //! Events are what the UI's alert list shows and what the alert email sends;
 //! `notified_at` says which were mailed. Both tables follow their domain:
-//! deleted with it, and cleared when it is ignored.
+//! deleted with it, and cleared when it is ignored. An event about the
+//! installation (a newer release) has no domain; the update alert's state
+//! is one `app_settings` row ([`get_update_alert_state`]), written with the
+//! run's events.
 
 use crate::queries::{begin_write, Scope};
 use crate::StoreError;
-use dmarc_assess::{AlertEvent, AlertKind, AlertState, Status, ALERT_FORMAT};
+use dmarc_assess::{AlertEvent, AlertKind, AlertState, Status, UpdateAlertState, ALERT_FORMAT};
 use serde::Serialize;
 use sqlx::sqlite::SqlitePool;
 use sqlx::{FromRow, QueryBuilder, Sqlite};
@@ -23,14 +26,23 @@ pub struct AlertEvaluation {
     pub events: Vec<AlertEvent>,
 }
 
-/// One stored event with its domain.
+/// The update alert's run: its new state and the event it raised, if any.
+#[derive(Debug, Clone)]
+pub struct UpdateEvaluation {
+    pub state: UpdateAlertState,
+    pub events: Vec<AlertEvent>,
+}
+
+/// One stored event with its domain. The four domain fields are all `null`
+/// for an event about the installation (a newer release), which no
+/// organization or domain scope includes.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 pub struct AlertEventRow {
     pub id: i64,
-    pub domain_id: i64,
-    pub domain: String,
-    pub organization_id: i64,
-    pub organization: String,
+    pub domain_id: Option<i64>,
+    pub domain: Option<String>,
+    pub organization_id: Option<i64>,
+    pub organization: Option<String>,
     /// When the evaluation that found it ran (unix seconds).
     pub created_at: i64,
     /// When an alert email carried it; `null` until then (or with alert
@@ -43,10 +55,10 @@ pub struct AlertEventRow {
 #[derive(FromRow)]
 struct EventRow {
     id: i64,
-    domain_id: i64,
-    domain: String,
-    organization_id: i64,
-    organization: String,
+    domain_id: Option<i64>,
+    domain: Option<String>,
+    organization_id: Option<i64>,
+    organization: Option<String>,
     created_at: i64,
     notified_at: Option<i64>,
     severity: String,
@@ -126,16 +138,66 @@ pub async fn domains_with_reports_stored_since_evaluated(
     Ok(ids.into_iter().collect())
 }
 
+const UPDATE_ALERT_STATE_KEY: &str = "alert_update_state";
+
+/// The update alert's stored state; `None` before its first evaluation, or
+/// when it does not read (the next evaluation is then a new baseline).
+pub async fn get_update_alert_state(
+    pool: &SqlitePool,
+) -> Result<Option<UpdateAlertState>, StoreError> {
+    Ok(crate::settings::get_setting(pool, UPDATE_ALERT_STATE_KEY)
+        .await?
+        .and_then(|raw| serde_json::from_str(&raw).ok()))
+}
+
+async fn insert_event(
+    tx: &mut sqlx::SqliteConnection,
+    domain_id: Option<i64>,
+    created_at: i64,
+    event: &AlertEvent,
+) -> Result<(), StoreError> {
+    let severity = serde_json::to_value(event.severity)?;
+    sqlx::query(
+        "INSERT INTO alert_events (domain_id, created_at, kind, severity, format, params) \
+         VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(domain_id)
+    .bind(created_at)
+    .bind(event.kind.name())
+    .bind(severity.as_str().unwrap_or_default())
+    .bind(ALERT_FORMAT)
+    .bind(serde_json::to_string(&event.kind)?)
+    .execute(tx)
+    .await?;
+    Ok(())
+}
+
 /// Store one evaluation run in one transaction: every domain's new state and
-/// its events, all stamped `evaluated_at`. A domain ignored meanwhile keeps
+/// its events, and the update alert's state and event (`update`, without a
+/// domain), all stamped `evaluated_at`. A domain ignored meanwhile keeps
 /// nothing. Returns the number of events stored.
 pub async fn save_alert_evaluations(
     pool: &SqlitePool,
     evaluated_at: i64,
     evaluations: &[AlertEvaluation],
+    update: Option<&UpdateEvaluation>,
 ) -> Result<usize, StoreError> {
     let mut tx = begin_write(pool).await?;
     let mut stored = 0;
+    if let Some(update) = update {
+        sqlx::query(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?) \
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .bind(UPDATE_ALERT_STATE_KEY)
+        .bind(serde_json::to_string(&update.state)?)
+        .execute(&mut *tx)
+        .await?;
+        for event in &update.events {
+            insert_event(&mut tx, None, evaluated_at, event).await?;
+            stored += 1;
+        }
+    }
     for e in evaluations {
         let state = serde_json::to_string(&e.state)?;
         let written = sqlx::query(
@@ -159,19 +221,7 @@ pub async fn save_alert_evaluations(
             continue;
         }
         for event in &e.events {
-            let severity = serde_json::to_value(event.severity)?;
-            sqlx::query(
-                "INSERT INTO alert_events (domain_id, created_at, kind, severity, format, params) \
-                 VALUES (?, ?, ?, ?, ?, ?)",
-            )
-            .bind(e.domain_id)
-            .bind(evaluated_at)
-            .bind(event.kind.name())
-            .bind(severity.as_str().unwrap_or_default())
-            .bind(ALERT_FORMAT)
-            .bind(serde_json::to_string(&event.kind)?)
-            .execute(&mut *tx)
-            .await?;
+            insert_event(&mut tx, Some(e.domain_id), evaluated_at, event).await?;
             stored += 1;
         }
     }
@@ -182,9 +232,9 @@ pub async fn save_alert_evaluations(
 const EVENT_SELECT: &str = "SELECT e.id, e.domain_id, d.domain, d.organization_id, \
      org.name AS organization, e.created_at, e.notified_at, e.severity, e.params \
      FROM alert_events e \
-     INNER JOIN domains d ON d.id = e.domain_id \
-     INNER JOIN organizations org ON org.id = d.organization_id \
-     WHERE d.ignored = 0";
+     LEFT JOIN domains d ON d.id = e.domain_id \
+     LEFT JOIN organizations org ON org.id = d.organization_id \
+     WHERE (e.domain_id IS NULL OR d.ignored = 0)";
 
 /// [`EVENT_SELECT`] over the events of this [`ALERT_FORMAT`].
 fn event_query() -> QueryBuilder<'static, Sqlite> {
@@ -193,8 +243,8 @@ fn event_query() -> QueryBuilder<'static, Sqlite> {
     qb
 }
 
-/// Narrow events to `scope`: its organization and domain, and its time
-/// window over `created_at`.
+/// Narrow events to `scope`: its organization and domain (either leaves the
+/// installation's events out), and its time window over `created_at`.
 fn push_scope(qb: &mut QueryBuilder<'_, Sqlite>, scope: &Scope) {
     if let Some(id) = scope.organization_id {
         qb.push(" AND d.organization_id = ").push_bind(id);
@@ -312,7 +362,8 @@ pub async fn mark_alert_events_notified(
 pub async fn count_alert_events(pool: &SqlitePool, scope: Scope) -> Result<i64, StoreError> {
     let mut qb = QueryBuilder::new(
         "SELECT COUNT(*) FROM alert_events e \
-         INNER JOIN domains d ON d.id = e.domain_id WHERE d.ignored = 0 AND e.format = ",
+         LEFT JOIN domains d ON d.id = e.domain_id \
+         WHERE (e.domain_id IS NULL OR d.ignored = 0) AND e.format = ",
     );
     qb.push_bind(ALERT_FORMAT);
     push_scope(&mut qb, &scope);
@@ -390,7 +441,12 @@ mod tests {
                 ],
             },
         ];
-        assert_eq!(save_alert_evaluations(&pool, 1_000, &run).await.unwrap(), 2);
+        assert_eq!(
+            save_alert_evaluations(&pool, 1_000, &run, None)
+                .await
+                .unwrap(),
+            2
+        );
         let states = get_alert_states(&pool).await.unwrap();
         assert_eq!(states[&a].health, HealthState::Protected);
         assert_eq!(states[&b].health, HealthState::Critical);
@@ -401,7 +457,9 @@ mod tests {
             state: state(HealthState::Warning),
             events: vec![resolved(AlertedIssue::DeliveredFailures)],
         }];
-        save_alert_evaluations(&pool, 2_000, &next).await.unwrap();
+        save_alert_evaluations(&pool, 2_000, &next, None)
+            .await
+            .unwrap();
         assert_eq!(
             get_alert_states(&pool).await.unwrap()[&a].health,
             HealthState::Warning
@@ -411,7 +469,7 @@ mod tests {
         assert_eq!(total, 3);
         assert_eq!(page.len(), 2);
         // Newest first; ties by id, newest first.
-        assert_eq!(page[0].domain, "a.example");
+        assert_eq!(page[0].domain.as_deref(), Some("a.example"));
         assert_eq!(page[0].created_at, 2_000);
         assert_eq!(page[0].event, resolved(AlertedIssue::DeliveredFailures));
         assert_eq!(page[1].event, opened(AlertedIssue::ReportsStopped));
@@ -434,7 +492,7 @@ mod tests {
                 state: AlertState::default(),
                 events: vec![opened(AlertedIssue::ReportsStopped)],
             }];
-            save_alert_evaluations(&pool, at, &run).await.unwrap();
+            save_alert_evaluations(&pool, at, &run, None).await.unwrap();
         }
         let count = |scope| {
             let pool = pool.clone();
@@ -448,7 +506,7 @@ mod tests {
         let (items, _) = list_alert_events(&pool, Scope::new(Some(other_id), None, None), 50, 0)
             .await
             .unwrap();
-        assert_eq!(items[0].organization, "Other");
+        assert_eq!(items[0].organization.as_deref(), Some("Other"));
         let window = alert_events_in(&pool, Scope::ALL.window(Some(150), None))
             .await
             .unwrap();
@@ -468,7 +526,9 @@ mod tests {
                 resolved(AlertedIssue::DeliveredFailures),
             ],
         }];
-        save_alert_evaluations(&pool, 100, &run).await.unwrap();
+        save_alert_evaluations(&pool, 100, &run, None)
+            .await
+            .unwrap();
         let pending = unnotified_alert_events(&pool, 0, 50).await.unwrap();
         assert_eq!(pending.len(), 2);
         mark_alert_events_notified(&pool, &[pending[0].id], 150)
@@ -493,7 +553,7 @@ mod tests {
                 state: AlertState::default(),
                 events: vec![opened(AlertedIssue::ReportsStopped)],
             }];
-            save_alert_evaluations(&pool, at, &run).await.unwrap();
+            save_alert_evaluations(&pool, at, &run, None).await.unwrap();
         }
         let times =
             |rows: Vec<AlertEventRow>| -> Vec<i64> { rows.iter().map(|e| e.created_at).collect() };
@@ -541,7 +601,9 @@ mod tests {
             state: AlertState::default(),
             events: vec![opened(AlertedIssue::ReportsStopped)],
         }];
-        save_alert_evaluations(&pool, 100, &run).await.unwrap();
+        save_alert_evaluations(&pool, 100, &run, None)
+            .await
+            .unwrap();
         assert!(ignore_domain(&pool, a).await.unwrap());
         assert!(get_alert_states(&pool).await.unwrap().is_empty());
         assert_eq!(count_alert_events(&pool, Scope::ALL).await.unwrap(), 0);
@@ -551,12 +613,171 @@ mod tests {
             .unwrap();
         assert_eq!(left, 0);
         // Evaluating it after it was ignored stores nothing.
-        assert_eq!(save_alert_evaluations(&pool, 200, &run).await.unwrap(), 0);
+        assert_eq!(
+            save_alert_evaluations(&pool, 200, &run, None)
+                .await
+                .unwrap(),
+            0
+        );
         let states: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM alert_state")
             .fetch_one(&pool)
             .await
             .unwrap();
         assert_eq!(states, 0);
+    }
+
+    fn update_available(version: &str) -> AlertEvent {
+        AlertEvent {
+            kind: AlertKind::UpdateAvailable {
+                version: version.into(),
+                url: "https://marcan.kaitiaki.tech/releases".into(),
+            },
+            severity: Status::Info,
+        }
+    }
+
+    /// The update alert's state and event are stored with the run: the
+    /// event without a domain, listed, counted and mailed with the others
+    /// but in no organization's or domain's scope.
+    #[tokio::test]
+    async fn the_installation_event_has_no_domain_and_no_scope() {
+        let (_dir, pool) = pool().await;
+        let a = domain(&pool, 1, "a.example").await;
+        assert_eq!(get_update_alert_state(&pool).await.unwrap(), None);
+        let first = UpdateEvaluation {
+            state: UpdateAlertState {
+                latest: Some("0.3.1".into()),
+            },
+            events: vec![],
+        };
+        save_alert_evaluations(&pool, 100, &[], Some(&first))
+            .await
+            .unwrap();
+        assert_eq!(
+            get_update_alert_state(&pool).await.unwrap(),
+            Some(first.state)
+        );
+
+        let update = UpdateEvaluation {
+            state: UpdateAlertState {
+                latest: Some("0.3.2".into()),
+            },
+            events: vec![update_available("0.3.2")],
+        };
+        let run = [AlertEvaluation {
+            domain_id: a,
+            state: AlertState::default(),
+            events: vec![opened(AlertedIssue::ReportsStopped)],
+        }];
+        assert_eq!(
+            save_alert_evaluations(&pool, 200, &run, Some(&update))
+                .await
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            get_update_alert_state(&pool).await.unwrap(),
+            Some(update.state.clone())
+        );
+        let (all, total) = list_alert_events(&pool, Scope::ALL, 50, 0).await.unwrap();
+        assert_eq!(total, 2);
+        let installation = all.iter().find(|e| e.domain_id.is_none()).unwrap();
+        assert_eq!(installation.event, update_available("0.3.2"));
+        assert_eq!(
+            (installation.domain.as_ref(), installation.organization_id),
+            (None, None)
+        );
+        assert_eq!(
+            unnotified_alert_events(&pool, 0, 50).await.unwrap().len(),
+            2
+        );
+        assert_eq!(alert_events_in(&pool, Scope::ALL).await.unwrap().len(), 2);
+        // An organization's or a domain's scope (the client reports, a
+        // domain's recent changes) leaves it out.
+        assert_eq!(
+            count_alert_events(&pool, Scope::new(Some(1), None, None))
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            count_alert_events(&pool, Scope::domain(a, None))
+                .await
+                .unwrap(),
+            1
+        );
+        // Ignoring a domain takes its events, not the installation's.
+        assert!(ignore_domain(&pool, a).await.unwrap());
+        assert_eq!(count_alert_events(&pool, Scope::ALL).await.unwrap(), 1);
+    }
+
+    /// Migration 0003 keeps the events of a database from before it, with
+    /// their ids, lets `domain_id` be NULL and puts the indexes back.
+    #[tokio::test]
+    async fn migration_0003_keeps_the_events() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let full = sqlx::migrate!("../../migrations");
+        let mut before = sqlx::migrate!("../../migrations");
+        before.migrations = full
+            .migrations
+            .iter()
+            .filter(|m| m.version < 3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into();
+        before.run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO domains (id, organization_id, domain) VALUES (5, 1, 'a.example')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO alert_events (id, domain_id, created_at, kind, severity, format, params, notified_at) \
+             VALUES (42, 5, 100, 'issue_opened', 'fail', 1, ?, 150)",
+        )
+        .bind(serde_json::to_string(&opened(AlertedIssue::ReportsStopped).kind).unwrap())
+        .execute(&pool)
+        .await
+        .unwrap();
+        full.run(&pool).await.unwrap();
+
+        let (all, _) = list_alert_events(&pool, Scope::ALL, 50, 0).await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(
+            (all[0].id, all[0].domain_id, all[0].notified_at),
+            (42, Some(5), Some(150))
+        );
+        assert_eq!(all[0].event, opened(AlertedIssue::ReportsStopped));
+        let not_null: i64 = sqlx::query_scalar(
+            "SELECT \"notnull\" FROM pragma_table_info('alert_events') WHERE name = 'domain_id'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(not_null, 0);
+        let indexes: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'alert_events' ORDER BY name",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            indexes,
+            [
+                "idx_alert_events_created",
+                "idx_alert_events_domain",
+                "idx_alert_events_unnotified"
+            ]
+        );
+        // The foreign key still holds: the event goes with its domain.
+        sqlx::query("DELETE FROM domains WHERE id = 5")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count_alert_events(&pool, Scope::ALL).await.unwrap(), 0);
     }
 
     #[tokio::test]
@@ -568,7 +789,9 @@ mod tests {
             state: AlertState::default(),
             events: vec![opened(AlertedIssue::ReportsStopped)],
         }];
-        save_alert_evaluations(&pool, 100, &run).await.unwrap();
+        save_alert_evaluations(&pool, 100, &run, None)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM domains WHERE id = ?")
             .bind(a)
             .execute(&pool)

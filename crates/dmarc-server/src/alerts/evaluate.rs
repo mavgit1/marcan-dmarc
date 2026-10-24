@@ -1,19 +1,22 @@
 //! One evaluation run: every monitored domain's current state against the
-//! stored one.
+//! stored one, and the version check's answer against the newest release
+//! the update alert saw before.
 
 use crate::api::{identities_named, load_sender_names};
 use crate::error::AppResult;
 use crate::snapshots::dns::complete_report;
+use crate::updates::RUNNING_VERSION;
 use crate::view::domain::{domain_overview, Judging};
 use dmarc_assess::{
-    alert_events, alert_state, readiness_window_start, AlertState, NewSender,
-    NEW_SENDER_MIN_FAILURES,
+    alert_events, alert_state, readiness_window_start, update_events, AlertState, NewSender,
+    SeenRelease, NEW_SENDER_MIN_FAILURES,
 };
 use dmarc_identity::SenderNames;
 use dmarc_store::{
     domains_with_reports_stored_since_evaluated, get_alert_states, get_alerts_held_at,
-    get_dns_snapshots, get_domain_overview, list_monitored_domain_ids, new_failing_senders,
-    readiness_mail, save_alert_evaluations, AlertEvaluation, DnsSnapshot,
+    get_dns_snapshots, get_domain_overview, get_update_alert_state, get_update_check,
+    list_monitored_domain_ids, load_settings, new_failing_senders, readiness_mail,
+    save_alert_evaluations, AlertEvaluation, DnsSnapshot, UpdateEvaluation, UpdateSettings,
 };
 use sqlx::SqlitePool;
 use std::collections::HashSet;
@@ -114,8 +117,25 @@ pub async fn current_state(
     )))
 }
 
-/// Evaluate every monitored domain at `now` and store the states and events
-/// in one transaction. A domain evaluated for the first time is stored as
+/// The update alert of this run: the version check's stored answer (while
+/// the check is on) against the update alert's stored state, for `running`.
+pub async fn update_evaluation(pool: &SqlitePool, running: &str) -> AppResult<UpdateEvaluation> {
+    let check_on = load_settings::<UpdateSettings>(pool).await?.check;
+    let check = get_update_check(pool).await?;
+    let seen = check
+        .as_ref()
+        .and_then(|c| c.seen.as_ref())
+        .map(|s| SeenRelease {
+            version: &s.version,
+            url: &s.url,
+        });
+    let previous = get_update_alert_state(pool).await?;
+    let (state, events) = update_events(previous.as_ref(), check_on, seen, running);
+    Ok(UpdateEvaluation { state, events })
+}
+
+/// Evaluate every monitored domain at `now`, and the update alert, and store
+/// the states and events in one transaction. A domain evaluated for the first time is stored as
 /// its baseline, with no events. Stops between domains once `token` is
 /// cancelled, storing nothing of an unfinished run. A domain whose state
 /// cannot be read is logged with its name and skipped
@@ -133,9 +153,14 @@ pub async fn evaluate_all(
     now: i64,
     token: &CancellationToken,
 ) -> AppResult<EvaluationSummary> {
+    let update = update_evaluation(pool, RUNNING_VERSION).await?;
     let domains = list_monitored_domain_ids(pool).await?;
     if domains.is_empty() {
-        return Ok(EvaluationSummary::default());
+        let events = save_alert_evaluations(pool, now, &[], Some(&update)).await?;
+        return Ok(EvaluationSummary {
+            events,
+            ..EvaluationSummary::default()
+        });
     }
     let imported = match get_alerts_held_at(pool).await? {
         Some(held_at) => domains_with_reports_stored_since_evaluated(pool, held_at).await?,
@@ -179,7 +204,7 @@ pub async fn evaluate_all(
             events,
         });
     }
-    let events = save_alert_evaluations(pool, now, &evaluations).await?;
+    let events = save_alert_evaluations(pool, now, &evaluations, Some(&update)).await?;
     Ok(EvaluationSummary {
         domains: evaluations.len(),
         events,

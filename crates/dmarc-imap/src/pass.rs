@@ -21,6 +21,16 @@
 //!    batch. A crash, timeout or restart resumes after the last completed
 //!    batch instead of starting over.
 //!
+//! # Memory
+//!
+//! Attachments are small, but what they unpack to need not be: a 200 KB gzip
+//! can hold a 50 MB report with 700,000 records, about 250 MB once parsed.
+//! So the decoded XML is bounded at three levels: one report at
+//! [`dmarc_parser::MAX_REPORT_BYTES`], one message's reports together at the
+//! same [`MAX_MESSAGE_XML_BYTES`] (the rest of its attachments are refused),
+//! and a batch is stored early, before its next message is parsed, once its
+//! reports hold [`Limits::max_pending_xml_bytes`].
+//!
 //! Timeouts apply per command and per batch, never to the whole pass, so a long
 //! import is fine as long as it keeps moving.
 //!
@@ -44,7 +54,7 @@ use crate::batch::{compact_uid_set, format_bytes, plan_batches, too_large_reason
 use crate::config::ImapConfig;
 use crate::connect::{connect_and_login, ConnectStage};
 use crate::progress::{ImapPhase, SharedProgress};
-use dmarc_parser::{parse_report, ParseError, Report};
+use dmarc_parser::{parse_report_within, ParseError, Report, MAX_REPORT_BYTES};
 use futures::{Future, TryStreamExt};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
@@ -58,6 +68,11 @@ use tracing::{debug, error, info, warn};
 /// no answer from the server, a download that times out) before it is
 /// quarantined and skipped, so one message can never block newer mail.
 pub const MAX_ATTEMPTS: u32 = 5;
+
+/// The most XML the reports of one message may unpack to together: as much
+/// as one report may. A message with more report attachments than that is
+/// quarantined; the reports before the limit are imported.
+pub const MAX_MESSAGE_XML_BYTES: u64 = MAX_REPORT_BYTES;
 
 /// Counts from a single fetch pass.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -711,8 +726,9 @@ impl<'a, B: Backend> Pass<'a, B> {
     }
 
     /// Download one batch with `BODY.PEEK[]`, parse each message as it
-    /// arrives, and store them together once the answer is complete, so at
-    /// most one batch is ever in flight.
+    /// arrives, and store them together once the answer is complete (or
+    /// sooner, once their reports hold [`Limits::max_pending_xml_bytes`] of
+    /// XML), so at most one batch is ever in flight.
     async fn fetch_batch<T>(
         &mut self,
         session: &mut async_imap::Session<T>,
@@ -728,6 +744,8 @@ impl<'a, B: Backend> Pass<'a, B> {
         let mut pending: BTreeMap<u32, u64> = batch.download.iter().copied().collect();
         let mut answered_without_body: HashSet<u32> = HashSet::new();
         let mut parsed = Vec::with_capacity(pending.len());
+        // XML held by the reports in `parsed` (see "Memory" above).
+        let mut pending_xml: u64 = 0;
         {
             let what = format!("IMAP UID FETCH {set}");
             let mut stream = session
@@ -756,20 +774,32 @@ impl<'a, B: Backend> Pass<'a, B> {
                 pending.remove(&uid);
                 self.summary.messages_seen += 1;
                 let bytes = if size > 0 { size } else { raw.len() as u64 };
-                parsed.push(match self.parse(raw).await {
-                    Ok((reports, failures)) => ParsedMessage {
-                        uid,
-                        bytes,
-                        reports,
-                        failures,
-                    },
+                let (reports, failures) = match self.parse(raw).await {
+                    Ok(parsed) => parsed,
                     // Parsing was cancelled: counted against this message
                     // like a backend failure, so the batch is retried.
                     Err(failure) => {
                         self.settle(uid_validity, uid, Err(failure), true).await?;
                         continue;
                     }
+                };
+                pending_xml += reports.iter().map(|r| r.raw_xml.len() as u64).sum::<u64>();
+                parsed.push(ParsedMessage {
+                    uid,
+                    bytes,
+                    reports,
+                    failures,
                 });
+                // Big reports: stored now rather than held until the batch ends.
+                if pending_xml >= self.limits.max_pending_xml_bytes {
+                    debug!(
+                        pending_xml,
+                        "storing the batch's reports so far before parsing more"
+                    );
+                    self.store_parsed(std::mem::take(&mut parsed), uid_validity)
+                        .await?;
+                    pending_xml = 0;
+                }
             }
         }
         // A backend failure aborts the batch before its cursor is saved, so
@@ -1137,6 +1167,13 @@ where
 /// The CPU-bound half of a message (MIME, decompression, XML): the reports
 /// found, and the reasons any report-looking attachment was bad.
 fn parse_message(raw: &[u8]) -> (Vec<Report>, Vec<String>) {
+    parse_message_within(raw, MAX_MESSAGE_XML_BYTES)
+}
+
+/// [`parse_message`] with `budget` bytes of XML for all of the message's
+/// reports together: each attachment gets what the ones before it left.
+fn parse_message_within(raw: &[u8], budget: u64) -> (Vec<Report>, Vec<String>) {
+    let mut left = budget;
     let mut reports = Vec::new();
     let mut failures = Vec::new();
     let candidates = extract_report_attachments(raw);
@@ -1155,8 +1192,25 @@ fn parse_message(raw: &[u8]) -> (Vec<Report>, Vec<String>) {
             }
         };
         let hint = att.parse_hint();
-        match parse_report(&att.data, hint.as_deref()) {
-            Ok(report) => reports.push(report),
+        let name = att.filename.as_deref().unwrap_or("unnamed attachment");
+        match parse_report_within(&att.data, hint.as_deref(), left) {
+            Ok(report) => {
+                left = left.saturating_sub(report.raw_xml.len() as u64);
+                reports.push(report);
+            }
+            // Within the per-report limit, but not within what is left.
+            Err(ParseError::TooLarge(_)) if left < budget => {
+                error!(
+                    filename = ?att.filename,
+                    "the message's reports unpack to more than its limit together; \
+                     will not be retried (cursor advances)"
+                );
+                failures.push(format!(
+                    "{name} was not imported: the reports in this message unpack to more \
+                     than {} together",
+                    format_bytes(budget)
+                ));
+            }
             // An office file or a TLS-RPT report in the same mailbox: ordinary mail.
             Err(ParseError::NotDmarc) => {
                 debug!(filename = ?att.filename, "attachment is not a DMARC report; skipping");
@@ -1167,10 +1221,7 @@ fn parse_message(raw: &[u8]) -> (Vec<Report>, Vec<String>) {
                     error = %e,
                     "failed to parse DMARC attachment; will not be retried (cursor advances)"
                 );
-                failures.push(format!(
-                    "parse failed for {}: {e}",
-                    att.filename.as_deref().unwrap_or("unnamed attachment")
-                ));
+                failures.push(format!("parse failed for {name}: {e}"));
             }
         }
     }
@@ -1253,6 +1304,7 @@ mod tests {
             batch_max_messages: 2,
             batch_max_bytes: 1_000_000,
             max_message_bytes: 1_000_000,
+            max_pending_xml_bytes: Limits::DEFAULT.max_pending_xml_bytes,
             size_chunk: 3,
             command_timeout: Duration::from_secs(5),
             batch_timeout_base: Duration::from_secs(2),
@@ -1871,5 +1923,90 @@ mod tests {
         assert_eq!(run.summary.messages_quarantined, 0);
         assert_eq!(run.summary.errors, 0);
         assert_eq!(cursor(&backend), Some((1, 2)));
+    }
+
+    #[tokio::test]
+    async fn a_batch_holding_much_xml_is_stored_before_it_ends() {
+        let backend = MemoryBackend::default();
+        // Every report reaches the limit, so each message is stored on its own
+        // as soon as it is parsed, inside batches of three.
+        let limits = Limits {
+            batch_max_messages: 3,
+            max_pending_xml_bytes: 1,
+            ..small_limits()
+        };
+        let run = run_import(
+            FakeServer::new(1, mailbox(&[1, 2, 3, 4])),
+            &backend,
+            &limits,
+        )
+        .await;
+        run.result.unwrap();
+        assert_eq!(run.summary.reports_ingested, 4);
+        assert_eq!(run.summary.messages_quarantined, 0);
+        assert_eq!(cursor(&backend), Some((1, 4)));
+        assert_eq!(backend.state().batch_calls, 4);
+        assert_eq!(run.progress.get().unwrap().processed_messages, 4);
+    }
+
+    /// A raw message with one gzip attachment per XML document.
+    fn message_with_reports(xmls: &[String]) -> Vec<u8> {
+        use base64::Engine;
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+        let mut raw = String::from(
+            "From: r@example.com\r\nMIME-Version: 1.0\r\n\
+             Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n",
+        );
+        for (i, xml) in xmls.iter().enumerate() {
+            let mut gz = GzEncoder::new(Vec::new(), flate2::Compression::fast());
+            gz.write_all(xml.as_bytes()).unwrap();
+            let b64 = base64::engine::general_purpose::STANDARD.encode(gz.finish().unwrap());
+            raw.push_str(&format!(
+                "--b\r\nContent-Type: application/gzip\r\n\
+                 Content-Transfer-Encoding: base64\r\n\
+                 Content-Disposition: attachment; filename=\"r{i}.xml.gz\"\r\n\r\n\
+                 {b64}\r\n"
+            ));
+        }
+        raw.push_str("--b--\r\n");
+        raw.into_bytes()
+    }
+
+    fn report_xml(report_id: &str) -> String {
+        format!(
+            "<feedback><report_metadata><org_name>o</org_name><email>a@b.c</email>\
+             <report_id>{report_id}</report_id><date_range><begin>1704067200</begin>\
+             <end>1704153599</end></date_range></report_metadata>\
+             <policy_published><domain>example.com</domain></policy_published>\
+             <record><row><source_ip>192.0.2.1</source_ip><count>1</count></row></record>\
+             </feedback>"
+        )
+    }
+
+    #[test]
+    fn a_message_whose_reports_unpack_past_its_limit_is_refused_from_there() {
+        let xmls: Vec<String> = ["a", "b", "c"].into_iter().map(report_xml).collect();
+        let raw = message_with_reports(&xmls);
+        let len = xmls[0].len() as u64;
+        // Room for two reports and a half: the third does not fit.
+        let (reports, failures) = parse_message_within(&raw, len * 5 / 2);
+        let ids: Vec<&str> = reports.iter().map(|r| r.report_id.as_str()).collect();
+        assert_eq!(ids, ["a", "b"]);
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert!(
+            failures[0].starts_with("r2.xml.gz was not imported"),
+            "{failures:?}"
+        );
+        assert!(failures[0].contains("together"), "{failures:?}");
+        // The whole message within the limit: all three.
+        assert_eq!(parse_message_within(&raw, len * 3).0.len(), 3);
+        // A report over the per-report limit says so, not "together".
+        let (reports, failures) = parse_message_within(&raw, len - 1);
+        assert!(reports.is_empty());
+        assert_eq!(failures.len(), 3, "{failures:?}");
+        assert!(failures[0].contains("limit"), "{failures:?}");
+        assert!(!failures[0].contains("together"), "{failures:?}");
+        assert_eq!(MAX_MESSAGE_XML_BYTES, dmarc_parser::MAX_REPORT_BYTES);
     }
 }

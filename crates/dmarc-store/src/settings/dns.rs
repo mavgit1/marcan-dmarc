@@ -11,8 +11,9 @@ use std::net::IpAddr;
 use ts_rs::TS;
 
 /// Setting key for the made-up DNS records of a demo database (JSON: TXT
-/// records by name). Only the `demo-data` example writes it; while it is
-/// stored, every check answers TXT lookups from it instead of the network.
+/// records by name). Only the demo examples (`demo-data`, `realistic-demo`)
+/// write it; while it is stored, every check answers TXT lookups from it
+/// instead of the network.
 const DEMO_DNS_RECORDS_KEY: &str = "demo_dns_records";
 
 /// The TXT records a demo database's checks answer from, by name; `None`
@@ -26,7 +27,7 @@ pub async fn get_demo_dns_records(
     }
 }
 
-/// Store a demo database's TXT records (the `demo-data` example only).
+/// Store a demo database's TXT records (the demo examples only).
 pub async fn set_demo_dns_records(
     pool: &SqlitePool,
     records: &BTreeMap<String, Vec<String>>,

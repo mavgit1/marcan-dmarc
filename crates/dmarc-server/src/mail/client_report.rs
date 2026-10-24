@@ -419,7 +419,7 @@ pub fn render(input: &ClientReportInput<'_>) -> Content {
             let events: Vec<&AlertItem> = input
                 .events
                 .iter()
-                .filter(|e| e.row.domain_id == id)
+                .filter(|e| e.row.domain_id == Some(id))
                 .collect();
             if events.is_empty() {
                 continue;
@@ -741,10 +741,10 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         let event = |id: i64, kind: AlertKind, severity: Status| {
             AlertItem::from(dmarc_store::AlertEventRow {
                 id,
-                domain_id: 1,
-                domain: "acme.example".into(),
-                organization_id: 2,
-                organization: "Acme".into(),
+                domain_id: Some(1),
+                domain: Some("acme.example".into()),
+                organization_id: Some(2),
+                organization: Some("Acme".into()),
                 created_at: NOW - 20 * DAY + id,
                 notified_at: None,
                 event: AlertEvent { kind, severity },

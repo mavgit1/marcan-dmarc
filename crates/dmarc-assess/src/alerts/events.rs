@@ -81,11 +81,15 @@ pub enum AlertKind {
     /// messages in the window (`window_days`). Once per sender: it stays
     /// known while it keeps failing.
     NewFailingSender { sender: NewSender, window_days: i64 },
+    /// A Marcan release newer than the running one (and than any the update
+    /// alert saw before), with the link to its release notes. About the
+    /// installation, not a domain: see [`update_events`](super::update_events).
+    UpdateAvailable { version: String, url: String },
 }
 
 impl AlertKind {
     /// Every kind's name, as stored and as the UI's wording table keys it.
-    pub const NAMES: [&'static str; 8] = [
+    pub const NAMES: [&'static str; 9] = [
         "issue_opened",
         "issue_resolved",
         "health_changed",
@@ -94,6 +98,7 @@ impl AlertKind {
         "readiness_reached",
         "parked_changed",
         "new_failing_sender",
+        "update_available",
     ];
 
     /// The kind's name (the serialized tag).
@@ -107,6 +112,7 @@ impl AlertKind {
             Self::ReadinessReached { .. } => "readiness_reached",
             Self::ParkedChanged { .. } => "parked_changed",
             Self::NewFailingSender { .. } => "new_failing_sender",
+            Self::UpdateAvailable { .. } => "update_available",
         }
     }
 }

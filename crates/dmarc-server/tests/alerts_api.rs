@@ -511,7 +511,7 @@ async fn alerts_settings_are_off_by_default_and_validated() {
         meta["alert_groups"][0],
         json!({ "group": "issues", "title": "Issues" })
     );
-    assert_eq!(meta["alert_groups"].as_array().unwrap().len(), 7);
+    assert_eq!(meta["alert_groups"].as_array().unwrap().len(), 8);
     let mut bad = body.clone();
     bad["muted_kinds"] = json!(["policy"]);
     let (status, err) = put_json(&t.app, "/api/settings/alerts", bad).await;
@@ -629,5 +629,84 @@ async fn a_new_failing_sender_is_alerted_once() {
 
     // It keeps failing: no second alert.
     ingest_records(&t, "r3", 0, vec![failing("203.0.113.5", 40, false)]).await;
+    assert_eq!(evaluate(&t, NOW + 1800).await, 0);
+}
+
+/// Plant the version check's answer, as `updates.rs`'s job stores it.
+async fn plant_update_check(t: &TestApp, version: &str) {
+    let seen = dmarc_store::SeenVersion {
+        version: version.into(),
+        url: format!(
+            "https://marcan.kaitiaki.tech/releases#_{}",
+            version.replace('.', "-")
+        ),
+        checked_at: NOW,
+    };
+    let check = dmarc_store::UpdateCheck {
+        attempted_at: NOW,
+        seen: Some(seen),
+    };
+    dmarc_store::set_update_check(&t.pool, &check)
+        .await
+        .unwrap();
+}
+
+async fn switch_update_check(t: &TestApp, check: bool) {
+    let (status, _) = put_json(&t.app, "/api/settings/updates", json!({ "check": check })).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+/// A newer release is one "update available" event without a domain, raised
+/// once per version: the first run (no domains needed) is its baseline, the
+/// same answer again raises nothing, a later one raises again, and nothing
+/// is raised while the check is off or for the running version.
+#[tokio::test]
+async fn a_newer_release_is_one_event_per_version() {
+    let t = TestApp::new().await;
+    seed_organizations(&t.pool).await;
+    plant_update_check(&t, "90.0.0").await;
+    assert_eq!(evaluate(&t, NOW).await, 0, "the first run is a baseline");
+
+    plant_update_check(&t, "91.0.0").await;
+    assert_eq!(evaluate(&t, NOW + 900).await, 1);
+    let page = get_ok(&t.app, "/api/alerts").await;
+    let item = &page["items"][0];
+    assert_eq!(item["event"]["kind"], "update_available");
+    assert_eq!(item["event"]["version"], "91.0.0");
+    assert_eq!(item["event"]["severity"], "info");
+    assert_eq!(item["catalogue_id"], "update_available");
+    assert_eq!(item["text"], "Marcan 91.0.0 is available.");
+    assert_eq!(
+        item["release_notes"],
+        "https://marcan.kaitiaki.tech/releases#_91-0-0"
+    );
+    assert_eq!(
+        (item["domain_id"].clone(), item["domain"].clone()),
+        (Value::Null, Value::Null)
+    );
+    // Another day, the same answer: nothing.
+    assert_eq!(evaluate(&t, NOW + DAY).await, 0);
+    // Narrowed to an organization, the list leaves it out.
+    assert_eq!(
+        get_ok(&t.app, "/api/alerts?organization_id=1").await["total"],
+        0
+    );
+
+    // The check off: a newer answer raises nothing.
+    switch_update_check(&t, false).await;
+    plant_update_check(&t, "92.0.0").await;
+    assert_eq!(evaluate(&t, NOW + 2 * DAY).await, 0);
+    // On again, it does, once.
+    switch_update_check(&t, true).await;
+    plant_update_check(&t, "92.0.0").await;
+    assert_eq!(evaluate(&t, NOW + 3 * DAY).await, 1);
+    assert_eq!(evaluate(&t, NOW + 4 * DAY).await, 0);
+
+    // The running version (or an older one) never alerts.
+    let t = TestApp::new().await;
+    assert_eq!(evaluate(&t, NOW).await, 0);
+    plant_update_check(&t, env!("CARGO_PKG_VERSION")).await;
+    assert_eq!(evaluate(&t, NOW + 900).await, 0);
+    plant_update_check(&t, "0.0.1").await;
     assert_eq!(evaluate(&t, NOW + 1800).await, 0);
 }

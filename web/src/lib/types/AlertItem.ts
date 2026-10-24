@@ -26,11 +26,16 @@ export type AlertItem = {
    * the line links to (a new failing sender); `null` for the others.
    */
   sender_ip: string | null;
+  /**
+   * The release notes the line links to (a newer release: the `url` of
+   * the version check's `latest.json`); `null` for the others.
+   */
+  release_notes: string | null;
   id: number;
-  domain_id: number;
-  domain: string;
-  organization_id: number;
-  organization: string;
+  domain_id: number | null;
+  domain: string | null;
+  organization_id: number | null;
+  organization: string | null;
   /**
    * When the evaluation that found it ran (unix seconds).
    */

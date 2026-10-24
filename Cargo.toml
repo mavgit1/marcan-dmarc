@@ -7,7 +7,7 @@ edition = "2021"
 license-file = "LICENSE"
 # Never on crates.io: the crates are one program, built from this repository.
 publish = false
-version = "0.3.1"
+version = "0.3.2"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

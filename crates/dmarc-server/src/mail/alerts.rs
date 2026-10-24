@@ -1,6 +1,8 @@
 //! The alert email: every event since the last delivery, grouped by domain,
 //! worst first, each line in plain words, with a link to the domain when a
-//! base URL is set. Pure: alert items in, text and HTML out.
+//! base URL is set. An event about the installation (a newer release) comes
+//! last, under "Marcan", linking its release notes. Pure: alert items in,
+//! text and HTML out.
 
 use super::frame::{finish, Body, Content};
 use super::text::{escape, format_time, status_colours, Letterhead, ALERTS_FOOTER};
@@ -8,16 +10,21 @@ use crate::view::alerts::AlertItem;
 use crate::wording::plural;
 use dmarc_assess::{worst_first, Status};
 
-/// One domain's events, worst first, and the worst colour among them.
+/// The heading of the installation's events (a newer release).
+pub(crate) const INSTALLATION_HEADING: &str = "Marcan";
+
+/// One domain's events, worst first, and the worst colour among them; the
+/// installation's events (`domain_id` `None`) under [`INSTALLATION_HEADING`].
 pub(crate) struct DomainGroup<'a> {
-    pub domain_id: i64,
+    pub domain_id: Option<i64>,
     pub domain: &'a str,
     pub worst: Status,
     pub items: Vec<&'a AlertItem>,
 }
 
 /// `items` by domain: domains worst first (then by name), each domain's
-/// events worst first (then in the order they were found).
+/// events worst first (then in the order they were found); the
+/// installation's events last.
 pub(crate) fn group_by_domain(items: &[AlertItem]) -> Vec<DomainGroup<'_>> {
     let mut groups: Vec<DomainGroup<'_>> = Vec::new();
     let mut ordered: Vec<&AlertItem> = items.iter().collect();
@@ -30,7 +37,7 @@ pub(crate) fn group_by_domain(items: &[AlertItem]) -> Vec<DomainGroup<'_>> {
             Some(g) => g.items.push(item),
             None => groups.push(DomainGroup {
                 domain_id: item.row.domain_id,
-                domain: &item.row.domain,
+                domain: item.row.domain.as_deref().unwrap_or(INSTALLATION_HEADING),
                 worst: Status::Neutral,
                 items: vec![item],
             }),
@@ -42,15 +49,15 @@ pub(crate) fn group_by_domain(items: &[AlertItem]) -> Vec<DomainGroup<'_>> {
     }
     groups.sort_by(|a, b| a.domain.cmp(b.domain));
     worst_first(&mut groups, |g| g.worst);
+    groups.sort_by_key(|g| g.domain_id.is_none());
     groups
 }
 
-/// `<base>/domains/<id>`; `None` without a base URL, and for the test
-/// email's made-up domain (id 0), which has no page.
-pub(crate) fn domain_link(base_url: Option<&str>, domain_id: i64) -> Option<String> {
-    base_url
-        .filter(|_| domain_id > 0)
-        .map(|base| format!("{base}/domains/{domain_id}"))
+/// `<base>/domains/<id>`; `None` without a base URL, for the installation's
+/// events, and for the test email's made-up domain (id 0), which has no page.
+pub(crate) fn domain_link(base_url: Option<&str>, domain_id: Option<i64>) -> Option<String> {
+    let id = domain_id.filter(|id| *id > 0)?;
+    base_url.map(|base| format!("{base}/domains/{id}"))
 }
 
 /// `<base>/senders/<ip>` for an event about a sender; `None` without a base
@@ -61,9 +68,10 @@ pub(crate) fn sender_link(base_url: Option<&str>, item: &AlertItem) -> Option<St
 }
 
 /// One event as a plain-text line: `[Problem] New issue: … (2026-10-13 07:00 UTC)`,
-/// followed by its sender page when it has one.
+/// followed by its sender page or its release notes when it has one.
 pub(crate) fn text_line(item: &AlertItem, base_url: Option<&str>) -> String {
     let link = sender_link(base_url, item)
+        .or_else(|| item.release_notes.clone())
         .map(|l| format!(" {l}"))
         .unwrap_or_default();
     format!(
@@ -75,12 +83,14 @@ pub(crate) fn text_line(item: &AlertItem, base_url: Option<&str>) -> String {
 }
 
 /// One event as an HTML list item, coloured by its severity, with a link to
-/// its sender page when it has one.
+/// its sender page or its release notes when it has one.
 pub(crate) fn html_line(item: &AlertItem, base_url: Option<&str>) -> String {
     let (fg, bg) = status_colours(item.row.event.severity);
-    let link = sender_link(base_url, item)
-        .map(|l| format!(" <a href=\"{}\">Sender page</a>", escape(&l)))
-        .unwrap_or_default();
+    let link = match (sender_link(base_url, item), &item.release_notes) {
+        (Some(l), _) => format!(" <a href=\"{}\">Sender page</a>", escape(&l)),
+        (None, Some(l)) => format!(" <a href=\"{}\">Release notes</a>", escape(l)),
+        (None, None) => String::new(),
+    };
     format!(
         "<li style=\"margin:4px 0;padding:6px 10px;border-left:3px solid {fg};background:{bg};list-style:none\">\
          <strong style=\"color:{fg}\">{}</strong> {}{link} \
@@ -106,13 +116,29 @@ pub(crate) fn html_domain_heading(domain: &str, link: Option<&str>) -> String {
     }
 }
 
-/// The alert email's title: `3 changes on example.com` / `5 changes on 2 domains`.
+/// The alert email's title: `3 changes on example.com` / `5 changes on 2
+/// domains`; a newer release is named after them (`…, and Marcan 0.3.2 is
+/// available`) or alone (`Marcan 0.3.2 is available`), the newest when
+/// there are several.
 pub fn title(items: &[AlertItem]) -> String {
-    let groups = group_by_domain(items);
-    let changes = plural(items.len(), "change");
-    match groups.as_slice() {
-        [one] => format!("{changes} on {}", one.domain),
-        _ => format!("{changes} on {}", plural(groups.len(), "domain")),
+    let (domains, installation): (Vec<AlertItem>, Vec<AlertItem>) =
+        items.iter().cloned().partition(|i| !i.is_installation());
+    let update = installation
+        .iter()
+        .max_by_key(|i| (i.row.created_at, i.row.id))
+        .map(|i| i.text.trim_end_matches('.').to_owned());
+    let groups = group_by_domain(&domains);
+    let changes = plural(domains.len(), "change");
+    let on_domains = match groups.as_slice() {
+        [] => None,
+        [one] => Some(format!("{changes} on {}", one.domain)),
+        _ => Some(format!("{changes} on {}", plural(groups.len(), "domain"))),
+    };
+    match (on_domains, update) {
+        (Some(d), Some(u)) => format!("{d}, and {u}"),
+        (Some(d), None) => d,
+        (None, Some(u)) => u,
+        (None, None) => plural(0, "change"),
     }
 }
 
@@ -172,10 +198,10 @@ pub fn sample_items(now: i64) -> Vec<AlertItem> {
     let item = |id: i64, kind: AlertKind, severity: Status| {
         AlertItem::from(dmarc_store::AlertEventRow {
             id,
-            domain_id: 0,
-            domain: "example.com".into(),
-            organization_id: 0,
-            organization: "Example".into(),
+            domain_id: Some(0),
+            domain: Some("example.com".into()),
+            organization_id: Some(0),
+            organization: Some("Example".into()),
             created_at: now,
             notified_at: None,
             event: AlertEvent { kind, severity },
@@ -236,10 +262,10 @@ mod tests {
     fn item(id: i64, domain_id: i64, domain: &str, kind: AlertKind, severity: Status) -> AlertItem {
         AlertItem::from(dmarc_store::AlertEventRow {
             id,
-            domain_id,
-            domain: domain.into(),
-            organization_id: 1,
-            organization: "Acme".into(),
+            domain_id: Some(domain_id),
+            domain: Some(domain.into()),
+            organization_id: Some(1),
+            organization: Some("Acme".into()),
             created_at: AT + id * 900,
             notified_at: None,
             event: AlertEvent { kind, severity },
@@ -382,6 +408,63 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         ));
         let bare = render(&sender, None, &Letterhead::default());
         assert!(!bare.text.contains("/senders/") && !bare.html.contains("/senders/"));
+    }
+
+    fn update(id: i64) -> AlertItem {
+        AlertItem::from(dmarc_store::AlertEventRow {
+            id,
+            domain_id: None,
+            domain: None,
+            organization_id: None,
+            organization: None,
+            created_at: AT + id * 900,
+            notified_at: None,
+            event: AlertEvent {
+                kind: AlertKind::UpdateAvailable {
+                    version: "0.3.2".into(),
+                    url: "https://marcan.kaitiaki.tech/releases#_0-3-2".into(),
+                },
+                severity: Status::Info,
+            },
+        })
+    }
+
+    /// A newer release comes last, under "Marcan", without a domain link but
+    /// with its release notes, and the subject names it after the domains.
+    #[test]
+    fn a_newer_release_comes_last_with_its_release_notes() {
+        let mut all = items();
+        all.insert(0, update(4));
+        assert_eq!(
+            subject(&all),
+            "Marcan: 3 changes on 2 domains, and Marcan 0.3.2 is available"
+        );
+        assert_eq!(
+            subject(&all[..2]),
+            "Marcan: 1 change on b.example, and Marcan 0.3.2 is available"
+        );
+        assert_eq!(subject(&all[..1]), "Marcan: Marcan 0.3.2 is available");
+        let mail = render(
+            &all,
+            Some("https://marcan.example.com"),
+            &Letterhead::default(),
+        );
+        assert!(
+            mail.text.contains(
+                "\nMarcan\n  [Note] Marcan 0.3.2 is available. (2026-10-14 08:00 UTC) https://marcan.kaitiaki.tech/releases#_0-3-2\n\nEvery change:"
+            ),
+            "{}",
+            mail.text
+        );
+        assert!(mail.html.contains(
+            "Marcan 0.3.2 is available. <a href=\"https://marcan.kaitiaki.tech/releases#_0-3-2\">Release notes</a>"
+        ));
+        assert!(mail.html.find("a.example").unwrap() < mail.html.find(">Marcan</h3>").unwrap());
+        assert!(!mail.text.contains("/domains/0") && !mail.html.contains("/domains/0"));
+        // Without a base URL the release notes are still linked: they are
+        // on the docs site, not this installation.
+        let bare = render(&all[..1], None, &Letterhead::default());
+        assert!(bare.html.contains(">Release notes</a>"));
     }
 
     #[test]

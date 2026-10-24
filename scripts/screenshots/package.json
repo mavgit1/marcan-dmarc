@@ -1,0 +1,13 @@
+{
+	"name": "marcan-screenshots",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@12.6.0",
+	"scripts": {
+		"postinstall": "playwright install chromium",
+		"shoot": "node shoot.mjs"
+	},
+	"devDependencies": {
+		"playwright": "1.64.0"
+	}
+}

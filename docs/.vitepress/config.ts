@@ -85,9 +85,9 @@ export default defineConfig({
     logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: '' },
 
     nav: [
-      { text: 'Guide', link: '/getting-started' },
+      { text: 'Docs', link: '/getting-started' },
       { text: 'Pricing', link: '/pricing' },
-      { text: `v${version}`, link: `${repo}/tags` }
+      { text: `v${version}`, link: '/releases' }
     ],
 
     sidebar,

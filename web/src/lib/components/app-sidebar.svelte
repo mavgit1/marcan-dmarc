@@ -16,8 +16,9 @@
 	});
 	/**
 	 * Under the mark: the notice line while the server says it is shown (it is unless an operator
-	 * key switched it off), else the "Operator license" badge. Under Settings: the version, the docs
-	 * and "0.3.1 available" on the same line when the version check found a newer one.
+	 * key switched it off), else the "Operator license" badge. Under Settings: the version (linking
+	 * the release notes), the docs and "0.3.1 available" on the same line when the version check
+	 * found a newer one.
 	 */
 	const current = $derived(meta.current);
 	const footLink = 'hover:text-foreground underline-offset-2 hover:underline';
@@ -93,7 +94,9 @@
 			<p
 				class="text-muted-foreground truncate px-2 text-[11px] leading-tight whitespace-nowrap group-data-[collapsible=icon]:hidden"
 			>
-				Marcan <span class="tabular-nums">{current.version}</span>
+				Marcan <a href="{DOCS_URL}releases" target="_blank" rel="noopener" class="tabular-nums {footLink}"
+					>{current.version}</a
+				>
 				·
 				<a href={DOCS_URL} target="_blank" rel="noopener" class={footLink}>Docs</a>
 				{#if current.available}

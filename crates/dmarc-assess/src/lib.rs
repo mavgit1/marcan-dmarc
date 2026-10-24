@@ -27,6 +27,7 @@ pub use alerts::{
     RecordChange, RecordDelta, SpfRecordFacts, StoppedFigures, TlsRptRecordFacts, ALERT_CATALOGUE,
     ALERT_FORMAT, NEW_SENDER_MIN_FAILURES,
 };
+pub use alerts::{is_newer_release, release_version, update_events, SeenRelease, UpdateAlertState};
 pub use client_report::{
     parked_line, report_line, report_place, report_verdict, ParkedLine, ReportDomainFacts,
     ReportLine, ReportPlace, ReportVerdict,

@@ -1,4 +1,8 @@
 //! Detect and decompress gzip / zip / plain XML report payloads.
+//!
+//! Every path reads at most `limit` bytes of output (and one more to tell
+//! that there is more): a bomb is refused where it crosses the limit, never
+//! inflated further.
 
 use crate::ParseError;
 use flate2::read::GzDecoder;
@@ -11,11 +15,16 @@ enum PayloadKind {
     Xml,
 }
 
-/// Return decompressed XML bytes from a raw payload.
-pub(crate) fn to_xml_bytes(data: &[u8], hint: Option<&str>) -> Result<Vec<u8>, ParseError> {
+/// Return decompressed XML bytes from a raw payload, at most `limit` of them.
+pub(crate) fn to_xml_bytes(
+    data: &[u8],
+    hint: Option<&str>,
+    limit: u64,
+) -> Result<Vec<u8>, ParseError> {
     match detect_kind(data, hint) {
-        PayloadKind::Gzip => gunzip(data),
-        PayloadKind::Zip => unzip_first_xml(data),
+        PayloadKind::Gzip => gunzip(data, limit),
+        PayloadKind::Zip => unzip_first_xml(data, limit),
+        PayloadKind::Xml if data.len() as u64 > limit => Err(ParseError::TooLarge(limit)),
         PayloadKind::Xml => Ok(data.to_vec()),
     }
 }
@@ -39,24 +48,25 @@ fn detect_kind(data: &[u8], hint: Option<&str>) -> PayloadKind {
     PayloadKind::Xml
 }
 
-const MAX_DECOMPRESSED_BYTES: u64 = 50 * 1024 * 1024; // 50 MB
-
-fn gunzip(data: &[u8]) -> Result<Vec<u8>, ParseError> {
-    let decoder = GzDecoder::new(data);
+/// Everything `reader` yields, or [`ParseError::TooLarge`] once it yields
+/// more than `limit` bytes.
+fn read_limited(reader: impl Read, limit: u64) -> Result<Vec<u8>, ParseError> {
     let mut out = Vec::new();
-    decoder
-        .take(MAX_DECOMPRESSED_BYTES)
+    reader
+        .take(limit.saturating_add(1))
         .read_to_end(&mut out)
         .map_err(|e| ParseError::Decompress(e.to_string()))?;
-    if out.len() as u64 >= MAX_DECOMPRESSED_BYTES {
-        return Err(ParseError::Decompress(
-            "decompressed payload exceeds 50 MB limit".into(),
-        ));
+    if out.len() as u64 > limit {
+        return Err(ParseError::TooLarge(limit));
     }
     Ok(out)
 }
 
-fn unzip_first_xml(data: &[u8]) -> Result<Vec<u8>, ParseError> {
+fn gunzip(data: &[u8], limit: u64) -> Result<Vec<u8>, ParseError> {
+    read_limited(GzDecoder::new(data), limit)
+}
+
+fn unzip_first_xml(data: &[u8], limit: u64) -> Result<Vec<u8>, ParseError> {
     let cursor = std::io::Cursor::new(data);
     let mut archive = ZipArchive::new(cursor).map_err(|e| ParseError::Decompress(e.to_string()))?;
 
@@ -96,19 +106,10 @@ fn unzip_first_xml(data: &[u8]) -> Result<Vec<u8>, ParseError> {
         .name()
         .map(|n| n.to_ascii_lowercase())
         .unwrap_or_default();
-    let mut buf = Vec::new();
-    file.by_ref()
-        .take(MAX_DECOMPRESSED_BYTES)
-        .read_to_end(&mut buf)
-        .map_err(|e| ParseError::Decompress(e.to_string()))?;
-    if buf.len() as u64 >= MAX_DECOMPRESSED_BYTES {
-        return Err(ParseError::Decompress(
-            "decompressed payload exceeds 50 MB limit".into(),
-        ));
-    }
+    let buf = read_limited(file.by_ref(), limit)?;
 
     if name.ends_with(".gz") || (buf.len() >= 2 && buf[0] == 0x1f && buf[1] == 0x8b) {
-        return gunzip(&buf);
+        return gunzip(&buf, limit);
     }
     Ok(buf)
 }
