@@ -22,20 +22,21 @@ cargo fmt --all --check
 
 # The dependency tree: no known advisory (cargo-audit, unmaintained and yanked
 # crates included), and only the licenses, crates and sources deny.toml allows
-# (cargo-deny). Both are installed on first use. An advisory that cannot be
-# fixed is ignored in deny.toml's [advisories] list with its reason; cargo-audit
-# reads the ids from there, so the list is kept in one place.
-for tool in cargo-audit cargo-deny; do
-	command -v "$tool" >/dev/null || cargo install --locked "$tool"
+# (cargo-deny). Both are installed on first use, at the versions below. An
+# advisory that cannot be fixed is ignored in deny.toml's [advisories] list with
+# its reason; cargo-audit reads the ids from there, so the list is kept in one
+# place. The cargo commands run --locked: Cargo.lock is what is checked.
+for tool in cargo-audit@0.22.2 cargo-deny@0.20.2; do
+	command -v "${tool%@*}" >/dev/null || cargo install --locked "$tool"
 done
 audit_ignores=()
 while read -r id; do
 	audit_ignores+=(--ignore "$id")
 done < <(sed -n '/^\[advisories\]/,/^\[/s/.*id = "\(RUSTSEC-[0-9]*-[0-9]*\)".*/\1/p' deny.toml)
 cargo audit --quiet --deny warnings ${audit_ignores[@]+"${audit_ignores[@]}"}
-cargo deny --log-level error check licenses bans sources
-cargo test --workspace --quiet
-cargo clippy --workspace --all-targets --quiet -- -D warnings
+cargo deny --locked --log-level error check licenses bans sources
+cargo test --workspace --locked --quiet
+cargo clippy --workspace --all-targets --locked --quiet -- -D warnings
 (cd web && pnpm check && pnpm lint && pnpm format:check && pnpm test)
 (cd docs && pnpm build >/dev/null)
 

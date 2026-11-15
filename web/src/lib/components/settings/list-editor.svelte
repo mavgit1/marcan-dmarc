@@ -1,5 +1,6 @@
 <script lang="ts" generics="S extends ListSummary">
 	import { plural } from '$lib/format';
+	import { DOCS_URL } from '$lib/nav';
 	import type { Snippet } from 'svelte';
 	import type { ListDraft, ListSummary } from './list-draft.svelte';
 	import { joinPageForm } from './page-form.svelte';
@@ -15,7 +16,8 @@
 	 * inside it; then what saving would change. A main list (`example` and `format`, the syntax)
 	 * is a section of its own, as tall as its lines (at least 12 rows, at most 70vh, then it
 	 * scrolls), with the Format panel always open: beside the editor from `lg` on, above it when
-	 * narrower, never below a tall editor. A short token list (`row`: the DKIM selectors) is a
+	 * narrower, never below a tall editor. The panel is the example and at most two rules (a
+	 * destructive one among them), then `docs`, the page with the rest. A short token list (`row`: the DKIM selectors) is a
 	 * setting row with a small box and no Format panel.
 	 */
 	let {
@@ -26,7 +28,8 @@
 		row = false,
 		invalid = null,
 		example,
-		format
+		format,
+		docs
 	}: {
 		list: ListDraft<S>;
 		/** The section's title (left out where the page's title says it), or the row's. */
@@ -44,8 +47,10 @@
 		invalid?: string | null;
 		/** A few lines of the list, the top of the Format panel. */
 		example?: string;
-		/** The syntax, as list items under the example. */
+		/** The syntax, as at most two list items under the example. */
 		format?: Snippet;
+		/** The docs section with every rule, linked under them. */
+		docs?: string;
 	} = $props();
 
 	joinPageForm(() => list);
@@ -82,6 +87,16 @@
 							class="bg-muted text-foreground overflow-x-auto rounded-md px-3 py-2 font-mono text-[11px] leading-relaxed">{example}</pre>
 					{/if}
 					<ul class="list-disc space-y-1 pl-4">{@render format()}</ul>
+					{#if docs}
+						<p>
+							<a
+								href="{DOCS_URL}{docs}"
+								target="_blank"
+								rel="noopener"
+								class="text-foreground underline underline-offset-2">More in the docs</a
+							>
+						</p>
+					{/if}
 				</div>
 			</div>
 		{/if}

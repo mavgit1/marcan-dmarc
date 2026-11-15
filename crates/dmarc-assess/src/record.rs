@@ -206,7 +206,7 @@ impl RecordFacts {
     }
 
     /// DMARC passed: SPF or DKIM passed for a domain aligned with the From
-    /// domain (RFC 7489 §4.2). The one rule behind `records.dmarc_pass`, which
+    /// domain (RFC 9989 §4.4). The one rule behind `records.dmarc_pass`, which
     /// the table's `CHECK` holds to the two aligned columns.
     pub fn dmarc_pass(self) -> bool {
         self.spf_aligned_pass || self.dkim_aligned_pass

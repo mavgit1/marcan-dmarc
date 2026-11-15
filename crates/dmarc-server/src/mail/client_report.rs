@@ -523,6 +523,7 @@ mod tests {
                     policy_messages: summary.row.mail.total_messages,
                     policy_first_report_at: Some(NOW - 90 * DAY),
                     other_policy: None,
+                    no_aligned_dkim: 0,
                 };
                 ReportDomain {
                     readiness: summary_readiness(&summary.row, &mail, NOW),

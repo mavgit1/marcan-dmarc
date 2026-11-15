@@ -12,6 +12,26 @@ pub const OPERATOR_DOMAIN: &str = "example-it.example";
 /// Where every domain's aggregate reports go (`rua=`).
 pub const REPORT_ADDRESS: &str = "dmarc-reports@example-it.example";
 
+/// The clients (indexes into [`ORGS`]) whose domains name a forwarder of
+/// their own instead of [`REPORT_ADDRESS`], as an MSP may set up one per
+/// client: the reports account lists each [`forwarder`].
+pub const FORWARDING_ORGS: [usize; 2] = [1, 2];
+
+/// The address client `org`'s domains name when it forwards: `dmarc@` its
+/// main domain, which forwards to [`REPORT_ADDRESS`].
+pub fn forwarder(org: usize) -> String {
+    format!("dmarc@{}", ORGS[org].shaped[0])
+}
+
+/// The report address a domain of client `org` names in `rua=`.
+pub fn report_address_of(org: usize) -> String {
+    if FORWARDING_ORGS.contains(&org) {
+        forwarder(org)
+    } else {
+        REPORT_ADDRESS.to_owned()
+    }
+}
+
 /// One client organization and its domains, main domain first.
 pub struct OrgSpec {
     pub name: &'static str,

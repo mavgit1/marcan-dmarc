@@ -10,7 +10,7 @@ use dmarc_store::{get_or_create_domain, get_or_create_organization, ingest_repor
 use serde_json::Value;
 use std::sync::Arc;
 mod common;
-use common::{get, get_raw, post_json, put_json, seed_organizations, send};
+use common::{get, get_raw, post_json, seed_organizations, send};
 
 fn report(report_id: &str, domain: &str, date_begin: i64, records: Vec<Record>) -> Report {
     Report {
@@ -344,6 +344,68 @@ async fn domain_senders_cross_domain_count_and_compliance() {
     assert_eq!(fail_ip["compliant_messages"], 0);
     assert_eq!(fail_ip["compliance_pct"], 0.0);
     assert_eq!(fail_ip["domain_count"], 1);
+}
+
+/// Each Failures row says when its records were reported (the first and last
+/// report's `date_begin`) and names the newest report with them: the latest
+/// by date, not the last stored.
+#[tokio::test]
+async fn failure_rows_name_their_days_and_newest_report() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pool = init(&dir.path().join("test.db")).await.expect("init");
+    seed_organizations(&pool).await;
+    let day = 86_400;
+    let first = 1_700_000_000;
+    let failing = || {
+        vec![rec(
+            "203.0.113.9",
+            3,
+            Some("none"),
+            Some("fail"),
+            Some("fail"),
+            vec![dkim("example.com", Some("s1"), "fail")],
+            vec![spf("example.com", "fail", Some("mfrom"))],
+            vec![],
+        )]
+    };
+    let mut ids = Vec::new();
+    // Stored in this order: the newest by date is the second, not the last.
+    for (report_id, begin) in [("d1", first), ("d3", first + 2 * day), ("d2", first + day)] {
+        let stored = ingest_report(&pool, &report(report_id, "example.com", begin, failing()))
+            .await
+            .expect("ingest");
+        let dmarc_store::IngestResult::Inserted { report_pk } = stored else {
+            panic!("{report_id} not inserted: {stored:?}");
+        };
+        ids.push(report_pk);
+    }
+    let app = router(pool);
+    let id = example_id(&app).await;
+
+    let (status, body) = get(&app, &format!("/api/domains/{id}/failures")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "one group: {body}");
+    assert_eq!(items[0]["count"], 9);
+    assert_eq!(items[0]["first_seen"], first);
+    assert_eq!(items[0]["last_seen"], first + 2 * day);
+    assert_eq!(items[0]["newest_report_id"], ids[1]);
+
+    // The window narrows the days; one report is one day.
+    let since = first + day;
+    let (_, body) = get(&app, &format!("/api/domains/{id}/failures?since={since}")).await;
+    assert_eq!(body["items"][0]["first_seen"], since);
+    let since = first + 2 * day;
+    let (_, body) = get(&app, &format!("/api/domains/{id}/failures?since={since}")).await;
+    assert_eq!(
+        body["items"][0]["first_seen"],
+        body["items"][0]["last_seen"]
+    );
+    assert_eq!(body["items"][0]["newest_report_id"], ids[1]);
+
+    // The column sorts.
+    let (status, _) = get(&app, &format!("/api/domains/{id}/failures?sort=-last_seen")).await;
+    assert_eq!(status, StatusCode::OK);
 }
 
 #[tokio::test]
@@ -810,12 +872,27 @@ async fn domain_names_are_unique_across_organizations() {
     assert_eq!(body["error"], "organization 999999 not found");
 }
 
-/// RFC 7489 §7.1 only applies across organizational domains, so the UI needs
+/// RFC 9990 §4 only applies across organizational domains, so the UI needs
 /// each domain's organizational domain.
 #[tokio::test]
 async fn domains_expose_their_organizational_domain() {
     // A resolver nobody answers on, which fails at once.
     let (_dir, pool, _) = seeded().await;
+    // The receiving account, on the same organizational domain.
+    // A receiving account set up to read its mailbox: only such an address is a report address.
+    let account = dmarc_store::AccountFields {
+        name: "Reports".into(),
+        address: "dmarc@firma.co.uk".into(),
+        username: "dmarc@firma.co.uk".into(),
+        imap_host: "imap.firma.co.uk".into(),
+        imap_port: 993,
+        receive_enabled: true,
+        ..Default::default()
+    };
+    let password = dmarc_store::SecretRow::plain(dmarc_store::SecretKind::Password, "p");
+    dmarc_store::insert_account(&pool, None, &account, std::slice::from_ref(&password), 0)
+        .await
+        .unwrap();
     let state = AppState::new(pool).with_dns_resolver(Arc::new(TableResolver::failing()));
     let app = router_with_state(state);
     let (_, organizations) = get(&app, "/api/organizations").await;
@@ -843,22 +920,18 @@ async fn domains_expose_their_organizational_domain() {
     let (_, overview) = get(&app, &format!("/api/domains/{id}")).await;
     assert_eq!(overview["org_domain"], "firma.co.uk");
 
-    // Same organizational domain as the mailbox: no authorization record is
-    // needed, so none is looked up and none is missing (the DMARC lookup
-    // fails).
-    let (status, _) = put_json(
-        &app,
-        "/api/settings/reporting",
-        serde_json::json!({ "report_address": "dmarc@firma.co.uk", "reporting_mode": "direct" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
+    // Same organizational domain as the account's address: no authorization
+    // record is needed, so none is looked up and none is missing (the DMARC
+    // lookup fails).
     let (status, setup) = get(&app, &format!("/api/reporting-setup?domain_id={id}")).await;
     assert_eq!(status, StatusCode::OK);
-    // One domain asked for: the mailbox domain's authorization is left out.
+    // One domain asked for: the address domains' authorization is left out.
     assert_eq!(setup["domains"].as_array().unwrap().len(), 1);
-    assert_eq!(setup["mailbox_authorization"], Value::Null);
-    assert_eq!(setup["domains"][0]["mailbox_auth_missing"], false);
+    assert_eq!(setup["authorizations"], serde_json::json!([]));
+    assert_eq!(
+        setup["domains"][0]["missing_authorizations"],
+        serde_json::json!([])
+    );
     assert_eq!(setup["domains"][0]["state"], "check_failed");
 }
 

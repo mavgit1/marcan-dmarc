@@ -1,2 +1,6 @@
+# Only esbuild (VitePress's bundler) runs its install script; anything else
+# not listed is refused. A version is installed only once it has been public
+# for three days (in minutes).
 allowBuilds:
   esbuild: true
+minimumReleaseAge: 4320

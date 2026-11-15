@@ -35,6 +35,13 @@ export function formatDateRange(begin: number, end: number): string {
 	return `${formatDate(begin)} – ${formatDate(end)}`;
 }
 
+/** Like `formatDateRange`, but one date when both fall on the same day. */
+export function formatDateSpan(begin: number, end: number): string {
+	const from = formatDate(begin);
+	const to = formatDate(end);
+	return from === to ? to : `${from} – ${to}`;
+}
+
 /** Format an integer with locale grouping. */
 export function formatInt(n: number): string {
 	return n.toLocaleString();

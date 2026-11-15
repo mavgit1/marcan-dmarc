@@ -5,21 +5,34 @@ use dmarc_parser::{
     DkimAuthResult, PolicyOverride, PolicyPublished, Record, Report, SpfAuthResult,
 };
 use dmarc_store::{
-    count_imap_quarantine, create_domain, delete_reports_older_than, dns_snapshot_is_fresh,
+    count_receive_quarantine, create_domain, delete_reports_older_than, dns_snapshot_is_fresh,
     find_domain_by_name, find_report_by_report_id, get_cursor, get_custom_dkim_selectors,
     get_default_organization, get_dns_snapshot, get_identity_snapshots, get_or_create_domain,
     get_or_create_organization, get_sender_by_ip, get_setting, ingest_report, ingest_reports, init,
     list_domain_failures, list_records_for_report, list_sender_ips_by_volume, list_senders,
-    load_settings, new_failing_senders, quarantine_imap_message, reset_cursor, retention_cutoff,
+    load_settings, new_failing_senders, quarantine_receive_message, reset_cursor, retention_cutoff,
     save_settings, scope_stats, set_cursor, set_custom_dkim_selectors, set_setting,
-    spf_pass_domains, upsert_dns_snapshot, upsert_identity_snapshot, AppSettings, BrandingSettings,
-    CreateDomainResult, DnsSettings, DnsSnapshot, DomainFailureFilter, DomainFailureQuery,
-    FailureSort, ImapSecurity, IngestResult, LicenseSettings, MailboxSettings, MonitoringSettings,
-    NewSenderRow, OnboardingSettings, OnboardingState, PolicySource, ReportingMode,
-    ReportingSettings, RetentionSettings, Scope, SenderListQuery, SenderReceiverBreakdown,
-    SenderSort, SenderTargetCount, SendingGroup, SendingSettings, SmtpSecurity, SnapshotDmarc,
-    UpdateSettings,
+    source_ips_before, spf_pass_domains, upsert_dns_snapshot, upsert_identity_snapshot,
+    AppSettings, BrandingSettings, CreateDomainResult, DnsSettings, DnsSnapshot,
+    DomainFailureFilter, DomainFailureQuery, FailureSort, IngestResult, LicenseSettings,
+    MonitoringSettings, NewSenderRow, OnboardingSettings, OnboardingState, PolicySource,
+    ReceivingSettings, RetentionSettings, Scope, SenderListQuery, SenderReceiverBreakdown,
+    SenderSort, SenderTargetCount, SendingSettings, SnapshotDmarc, UpdateSettings,
 };
+
+/// A new account with IMAP login `username`; its id (the receive state and
+/// passes belong to an account).
+async fn account(pool: &sqlx::SqlitePool, username: &str) -> i64 {
+    let fields = dmarc_store::AccountFields {
+        name: username.into(),
+        username: username.into(),
+        imap_host: "h".into(),
+        ..Default::default()
+    };
+    dmarc_store::insert_account(pool, None, &fields, &[], 0)
+        .await
+        .expect("account")
+}
 
 fn sample_report(report_id: &str) -> Report {
     Report {
@@ -836,6 +849,7 @@ async fn sender_failed_count_leaves_out_forwarded_mail() {
         &SenderListQuery {
             scope: Scope::ALL,
             failing: false,
+            only_ips: None,
             sort: SenderSort::DEFAULT,
             limit: 10,
             offset: 0,
@@ -873,6 +887,7 @@ async fn failing_senders_leave_out_forwarded_only_senders() {
     let query = |failing| SenderListQuery {
         scope: Scope::ALL,
         failing,
+        only_ips: None,
         sort: SenderSort::DEFAULT,
         limit: 10,
         offset: 0,
@@ -885,6 +900,38 @@ async fn failing_senders_leave_out_forwarded_only_senders() {
     assert_eq!(ips, ["203.0.113.50", "198.51.100.7"]);
     assert_eq!(total, 2);
     assert_eq!(all_total, 4);
+}
+
+/// `only_ips` narrows the list and its total to the IPs a search matched.
+#[tokio::test]
+async fn senders_narrow_to_the_searched_ips() {
+    let (_dir, pool) = test_pool().await;
+    ingest_report(&pool, &sample_report("search-1"))
+        .await
+        .expect("ingest");
+    let mut ips = dmarc_store::source_ips_in_scope(&pool, Scope::ALL)
+        .await
+        .expect("ips");
+    ips.sort();
+    assert!(ips.len() > 1, "{ips:?}");
+    let query = |only_ips| SenderListQuery {
+        scope: Scope::ALL,
+        failing: false,
+        only_ips,
+        sort: SenderSort::DEFAULT,
+        limit: 10,
+        offset: 0,
+    };
+    let (rows, total) = list_senders(&pool, &query(Some(vec![ips[0].clone()])))
+        .await
+        .expect("one");
+    assert_eq!(total, 1);
+    assert_eq!(rows[0].source_ip, ips[0]);
+    let (none, total) = list_senders(&pool, &query(Some(Vec::new())))
+        .await
+        .expect("none");
+    assert!(none.is_empty());
+    assert_eq!(total, 0);
 }
 
 #[tokio::test]
@@ -1202,105 +1249,93 @@ async fn parser_to_store_end_to_end() {
 #[tokio::test]
 async fn cursor_get_empty_set_get_and_upsert() {
     let (_dir, pool) = test_pool().await;
+    let (u, other) = (account(&pool, "u").await, account(&pool, "other").await);
 
-    let missing = get_cursor(&pool, "h|993|u", "INBOX")
-        .await
-        .expect("get empty");
+    let missing = get_cursor(&pool, u, "INBOX").await.expect("get empty");
     assert_eq!(missing, None);
 
-    set_cursor(&pool, "h|993|u", "INBOX", 1001, 42)
+    set_cursor(&pool, u, "INBOX", "1001", "42", 0)
         .await
         .expect("set");
-    let got = get_cursor(&pool, "h|993|u", "INBOX")
-        .await
-        .expect("get after set");
-    assert_eq!(got, Some((1001, 42)));
+    let got = get_cursor(&pool, u, "INBOX").await.expect("get after set");
+    assert_eq!(got, Some(("1001".to_owned(), "42".to_owned())));
 
-    // Other folders, and the same folder of another mailbox, stay independent.
+    // Other folders, and the same folder of another account, stay independent.
+    assert_eq!(get_cursor(&pool, u, "Archive").await.expect("other"), None);
     assert_eq!(
-        get_cursor(&pool, "h|993|u", "Archive")
-            .await
-            .expect("other"),
-        None
-    );
-    assert_eq!(
-        get_cursor(&pool, "h|993|other", "INBOX")
-            .await
-            .expect("other"),
+        get_cursor(&pool, other, "INBOX").await.expect("other"),
         None
     );
 
     // A reset forgets this cursor (and the folder's quarantine) only.
-    set_cursor(&pool, "h|993|u", "Archive", 7, 5)
+    set_cursor(&pool, u, "Archive", "7", "5", 0)
         .await
         .expect("set other");
-    quarantine_imap_message(&pool, "h|993|u", "INBOX", 1001, 3, "bad", 0)
+    quarantine_receive_message(&pool, u, "INBOX", "1001", "3", "bad", 0, 0)
         .await
         .expect("quarantine");
-    quarantine_imap_message(&pool, "h|993|other", "INBOX", 1001, 3, "bad", 0)
+    quarantine_receive_message(&pool, other, "INBOX", "1001", "3", "bad", 0, 0)
         .await
-        .expect("quarantine other mailbox");
-    reset_cursor(&pool, "h|993|u", "INBOX")
-        .await
-        .expect("reset");
+        .expect("quarantine other account");
+    reset_cursor(&pool, u, "INBOX").await.expect("reset");
     assert_eq!(
-        get_cursor(&pool, "h|993|u", "INBOX")
-            .await
-            .expect("after reset"),
+        get_cursor(&pool, u, "INBOX").await.expect("after reset"),
         None
     );
     assert_eq!(
-        count_imap_quarantine(&pool, Some(("h|993|u", "INBOX")))
+        count_receive_quarantine(&pool, Some(u), Some("INBOX"))
             .await
             .expect("count"),
         0
     );
-    // Another mailbox's INBOX keeps its quarantine.
+    // Another account's INBOX keeps its quarantine.
     assert_eq!(
-        count_imap_quarantine(&pool, Some(("h|993|other", "INBOX")))
+        count_receive_quarantine(&pool, Some(other), Some("INBOX"))
             .await
             .expect("count other"),
         1
     );
     assert_eq!(
-        get_cursor(&pool, "h|993|u", "Archive").await.expect("kept"),
-        Some((7, 5))
+        get_cursor(&pool, u, "Archive").await.expect("kept"),
+        Some(("7".to_owned(), "5".to_owned()))
     );
 
-    // Upsert overwrites uid_validity and last_uid.
-    set_cursor(&pool, "h|993|u", "INBOX", 2002, 99)
+    // Upsert overwrites the generation and the position.
+    set_cursor(&pool, u, "INBOX", "2002", "99", 0)
         .await
         .expect("upsert");
-    let updated = get_cursor(&pool, "h|993|u", "INBOX")
+    let updated = get_cursor(&pool, u, "INBOX")
         .await
         .expect("get after upsert");
-    assert_eq!(updated, Some((2002, 99)));
+    assert_eq!(updated, Some(("2002".to_owned(), "99".to_owned())));
 }
 
 #[tokio::test]
 async fn quarantine_keeps_one_row_per_message() {
     let (_dir, pool) = test_pool().await;
+    let mbox = account(&pool, "mbox").await;
 
     assert_eq!(
-        count_imap_quarantine(&pool, Some(("mbox", "INBOX")))
+        count_receive_quarantine(&pool, Some(mbox), Some("INBOX"))
             .await
             .expect("count"),
         0
     );
 
-    quarantine_imap_message(
+    quarantine_receive_message(
         &pool,
-        "mbox",
+        mbox,
         "INBOX",
-        1001,
-        7,
+        "1001",
+        "7",
         "parse failed",
         1_700_000_000,
+        0,
     )
     .await
     .expect("record");
     assert_eq!(
-        count_imap_quarantine(&pool, Some(("mbox", "INBOX")))
+        count_receive_quarantine(&pool, Some(mbox), Some("INBOX"))
             .await
             .expect("count"),
         1
@@ -1308,7 +1343,7 @@ async fn quarantine_keeps_one_row_per_message() {
 
     // Folders are independent, so one bad mailbox cannot inflate another's count.
     assert_eq!(
-        count_imap_quarantine(&pool, Some(("mbox", "Archive")))
+        count_receive_quarantine(&pool, Some(mbox), Some("Archive"))
             .await
             .expect("other"),
         0
@@ -1317,31 +1352,37 @@ async fn quarantine_keeps_one_row_per_message() {
     // A UIDVALIDITY reset can rewind the cursor onto the same UID. The earlier
     // failure must survive that, so the row records the latest error instead of
     // becoming a second row.
-    quarantine_imap_message(
+    quarantine_receive_message(
         &pool,
-        "mbox",
+        mbox,
         "INBOX",
-        1001,
-        7,
+        "1001",
+        "7",
         "ingest failed",
         1_700_009_999,
+        0,
     )
     .await
     .expect("re-record");
     assert_eq!(
-        count_imap_quarantine(&pool, Some(("mbox", "INBOX")))
+        count_receive_quarantine(&pool, Some(mbox), Some("INBOX"))
             .await
             .expect("count"),
         1
     );
 
+    // Every folder of every account.
+    assert_eq!(
+        count_receive_quarantine(&pool, None, None).await.unwrap(),
+        1
+    );
     let (last, error): (i64, String) = sqlx::query_as(
         "SELECT last_failed_at, error
-         FROM imap_quarantine WHERE folder = ? AND uid_validity = ? AND uid = ?",
+         FROM receive_quarantine WHERE folder = ? AND generation = ? AND message_id = ?",
     )
     .bind("INBOX")
-    .bind(1001)
-    .bind(7)
+    .bind("1001")
+    .bind("7")
     .fetch_one(&pool)
     .await
     .expect("row");
@@ -1349,19 +1390,20 @@ async fn quarantine_keeps_one_row_per_message() {
     assert_eq!(error, "ingest failed");
 
     // A different generation of the same UID number is a different message.
-    quarantine_imap_message(
+    quarantine_receive_message(
         &pool,
-        "mbox",
+        mbox,
         "INBOX",
-        2002,
-        7,
+        "2002",
+        "7",
         "parse failed",
         1_700_010_000,
+        0,
     )
     .await
     .expect("new generation");
     assert_eq!(
-        count_imap_quarantine(&pool, Some(("mbox", "INBOX")))
+        count_receive_quarantine(&pool, Some(mbox), Some("INBOX"))
             .await
             .expect("count"),
         2
@@ -1467,18 +1509,8 @@ async fn settings_groups_save_and_load_independently() {
         AppSettings::default()
     );
 
-    let mailbox = MailboxSettings {
-        host: "imap.example.com".into(),
-        port: Some(143),
-        security: Some(ImapSecurity::StartTls),
-        username: "reports@example.com".into(),
-        password: " secret ".into(),
-        folder: Some("DMARC".into()),
-        poll_interval_secs: Some(120),
-    };
-    let reporting = ReportingSettings {
-        report_address: Some("dmarc@example.com".into()),
-        reporting_mode: Some(ReportingMode::Forwarded),
+    let receiving = ReceivingSettings {
+        poll_interval_secs: 120,
     };
     let monitoring = MonitoringSettings {
         report_freshness_warning_hours: 48,
@@ -1491,18 +1523,10 @@ async fn settings_groups_save_and_load_independently() {
         nameservers: vec!["9.9.9.9".into()],
     };
     let sending = SendingSettings {
-        group: SendingGroup {
-            enabled: true,
-            host: "smtp.example.com".into(),
-            port: Some(465),
-            security: SmtpSecurity::Tls,
-            same_login_as_mailbox: false,
-            username: "alerts@example.com".into(),
-            sender: "dmarc@example.com".into(),
-            reply_to: String::new(),
-            test_recipient: "me@example.com".into(),
-        },
-        password: "smtp secret".into(),
+        enabled: true,
+        account_id: Some(2),
+        reply_to: String::new(),
+        test_recipient: "me@example.com".into(),
     };
     let license = LicenseSettings {
         operator_key: Some("you@company.example.AbC".into()),
@@ -1514,10 +1538,9 @@ async fn settings_groups_save_and_load_independently() {
         state: Some(OnboardingState::Completed),
     };
     let updates = UpdateSettings { check: true };
-    save_settings(&pool, &mailbox).await.unwrap();
+    save_settings(&pool, &receiving).await.unwrap();
     save_settings(&pool, &license).await.unwrap();
     save_settings(&pool, &branding).await.unwrap();
-    save_settings(&pool, &reporting).await.unwrap();
     save_settings(&pool, &monitoring).await.unwrap();
     save_settings(&pool, &retention).await.unwrap();
     save_settings(&pool, &dns).await.unwrap();
@@ -1525,8 +1548,7 @@ async fn settings_groups_save_and_load_independently() {
     save_settings(&pool, &onboarding).await.unwrap();
     save_settings(&pool, &updates).await.unwrap();
     let expected = AppSettings {
-        mailbox: mailbox.clone(),
-        reporting: reporting.clone(),
+        receiving,
         monitoring,
         retention,
         dns: dns.clone(),
@@ -1546,13 +1568,13 @@ async fn settings_groups_save_and_load_independently() {
 
     // Saving one group again leaves the others.
     save_settings(&pool, &DnsSettings::default()).await.unwrap();
-    save_settings(&pool, &ReportingSettings::default())
+    save_settings(&pool, &ReceivingSettings::default())
         .await
         .unwrap();
     assert_eq!(
         AppSettings::load(&pool).await.unwrap(),
         AppSettings {
-            reporting: ReportingSettings::default(),
+            receiving: ReceivingSettings::default(),
             dns: DnsSettings::default(),
             ..expected.clone()
         }
@@ -2458,56 +2480,123 @@ async fn logo_is_stored_apart_from_the_settings() {
 }
 
 #[tokio::test]
-async fn imap_passes_are_pruned_to_the_newest() {
-    use dmarc_store::{imap_pass_status, record_imap_pass, ImapPassRow, IMAP_PASSES_KEPT};
+async fn receive_passes_are_pruned_to_the_newest() {
+    use dmarc_store::{
+        receive_pass_status, record_receive_pass, ReceivePassRow, RECEIVE_PASSES_KEPT,
+    };
     let (_dir, pool) = test_pool().await;
-    for i in 0..(IMAP_PASSES_KEPT + 5) {
-        record_imap_pass(
+    let (id, other) = (account(&pool, "u").await, account(&pool, "other").await);
+    let other_pass = |at: i64| ReceivePassRow {
+        account_id: other,
+        finished_at: at,
+        checked_at: Some(at),
+        error: None,
+        error_detail: None,
+        yielded: false,
+    };
+    record_receive_pass(&pool, &other_pass(1), None)
+        .await
+        .unwrap();
+    for i in 0..(RECEIVE_PASSES_KEPT + 5) {
+        record_receive_pass(
             &pool,
-            &ImapPassRow {
+            &ReceivePassRow {
+                account_id: id,
                 finished_at: i + 1,
                 checked_at: Some(i),
                 error: None,
+                error_detail: None,
+                yielded: false,
             },
+            None,
         )
         .await
         .unwrap();
     }
-    let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM imap_passes")
+    let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM receive_passes")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(kept, IMAP_PASSES_KEPT);
-    let status = imap_pass_status(&pool).await.unwrap();
-    assert_eq!(status.last_check_at, Some(IMAP_PASSES_KEPT + 4));
+    // The account's newest, plus the other account's one: pruned per account.
+    assert_eq!(kept, RECEIVE_PASSES_KEPT + 1);
+    let status = receive_pass_status(&pool, id).await.unwrap();
+    assert_eq!(status.last_check_at, Some(RECEIVE_PASSES_KEPT + 4));
+    let status = receive_pass_status(&pool, other).await.unwrap();
+    assert_eq!(status.last_check_at, Some(1));
 }
 
 /// A long run of failures must not erase the last success: the newest
 /// successful pass survives the prune however old it is.
 #[tokio::test]
 async fn pruning_keeps_the_newest_successful_pass() {
-    use dmarc_store::{imap_pass_status, record_imap_pass, ImapPassRow, IMAP_PASSES_KEPT};
+    use dmarc_store::{
+        receive_pass_status, record_receive_pass, ReceivePassRow, RECEIVE_PASSES_KEPT,
+    };
     let (_dir, pool) = test_pool().await;
-    let pass = |i: i64, error: Option<&str>| ImapPassRow {
+    let id = account(&pool, "u").await;
+    let pass = |i: i64, error: Option<&str>| ReceivePassRow {
+        account_id: id,
         finished_at: i + 1,
         checked_at: Some(i),
         error: error.map(str::to_owned),
+        error_detail: None,
+        yielded: false,
     };
-    record_imap_pass(&pool, &pass(0, None)).await.unwrap();
-    for i in 1..(IMAP_PASSES_KEPT + 5) {
-        record_imap_pass(&pool, &pass(i, Some("connection refused")))
+    record_receive_pass(&pool, &pass(0, None), None)
+        .await
+        .unwrap();
+    for i in 1..(RECEIVE_PASSES_KEPT + 5) {
+        record_receive_pass(&pool, &pass(i, Some("connection refused")), None)
             .await
             .unwrap();
     }
-    let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM imap_passes")
+    let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM receive_passes")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(kept, IMAP_PASSES_KEPT + 1);
-    let status = imap_pass_status(&pool).await.unwrap();
+    assert_eq!(kept, RECEIVE_PASSES_KEPT + 1);
+    let status = receive_pass_status(&pool, id).await.unwrap();
     assert_eq!(status.last_success_at, Some(1));
-    assert_eq!(status.last_check_at, Some(IMAP_PASSES_KEPT + 4));
+    assert_eq!(status.last_check_at, Some(RECEIVE_PASSES_KEPT + 4));
     assert!(status.last_error.is_some());
+    assert_eq!(status.last_error_detail, None);
+}
+
+#[tokio::test]
+async fn a_failed_pass_keeps_the_servers_answer_apart() {
+    use dmarc_store::{receive_pass_status, record_receive_pass, ReceivePassRow};
+    let (_dir, pool) = test_pool().await;
+    let id = account(&pool, "u").await;
+    let failed = ReceivePassRow {
+        account_id: id,
+        finished_at: 2,
+        checked_at: None,
+        error: Some("The app registration may not read u.".into()),
+        error_detail: Some("ErrorAccessDenied: Access is denied.".into()),
+        yielded: false,
+    };
+    record_receive_pass(&pool, &failed, None).await.unwrap();
+    let status = receive_pass_status(&pool, id).await.unwrap();
+    assert_eq!(
+        status.last_error,
+        Some(("The app registration may not read u.".into(), 2))
+    );
+    assert_eq!(
+        status.last_error_detail.as_deref(),
+        Some("ErrorAccessDenied: Access is denied.")
+    );
+
+    // A later success clears both.
+    let ok = ReceivePassRow {
+        finished_at: 3,
+        checked_at: Some(3),
+        error: None,
+        error_detail: None,
+        ..failed
+    };
+    record_receive_pass(&pool, &ok, None).await.unwrap();
+    let status = receive_pass_status(&pool, id).await.unwrap();
+    assert_eq!((status.last_error, status.last_error_detail), (None, None));
 }
 
 #[tokio::test]
@@ -2665,4 +2754,12 @@ async fn new_failing_senders_are_new_to_the_domain_and_leave_out_forwards() {
         .await
         .expect("senders");
     assert_eq!(all[0], row("192.0.2.1", 101, 101));
+    // What sent as the domain before the window, once each, for the
+    // network comparison.
+    let before_ips = source_ips_before(&pool, domain, since).await.expect("ips");
+    assert_eq!(before_ips, ["192.0.2.1"]);
+    assert!(source_ips_before(&pool, domain, since - 86_400)
+        .await
+        .expect("ips")
+        .is_empty());
 }

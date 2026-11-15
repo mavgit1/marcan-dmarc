@@ -26,20 +26,21 @@ export type ReportingDomain = {
    */
   dmarc: DmarcCheckResult | null;
   /**
-   * The record's `rua=` names the report address (any case).
+   * The known addresses the record's `rua=` names, as published.
    */
-  names_report_address: boolean;
+  named_addresses: Array<string>;
   /**
-   * The record's other `mailto:` addresses, as published: the forwarding
-   * addresses in forwarded mode.
+   * The record's other `mailto:` addresses, as published.
    */
   other_addresses: Array<string>;
   /**
-   * The report address's domain does not accept this domain's reports:
-   * `<domain>._report._dmarc.<mailbox_domain>` (or the wildcard) is
-   * missing.
+   * The address domains whose authorization this domain's reports still
+   * need (`<domain>._report._dmarc.<address domain>` is missing): the
+   * domains of the known addresses the record names when every one of
+   * them refuses, or the default address's domain when the record names
+   * none and that domain refuses.
    */
-  mailbox_auth_missing: boolean;
+  missing_authorizations: Array<string>;
   /**
    * The other `rua=` destinations that were looked up and refuse this
    * domain's reports.
@@ -47,8 +48,8 @@ export type ReportingDomain = {
   refused: Array<ExternalAuthorization>;
   /**
    * The DMARC record to publish at `_dmarc.<domain>`: a new monitoring
-   * record naming the report address (no record), or the published one
-   * with the address added to `rua=` and every other tag as it is
+   * record naming the default address (no record), or the published one
+   * with that address added to `rua=` and every other tag as it is
    * (address missing); `null` otherwise.
    */
   record_to_publish: string | null;

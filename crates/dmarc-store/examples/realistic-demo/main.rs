@@ -25,9 +25,9 @@
 //! hosts; made-up DNS records the server's checks answer from (as for the
 //! `demo-data` example) so each domain earns its grade; six weeks of alert
 //! events; client report recipients and their sent months; branding
-//! "Example IT" with a drawn logo; the mailbox and sending filled in with
-//! example values, sending off and the mailbox without a password, so the
-//! server sends nothing and connects nowhere.
+//! "Example IT" with a drawn logo; a receiving and a sending account with
+//! example values and placeholder passwords, sending off: the server sends
+//! nothing, and its checks fail on the made-up host, which does not resolve.
 
 mod alerts;
 mod catalogue;
@@ -194,7 +194,9 @@ pub async fn generate(dir: &Path, baseline: Option<&Path>, seed: u64) -> anyhow:
     store_alert_events(&pool, &domain_ids, &events).await?;
     let orgs: Vec<(i64, &catalogue::OrgSpec)> = org_ids.iter().copied().zip(ORGS.iter()).collect();
     let recipients = extras::client_reports(&pool, &orgs, now).await?;
-    extras::settings(&pool).await?;
+    // The accounts were added a year ago, not at the epoch: the client
+    // reports' hold and the "Account not read" alert name that date.
+    extras::settings(&pool, today - 365 * DAY).await?;
 
     let count = |sql: &'static str| {
         let pool = pool.clone();

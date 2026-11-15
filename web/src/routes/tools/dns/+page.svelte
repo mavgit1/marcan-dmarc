@@ -201,14 +201,14 @@
 >
 	<div class="min-w-0 flex-1 space-y-1.5 sm:min-w-56">
 		<label for="dns-domain" class="text-sm font-medium">Domain</label>
-		<Input id="dns-domain" bind:value={domainDraft} placeholder="example.com" autocomplete="off" spellcheck={false} />
+		<Input id="dns-domain" bind:value={domainDraft} placeholder="domain.tld" autocomplete="off" spellcheck={false} />
 	</div>
 	<div class="min-w-0 flex-1 space-y-1.5 sm:min-w-56">
 		<label for="dns-selectors" class="text-sm font-medium">DKIM selectors</label>
 		<Input
 			id="dns-selectors"
 			bind:value={selectorsDraft}
-			placeholder="selector1, google, …"
+			placeholder="selector, selector, …"
 			autocomplete="off"
 			spellcheck={false}
 		/>
@@ -270,7 +270,7 @@
 					<p class="text-muted-foreground mt-1 text-xs">NXDOMAIN or empty answers while walking includes.</p>
 				</div>
 				<div class="rounded-md border border-border px-3 py-2">
-					<p class="text-muted-foreground text-xs">Trailing all</p>
+					<p class="text-muted-foreground text-xs">SPF ending</p>
 					<p
 						class={cn(
 							'text-lg font-semibold [overflow-wrap:anywhere]',
@@ -453,7 +453,13 @@
 		<form class="flex flex-col gap-3 sm:flex-row sm:items-end" onsubmit={onInspectPtr}>
 			<div class="min-w-0 flex-1 space-y-1.5">
 				<label for="dns-ip" class="text-sm font-medium">IP address</label>
-				<Input id="dns-ip" bind:value={ipDraft} placeholder="203.0.113.10" autocomplete="off" spellcheck={false} />
+				<Input
+					id="dns-ip"
+					bind:value={ipDraft}
+					placeholder="IPv4 or IPv6 address"
+					autocomplete="off"
+					spellcheck={false}
+				/>
 			</div>
 			<Button type="submit" variant="secondary" disabled={ipDraft.trim() === ''}>Lookup PTR</Button>
 		</form>

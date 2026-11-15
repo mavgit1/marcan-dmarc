@@ -56,7 +56,7 @@ pub struct ParsedMtaStsPolicy {
 /// How reading `https://mta-sts.<domain>/.well-known/mta-sts.txt` went.
 ///
 /// Everything but `NotAttempted`, `Ok` and `Timeout` is the policy host
-/// answering wrongly or not at all: receivers cannot apply the policy either,
+/// answering wrongly or not at all: senders cannot apply the policy either,
 /// so that is the domain's state, not a failed check.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -181,7 +181,7 @@ pub fn parse_mta_sts_policy(body: &str) -> ParsedMtaStsPolicy {
 
 /// Evaluate MTA-STS from the `_mta-sts` TXT lookup and the policy fetch.
 ///
-/// The policy only counts when a `v=STSv1` record exists: receivers discover
+/// The policy only counts when a `v=STSv1` record exists: senders discover
 /// MTA-STS through the record, so a file served without one is inactive and
 /// is ignored here (callers do not fetch it in the first place).
 pub fn evaluate_mta_sts(
@@ -239,7 +239,7 @@ pub fn evaluate_mta_sts(
             findings.push(Finding::info(
                 CheckKind::MtaSts,
                 "mta_sts_missing",
-                format!("No MTA-STS TXT record at _mta-sts.{domain}. Receivers will not require STARTTLS to a pinned MX set."),
+                format!("No MTA-STS TXT record at _mta-sts.{domain}. Senders will not require STARTTLS to a pinned MX set."),
                 format!("Publish `_mta-sts.{domain}` TXT `v=STSv1; id=<unique>` and a policy at {policy_url}."),
             ));
         }
@@ -281,7 +281,7 @@ pub fn evaluate_mta_sts(
         }
     }
 
-    // The policy only matters with a record that points receivers at it.
+    // The policy only matters with a record that points senders at it.
     if txt_record.is_some() {
         if let Some(body) = policy_body {
             evaluate_policy(domain, body, fetch, &mut findings, &mut result);
@@ -311,7 +311,7 @@ fn evaluate_policy(
                 CheckKind::MtaSts,
                 "mta_sts_policy_not_text",
                 format!(
-                    "The MTA-STS policy file is served as `{}`, not text/plain. RFC 8461 §3.3 says senders should check the media type.",
+                    "The MTA-STS policy file is served as `{}`, not text/plain. RFC 8461 §3.2 says senders should check the media type.",
                     ct.trim()
                 ),
                 "Serve /.well-known/mta-sts.txt with `Content-Type: text/plain`.",
@@ -343,7 +343,7 @@ fn evaluate_policy(
         Some("testing") => findings.push(Finding::info(
             CheckKind::MtaSts,
             "mta_sts_testing",
-            "MTA-STS policy is in testing mode; receivers report failures but still deliver.",
+            "MTA-STS policy is in testing mode; senders report failures but still deliver.",
             "Move mode to enforce once TLS-RPT shows clean MX connectivity.",
         )),
         Some("none") => findings.push(Finding::info(
@@ -413,7 +413,7 @@ fn fetch_findings(
                 CheckKind::MtaSts,
                 "mta_sts_policy_redirect",
                 format!(
-                    "The MTA-STS policy URL {policy_url} redirects{}, which RFC 8461 forbids. Receivers cannot apply the policy.",
+                    "The MTA-STS policy URL {policy_url} redirects{}, which RFC 8461 §3.3 forbids. Senders cannot apply the policy.",
                     location.as_deref().map(|l| format!(" to {l}")).unwrap_or_default()
                 ),
                 "Serve the policy file at https://mta-sts.<domain>/.well-known/mta-sts.txt itself, without a redirect.",
@@ -427,7 +427,7 @@ fn fetch_findings(
                 format!(
                     "MTA-STS TXT exists but fetching the policy file at {policy_url} timed out, so it could not be checked."
                 ),
-                "Retry the check. If the host keeps timing out, receivers cannot apply the policy either.",
+                "Retry the check. If the host keeps timing out, senders cannot apply the policy either.",
             ));
             return;
         }
@@ -436,7 +436,7 @@ fn fetch_findings(
                 CheckKind::MtaSts,
                 "mta_sts_policy_private_address",
                 format!(
-                    "MTA-STS host resolves to a private address: mta-sts.{domain} points at {address}, so Marcan did not fetch {policy_url}. Receivers on the internet cannot reach it either, so they cannot apply the policy."
+                    "MTA-STS host resolves to a private address: mta-sts.{domain} points at {address}, so Marcan did not fetch {policy_url}. Senders on the internet cannot reach it either, so they cannot apply the policy."
                 ),
                 "Point mta-sts.<domain> at a public address that serves the policy file over HTTPS.",
             ));
@@ -456,7 +456,7 @@ fn fetch_findings(
         CheckKind::MtaSts,
         "mta_sts_policy_fetch_failed",
         format!(
-            "MTA-STS TXT exists but the policy file at {policy_url} could not be fetched: {why}. Receivers cannot apply the policy."
+            "MTA-STS TXT exists but the policy file at {policy_url} could not be fetched: {why}. Senders cannot apply the policy."
         ),
         serve,
     ));
@@ -568,10 +568,11 @@ pub fn evaluate_tls_rpt(domain: &str, lookup: &TxtLookup) -> TlsRptCheckResult {
                     findings.push(Finding::ok(
                         CheckKind::TlsRpt,
                         "tls_rpt_ok",
-                        format!(
-                            "TLS-RPT is published with {} reporting URI(s).",
-                            p.rua.len()
-                        ),
+                        if p.rua.len() == 1 {
+                            "TLS-RPT is published with 1 reporting URI.".to_string()
+                        } else {
+                            format!("TLS-RPT is published with {} reporting URIs.", p.rua.len())
+                        },
                         "Keep rua= reachable so TLS failure reports arrive.",
                     ));
                 }
@@ -785,7 +786,7 @@ mod tests {
         assert!(short.message.contains("86400"));
     }
 
-    /// Receivers find the policy through the TXT record: a file served without
+    /// Senders find the policy through the TXT record: a file served without
     /// one (a wildcard host, say) is inactive and must not be graded.
     #[test]
     fn mta_sts_policy_without_txt_is_ignored() {
@@ -814,7 +815,7 @@ mod tests {
             .unwrap();
         assert!(f
             .message
-            .contains("redirects to https://www.example.com/, which RFC 8461 forbids"));
+            .contains("redirects to https://www.example.com/, which RFC 8461 §3.3 forbids"));
         assert_eq!(r.fetch_status, Status::Warn);
 
         for (fetch, expect) in [

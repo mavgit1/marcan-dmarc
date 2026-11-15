@@ -13,7 +13,7 @@
 	import { formatCheckedAge, formatDate, formatInt, plural } from '$lib/format';
 	import { CHECK_FAILED } from '$lib/dns';
 	import { formatRate } from '$lib/health';
-	import { filters, scopedHref } from '$lib/state/filters.svelte';
+	import { filters } from '$lib/state/filters.svelte';
 	import { resource } from '$lib/state/resource.svelte';
 	import { ServerList } from '$lib/state/server-list.svelte';
 	import { systemHealth } from '$lib/state/system-health.svelte';
@@ -33,9 +33,7 @@
 		organizationId,
 		showOrganization = true,
 		attention = false,
-		onClearAttention,
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-useless-assignment -- written for the parent's bind:filtered
-		filtered = $bindable(false)
+		onClearAttention
 	}: {
 		/** `null`: every organization. */
 		organizationId: number | null;
@@ -45,8 +43,6 @@
 		attention?: boolean;
 		/** Clears the attention filter (the chip's ×); without it, no chip. */
 		onClearAttention?: () => void;
-		/** Out: the filter box narrows the list (the page's figures above it do not follow it). */
-		filtered?: boolean;
 	} = $props();
 
 	const PAGE_SIZE = 50;
@@ -59,10 +55,6 @@
 		const next = query.trim();
 		const id = setTimeout(() => (search = next), FILTER_DEBOUNCE_MS);
 		return () => clearTimeout(id);
-	});
-
-	$effect(() => {
-		filtered = search !== '';
 	});
 
 	const list = new ServerList('domain');
@@ -88,16 +80,30 @@
 		markUpdated: true
 	});
 
-	/**
-	 * A domain's page, naming the organization the table is narrowed to (`?org=`), so the page
-	 * opened from an organization's list starts its trail there.
-	 */
-	const domainHref = (d: DomainSummary) => scopedHref(`/domains/${d.id}`, { organizationId });
+	/** A domain's page; like every link to an entity it carries no scope. */
+	const domainHref = (d: DomainSummary) => `/domains/${d.id}`;
 
-	/** Reporters within the time range; reports over all time. */
+	/** Reporters within the time range; reports over all time (said in the cell's title). */
 	function coverageLabel(d: DomainSummary): string {
-		return `${plural(d.reporter_count, 'reporter')} in range · ${plural(d.report_count, 'report')}`;
+		return `${plural(d.reporter_count, 'reporter')} · ${plural(d.report_count, 'report')}`;
 	}
+
+	/**
+	 * The DNS check age most rows of the page share ("checked 2 hours ago"), stated once above
+	 * the table; a row shows its own only where it differs.
+	 */
+	function commonCheckedAge(rows: readonly DomainSummary[]): string | null {
+		const counts = new Map<string, number>();
+		for (const d of rows) {
+			if (!d.dns || d.dns_updating) continue;
+			const age = formatCheckedAge(d.dns.checked_at);
+			counts.set(age, (counts.get(age) ?? 0) + 1);
+		}
+		let best: string | null = null;
+		for (const [age, n] of counts) if (best == null || n > (counts.get(best) ?? 0)) best = age;
+		return best;
+	}
+	const sharedAge = $derived(commonCheckedAge(domains.data?.items ?? []));
 
 	const listColumns = $derived.by((): ColumnDef<DomainSummary>[] => [
 		{ id: 'domain', header: 'Domain', accessor: (d) => d.domain, sortKey: 'domain' },
@@ -168,11 +174,15 @@
 		<Input
 			type="search"
 			class="pl-8"
-			placeholder={showOrganization ? 'Filter by domain or organization' : 'Filter by domain'}
+			placeholder={showOrganization ? 'Search by domain or organization' : 'Search by domain'}
 			bind:value={query}
-			aria-label={showOrganization ? 'Filter domains by domain or organization' : 'Filter domains by name'}
+			aria-label={showOrganization ? 'Search domains by domain or organization' : 'Search domains by name'}
 		/>
 	</div>
+	{#if search}
+		<!-- In the search row, so it never pushes the table down while typing. -->
+		<span class="text-muted-foreground text-xs">The figures above cover all domains.</span>
+	{/if}
 	{#if attention && onClearAttention}
 		<span class="bg-muted inline-flex h-7 items-center gap-1 rounded-full border pr-1 pl-3 text-xs font-medium">
 			Needs attention
@@ -186,6 +196,9 @@
 			</button>
 		</span>
 	{/if}
+	{#if sharedAge}
+		<span class="text-muted-foreground ml-auto text-xs">DNS {sharedAge}</span>
+	{/if}
 </div>
 
 {#snippet loaded(page: Page<DomainSummary>)}
@@ -198,14 +211,14 @@
 		server={list.table(listKey, page)}
 		emptyHeadline={search ? 'No matching domains' : attention ? 'Nothing needs attention' : 'No domains'}
 		emptyDescription={search
-			? 'No domain in this scope matches the filter.'
+			? 'No domain matches your search.'
 			: attention
 				? 'No domain in this scope has an open issue.'
 				: undefined}
 	>
 		{#snippet cell({ column, row })}
 			{#if column.id === 'domain'}
-				<a href={resolve(domainHref(row) as '/')} class="font-medium hover:underline">{row.domain}</a>
+				<a href={resolve(`/domains/${row.id}`)} class="font-medium hover:underline">{row.domain}</a>
 				{#if row.parked}
 					<StatusBadge tone="neutral" class="ml-1.5">Parked</StatusBadge>
 				{/if}
@@ -218,18 +231,21 @@
 			{:else if column.id === 'dns'}
 				{#if row.dns}
 					{@const tone = row.assessment.dns}
+					{@const age = row.dns_updating ? 'updating…' : formatCheckedAge(row.dns.checked_at)}
 					<span class="flex flex-col gap-0.5">
 						<span class="tabular-nums {statusFigure[tone]}">
 							{row.dns.grade}
 						</span>
-						<span
-							class="text-muted-foreground text-[10px]"
-							title={row.dns_updating
-								? "Marcan's DNS checks changed since this grade; it is being re-checked"
-								: undefined}
-						>
-							{row.dns_updating ? 'updating…' : formatCheckedAge(row.dns.checked_at)}
-						</span>
+						{#if age !== sharedAge}
+							<span
+								class="text-muted-foreground text-[10px]"
+								title={row.dns_updating
+									? "Marcan's DNS checks changed since this grade; it is being re-checked"
+									: undefined}
+							>
+								{age}
+							</span>
+						{/if}
 					</span>
 				{:else}
 					<!-- No stored result: not measured yet, never "missing". -->
@@ -262,8 +278,10 @@
 				{:else}
 					<span class="flex flex-col items-end gap-0.5">
 						<span>{formatDate(row.last_report_at)}</span>
-						<!-- May wrap, so the table fits beside the sidebar on a laptop. -->
-						<span class="text-muted-foreground text-right text-[10px] whitespace-normal">{coverageLabel(row)}</span>
+						<span
+							class="text-muted-foreground text-[10px] whitespace-nowrap"
+							title="Reporters in the time range; reports over all time">{coverageLabel(row)}</span
+						>
 					</span>
 				{/if}
 			{/if}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { settingsHref } from '$lib/settings-nav';
+	import { settingsHref, settingsTitle } from '$lib/settings-nav';
 	import { getAlerts } from '$lib/api';
 	import type { AlertItem } from '$lib/types/AlertItem';
 	import type { Page } from '$lib/types/Page';
@@ -12,17 +12,20 @@
 	import StatusBadge from '$lib/components/status-badge.svelte';
 	import { formatDateTime } from '$lib/format';
 	import { meta } from '$lib/state/meta.svelte';
-	import { catalogueSummary, catalogueTrigger } from '$lib/wording/alert-catalogue';
+	import { catalogueTrigger } from '$lib/wording/alert-catalogue';
 	import { filters } from '$lib/state/filters.svelte';
 	import { resource } from '$lib/state/resource.svelte';
 	import { ServerList } from '$lib/state/server-list.svelte';
 	import { settings } from '$lib/state/settings.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { DOCS_URL } from '$lib/nav';
 	import BellIcon from '@lucide/svelte/icons/bell';
+	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import AlertText from './alert-text.svelte';
 
 	const PAGE_SIZE = 50;
-	/** The Domain cell of an event about the installation (a newer release), which has no domain. */
-	const INSTALLATION = 'Marcan';
+	/** The Domain cell of an event about the installation (a newer release, an account): empty. */
+	const NO_DOMAIN = '—';
 
 	/** Newest first, always: the list has no other order. */
 	const list = new ServerList('');
@@ -48,21 +51,17 @@
 	});
 	/** "Alert kinds" in the alert settings: every kind of alert and its trigger. */
 	const catalogueHref = settingsHref('alert-kinds');
-	/** How often changes are checked, from `meta` ("…" until it has loaded). */
-	const checkMinutes = $derived(meta.current?.alert_interval_minutes ?? '…');
 	/**
-	 * Where the emails stand, for the line under the title (nothing until the settings are
-	 * known). The list holds every change either way: the alert settings govern the emails only.
+	 * Where the alert emails stand, for the status line in the header (nothing until the settings
+	 * are known). The list holds every change either way: the alert settings govern the emails only.
 	 */
-	const mailNote = $derived.by(() => {
+	const mailState = $derived.by(() => {
 		const s = settings.current;
 		if (!s) return null;
-		if (!s.alerts.enabled) return 'Alert emails are off.';
-		if (!s.sending.enabled) return 'Alert emails are on, but sending is off: nothing is mailed.';
-		const to = `Changes are emailed to ${s.alerts.recipients.join(', ')}`;
-		const catalogue = meta.current?.alert_catalogue;
-		if (!catalogue || s.alerts.muted_kinds.length === 0) return `${to}.`;
-		return `${to} (alert kinds: ${catalogueSummary(catalogue, s.alerts.muted_kinds)}).`;
+		if (!s.alerts.enabled) return { text: 'Alert emails are off', fix: 'alerts' as const };
+		// The switch to flip is Sending's.
+		if (!s.sending.enabled) return { text: 'Alert emails are on, sending is off', fix: 'sending' as const };
+		return { text: 'Alert emails are on', fix: 'alerts' as const };
 	});
 
 	const columns: ColumnDef<AlertItem>[] = [
@@ -73,25 +72,30 @@
 			format: (_v, r) => formatDateTime(r.created_at),
 			class: 'whitespace-nowrap tabular-nums'
 		},
-		{ id: 'domain', header: 'Domain', accessor: (r) => r.domain ?? INSTALLATION },
+		{ id: 'domain', header: 'Domain', accessor: (r) => r.domain ?? NO_DOMAIN },
+		{ id: 'severity', header: 'Severity', accessor: (r) => r.severity_label, class: 'whitespace-nowrap' },
 		{ id: 'change', header: 'Change', accessor: (r) => r.event.kind, class: 'w-full min-w-72 whitespace-normal' }
 	];
 </script>
 
-<PageHeader
-	title="Alerts"
-	description={`What changed about your domains, newest first. Every change is listed here, whether alert emails are on or not; a state that stays the same is never listed twice. Changes are checked every ${checkMinutes} minutes, after the DNS check.`}
->
+<PageHeader title="Alerts" description="Every change to your domains, newest first.">
 	{#snippet titleAddon()}
 		<StatusBadge tone="warn" class="text-[10px]">Experimental</StatusBadge>
 	{/snippet}
-	{#snippet below()}
-		{#if mailNote}
+	{#snippet actions()}
+		{#if mailState}
 			<p class="text-muted-foreground text-sm">
-				{mailNote}
-				<a href={settingsHref('alerts')} class="text-foreground underline underline-offset-2">Alert email settings</a>
+				{mailState.text}
+				<span aria-hidden="true">·</span>
+				<a href={settingsHref(mailState.fix)} class="hover:text-foreground underline underline-offset-2"
+					>Settings → {settingsTitle(mailState.fix)}</a
+				>
 			</p>
 		{/if}
+		<Button variant="outline" size="sm" href="{DOCS_URL}alerts" target="_blank" rel="noopener">
+			<BookOpenIcon />
+			Docs
+		</Button>
 	{/snippet}
 </PageHeader>
 
@@ -111,13 +115,15 @@
 			{#snippet cell({ column, row })}
 				{#if column.id === 'domain'}
 					{#if row.domain_id === null}
-						<span class="text-muted-foreground">{INSTALLATION}</span>
+						<span class="text-muted-foreground">{NO_DOMAIN}</span>
 					{:else}
 						<a href={resolve(`/domains/${row.domain_id}`)} class="hover:underline">{row.domain}</a>
 					{/if}
+				{:else if column.id === 'severity'}
+					<StatusBadge tone={row.event.severity}>{row.severity_label}</StatusBadge>
 				{:else if column.id === 'change'}
 					<span class="block min-w-0" title={catalogueTrigger(meta.current?.alert_catalogue, row.catalogue_id)}>
-						<AlertText item={row} />
+						<AlertText item={row} badge={false} />
 					</span>
 				{:else}
 					{formatDateTime(row.created_at)}

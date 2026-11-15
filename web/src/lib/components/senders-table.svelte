@@ -16,6 +16,8 @@
 	import { resource } from '$lib/state/resource.svelte';
 	import { ServerList } from '$lib/state/server-list.svelte';
 	import { rowTint, statusFg } from '$lib/tokens';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import ServerIcon from '@lucide/svelte/icons/server';
 	type Sender = WithIdentity<SenderSummary>;
 
@@ -23,18 +25,32 @@
 	 * The one sender list, server-sorted and paged. Without `domainId` it covers the global
 	 * scope (organization, domain, time range) and shows failed messages and how many domains
 	 * an IP sends as; with `domainId` it covers that domain (and the time range) and shows its
-	 * SPF / DKIM passes and the IP's other domains.
+	 * SPF / DKIM passes and the IP's other domains. A search box narrows either by IP or sender
+	 * name, on the server (the names are resolved there).
 	 */
 	let { domainId }: { domainId?: number } = $props();
 
 	const PAGE_SIZE = 50;
+	/** Wait for a pause in typing before searching. */
+	const SEARCH_DEBOUNCE_MS = 250;
+
+	let query = $state('');
+	let search = $state('');
+	$effect(() => {
+		const next = query.trim();
+		const id = setTimeout(() => (search = next), SEARCH_DEBOUNCE_MS);
+		return () => clearTimeout(id);
+	});
 
 	const list = new ServerList('-total_messages');
+	/** Another scope shows skeletons; another search keeps the table (and its sort) on screen. */
 	const scopeKey = $derived(
 		domainId !== undefined
 			? `domain:${domainId}|${filters.since}`
 			: `${filters.organizationId}|${filters.domainId}|${filters.since}`
 	);
+	/** The page goes back to the first whenever the scope or the search changes. */
+	const listKey = $derived(`${scopeKey}|${search}`);
 
 	const senders = resource({
 		key: () => scopeKey,
@@ -44,11 +60,12 @@
 					? { domain_id: domainId }
 					: { organization_id: filters.organizationId, domain_id: filters.domainId }),
 				since: filters.since,
+				q: search,
 				sort: list.sort,
 				limit: PAGE_SIZE,
-				offset: list.offsetFor(scopeKey)
+				offset: list.offsetFor(listKey)
 			}),
-		reloadOn: () => [list.sort, list.offsetFor(scopeKey)],
+		reloadOn: () => [search, list.sort, list.offsetFor(listKey)],
 		markUpdated: true
 	});
 
@@ -117,8 +134,19 @@
 	);
 </script>
 
+<div class="relative mb-3 max-w-md">
+	<SearchIcon class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+	<Input
+		type="search"
+		class="pl-8"
+		placeholder="Search by IP or sender name"
+		bind:value={query}
+		aria-label="Search senders by IP or sender name"
+	/>
+</div>
+
 {#snippet loaded(page: Page<Sender>)}
-	{#if page.total === 0}
+	{#if page.total === 0 && !search}
 		<EmptyState icon={ServerIcon} headline={empty.headline} description={empty.description} />
 	{:else}
 		<DataTable
@@ -128,9 +156,9 @@
 			getRowHref={(r) => `/senders/${encodeURIComponent(r.source_ip)}`}
 			rowClass={(r) => rowTint(r.compliance_status)}
 			dense
-			server={list.table(scopeKey, page)}
-			emptyHeadline={empty.headline}
-			emptyDescription={empty.description}
+			server={list.table(listKey, page)}
+			emptyHeadline={search ? 'No matching senders' : empty.headline}
+			emptyDescription={search ? 'No sender matches your search.' : empty.description}
 		>
 			{#snippet cell({ column, row })}
 				{#if column.id === 'sender'}

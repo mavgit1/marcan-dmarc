@@ -222,8 +222,23 @@ pub async fn check_all(
     Query(q): Query<DnsQuery>,
 ) -> AppResult<Json<DnsCheckResponse>> {
     let domain = parse_domain(&q.domain)?;
-    let refresh = q.refresh.unwrap_or(false);
+    Ok(Json(
+        dns_answer(&state, &domain, q.refresh.unwrap_or(false)).await?,
+    ))
+}
 
+/// A domain's DNS result as every page shows it: the stored snapshot (a
+/// stale one is served and refreshed in the background), a live check when
+/// none is stored, or with `refresh` a live check now. A complete live result
+/// is stored, so whoever asks next reads the same check. `GET /api/dns/check`
+/// answers with it, and the reporting setup of one domain takes its DMARC
+/// record from it.
+pub(crate) async fn dns_answer(
+    state: &AppState,
+    domain: &str,
+    refresh: bool,
+) -> AppResult<DnsCheckResponse> {
+    let domain = domain.to_owned();
     let prior = load_complete_snapshot(&state.pool, &domain).await?;
 
     if !refresh {
@@ -246,12 +261,12 @@ pub async fn check_all(
                 outdated: dns_outdated(snap.checker_version),
                 cached: true,
             };
-            return Ok(Json(respond(
+            return Ok(respond(
                 shown,
                 state.dns.attempts_for(&domain),
                 &domain,
                 &probe,
-            )));
+            ));
         }
         // No complete result yet. A domain that just failed is retried in the
         // background with backoff, not on every page load.
@@ -263,7 +278,7 @@ pub async fn check_all(
                     outdated: false,
                     cached: true,
                 };
-                return Ok(Json(respond(shown, Some(a), &domain, &probe)));
+                return Ok(respond(shown, Some(a), &domain, &probe));
             }
         }
     }
@@ -276,9 +291,7 @@ pub async fn check_all(
     let probe = dkim_probe(&state.pool, &domain).await;
     let report = engine.check_all(&domain, &probe).await;
     let prior = prior.map(|(_, r)| r);
-    Ok(Json(
-        conclude_attempt(&state.dns, &state.pool, &domain, report, prior, &probe).await,
-    ))
+    Ok(conclude_attempt(&state.dns, &state.pool, &domain, report, prior, &probe).await)
 }
 
 /// `refresh=true` forgets cached answers for the domain first (this process's

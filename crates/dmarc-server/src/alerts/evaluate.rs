@@ -1,22 +1,26 @@
 //! One evaluation run: every monitored domain's current state against the
-//! stored one, and the version check's answer against the newest release
-//! the update alert saw before.
+//! stored one, the version check's answer against the newest release the
+//! update alert saw before, and the accounts' credentials and reading.
 
+use crate::accounts::{credential_expires_at, receiving_reads, SecretKey};
 use crate::api::{identities_named, load_sender_names};
 use crate::error::AppResult;
 use crate::snapshots::dns::complete_report;
 use crate::updates::RUNNING_VERSION;
 use crate::view::domain::{domain_overview, Judging};
 use dmarc_assess::{
-    alert_events, alert_state, readiness_window_start, update_events, AlertState, NewSender,
-    SeenRelease, NEW_SENDER_MIN_FAILURES,
+    alert_events, alert_state, credential_events, new_senders_by_network, readiness_window_start,
+    unread_events, update_events, AlertState, ExpiringCredential, NewSender, SeenRelease,
+    NEW_SENDER_MIN_FAILURES,
 };
 use dmarc_identity::SenderNames;
 use dmarc_store::{
     domains_with_reports_stored_since_evaluated, get_alert_states, get_alerts_held_at,
-    get_dns_snapshots, get_domain_overview, get_update_alert_state, get_update_check,
-    list_monitored_domain_ids, load_settings, new_failing_senders, readiness_mail,
-    save_alert_evaluations, AlertEvaluation, DnsSnapshot, UpdateEvaluation, UpdateSettings,
+    get_credential_alert_state, get_dns_snapshots, get_domain_overview, get_unread_alert_state,
+    get_update_alert_state, get_update_check, list_accounts, list_monitored_domain_ids,
+    load_settings, new_failing_senders, readiness_mail, save_alert_evaluations, source_ips_before,
+    AlertEvaluation, CredentialEvaluation, DnsSnapshot, InstallationEvaluation, UnreadEvaluation,
+    UpdateEvaluation, UpdateSettings,
 };
 use sqlx::SqlitePool;
 use std::collections::HashSet;
@@ -51,7 +55,8 @@ impl RunNames {
     }
 }
 
-/// The senders new to domain `id` in the window from `since` with at least
+/// The senders new to domain `id` in the window from `since` (their
+/// network sent nothing as it before) with at least
 /// [`NEW_SENDER_MIN_FAILURES`] failing messages, named as the sender pages
 /// name them.
 async fn new_senders(
@@ -64,21 +69,29 @@ async fn new_senders(
     if rows.is_empty() {
         return Ok(Vec::new());
     }
+    // New by address; only those whose network is new too stay.
+    let candidates = rows
+        .into_iter()
+        .map(|row| NewSender {
+            name: None,
+            source_ip: row.source_ip,
+            failed: row.failed_messages,
+            delivered_failures: row.delivered_failures,
+        })
+        .collect();
+    let before = source_ips_before(pool, id, since).await?;
+    let mut senders = new_senders_by_network(candidates, before.iter().map(String::as_str));
+    if senders.is_empty() {
+        return Ok(senders);
+    }
     let names = names.get(pool).await?;
     let mut identities =
-        identities_named(pool, names, rows.iter().map(|r| r.source_ip.as_str())).await?;
-    Ok(rows
-        .into_iter()
-        .map(|row| {
-            let identity = identities.remove(&row.source_ip).unwrap_or_default();
-            NewSender {
-                name: identity.name.or(identity.operator_domain),
-                source_ip: row.source_ip,
-                failed: row.failed_messages,
-                delivered_failures: row.delivered_failures,
-            }
-        })
-        .collect())
+        identities_named(pool, names, senders.iter().map(|s| s.source_ip.as_str())).await?;
+    for sender in &mut senders {
+        let identity = identities.remove(&sender.source_ip).unwrap_or_default();
+        sender.name = identity.name.or(identity.operator_domain);
+    }
+    Ok(senders)
 }
 
 /// The current [`AlertState`] of domain `id`, judged by `judging` (at its
@@ -134,8 +147,54 @@ pub async fn update_evaluation(pool: &SqlitePool, running: &str) -> AppResult<Up
     Ok(UpdateEvaluation { state, events })
 }
 
-/// Evaluate every monitored domain at `now`, and the update alert, and store
-/// the states and events in one transaction. A domain evaluated for the first time is stored as
+/// The credential alert of this run: every Microsoft login's certificate
+/// (its expiry date) against the stored state, at `now`.
+pub async fn credential_evaluation(pool: &SqlitePool, now: i64) -> AppResult<CredentialEvaluation> {
+    let accounts = list_accounts(pool).await?;
+    let credentials: Vec<ExpiringCredential<'_>> = accounts
+        .iter()
+        .filter_map(|account| {
+            Some(ExpiringCredential {
+                account_id: account.id,
+                account: &account.fields.name,
+                expires_at: credential_expires_at(&account.fields)?,
+            })
+        })
+        .collect();
+    let previous = get_credential_alert_state(pool).await?;
+    let (state, events) = credential_events(previous.as_ref(), &credentials, now);
+    Ok(CredentialEvaluation { state, events })
+}
+
+/// The "Account not read" alert of this run: every receiving account's
+/// reading (its lock as `key` finds it) against the stored state, at `now`.
+pub async fn unread_evaluation(
+    pool: &SqlitePool,
+    key: Option<&SecretKey>,
+    now: i64,
+) -> AppResult<UnreadEvaluation> {
+    let reads = receiving_reads(pool, key).await?;
+    let previous = get_unread_alert_state(pool).await?;
+    let (state, events) = unread_events(previous.as_ref(), &reads, now);
+    Ok(UnreadEvaluation { state, events })
+}
+
+/// The installation's alerts of a run at `now`.
+async fn installation_evaluation(
+    pool: &SqlitePool,
+    key: Option<&SecretKey>,
+    now: i64,
+) -> AppResult<InstallationEvaluation> {
+    Ok(InstallationEvaluation {
+        update: Some(update_evaluation(pool, RUNNING_VERSION).await?),
+        credentials: Some(credential_evaluation(pool, now).await?),
+        unread: Some(unread_evaluation(pool, key, now).await?),
+    })
+}
+
+/// Evaluate every monitored domain at `now`, and the installation's alerts
+/// (the accounts' locks as `key` finds them), and store the states and
+/// events in one transaction. A domain evaluated for the first time is stored as
 /// its baseline, with no events. Stops between domains once `token` is
 /// cancelled, storing nothing of an unfinished run. A domain whose state
 /// cannot be read is logged with its name and skipped
@@ -150,13 +209,14 @@ pub async fn update_evaluation(pool: &SqlitePool, running: &str) -> AppResult<Up
 /// holds across a restart and until an evaluation succeeds.
 pub async fn evaluate_all(
     pool: &SqlitePool,
+    key: Option<&SecretKey>,
     now: i64,
     token: &CancellationToken,
 ) -> AppResult<EvaluationSummary> {
-    let update = update_evaluation(pool, RUNNING_VERSION).await?;
+    let installation = installation_evaluation(pool, key, now).await?;
     let domains = list_monitored_domain_ids(pool).await?;
     if domains.is_empty() {
-        let events = save_alert_evaluations(pool, now, &[], Some(&update)).await?;
+        let events = save_alert_evaluations(pool, now, &[], Some(&installation)).await?;
         return Ok(EvaluationSummary {
             events,
             ..EvaluationSummary::default()
@@ -204,7 +264,7 @@ pub async fn evaluate_all(
             events,
         });
     }
-    let events = save_alert_evaluations(pool, now, &evaluations, Some(&update)).await?;
+    let events = save_alert_evaluations(pool, now, &evaluations, Some(&installation)).await?;
     Ok(EvaluationSummary {
         domains: evaluations.len(),
         events,

@@ -38,14 +38,14 @@ async fn test_system_health_empty_db() {
     assert_eq!(json.get("quarantine_count").unwrap().as_i64(), Some(0));
     assert_eq!(json.get("total_messages").unwrap().as_i64(), Some(0));
     assert_eq!(json.get("total_reports").unwrap().as_i64(), Some(0));
-    assert!(json.get("imap_progress").unwrap().is_null());
-    assert!(json.get("imap_last_error").unwrap().is_null());
-    assert!(json.get("imap_last_error_at").unwrap().is_null());
-    assert!(json.get("imap_last_success_at").unwrap().is_null());
+    assert!(json.get("pass_progress").unwrap().is_null());
+    assert!(json.get("receive_last_error").unwrap().is_null());
+    assert!(json.get("receive_last_error_at").unwrap().is_null());
+    assert!(json.get("receive_last_success_at").unwrap().is_null());
     // Measured from the open pool, so a temp-file database reports its real size.
     assert!(json.get("database_size_bytes").unwrap().as_i64().unwrap() > 0);
-    assert_eq!(json["imap_configured"], false);
-    assert!(json["imap_poll_interval_secs"].as_u64().unwrap() > 0);
+    assert_eq!(json["receive_configured"], false);
+    assert!(json["receive_poll_interval_secs"].as_u64().unwrap() > 0);
     assert_eq!(json["report_freshness_warning_hours"], 24);
 }
 

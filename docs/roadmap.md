@@ -4,7 +4,7 @@ Ideas and plans, not promises. Nothing here has a date. If one of them matters t
 
 ## Alerts
 
-**Shipped, experimental**: which changes are alerted, and how they are worded, may still change. Marcan alerts when something changes about a domain (a DNS record or the DMARC policy in DNS changes, health changes, delivered failures open or clear, reports stop or resume, a domain becomes ready for its next policy step, a domain is marked as parked), never again while a state persists. Changes are listed in the UI and sent by email through the SMTP account you set up under **Settings → Sending**, with an optional daily or weekly digest. See [Alerts](./alerts).
+**Shipped, experimental**: which changes are alerted, and how they are worded, may still change. Marcan alerts when something changes about a domain (a DNS record or the DMARC policy in DNS changes, health changes, delivered failures open or clear, reports stop or resume, a domain becomes ready for its next policy step, a domain is marked as parked), never again while a state persists. Changes are listed in the UI and sent by email through the account chosen under **Settings → Sending**, with an optional daily or weekly digest. See [Alerts](./alerts).
 
 - **A read-only status endpoint** for monitoring tools (open alerts, health per domain, pipeline status), served apart from the admin UI.
 
@@ -12,10 +12,9 @@ Ideas and plans, not promises. Nothing here has a date. If one of them matters t
 
 **Shipped, experimental**: what the email contains, and how it is worded, may still change. Each organization can get a short monthly email about its own domains, with your name and logo in the letterhead (under Marcan's line without an [operator key](./license#what-a-key-changes)). See [Client reports](./client-reports).
 
-## Mailboxes
+## Accounts
 
-- **Microsoft 365 / Exchange Online** through OAuth2, if people ask for it.
-- **Several mailboxes or folders**, for setups that cannot route every report to one place.
+**Shipped.** Reports arrive in any number of mail accounts, each with its own address, folder and any number of forwarded addresses, and mail goes out through one of them. Microsoft 365 / Exchange Online mailboxes are read and sent from over Microsoft Graph with an app registration (OAuth 2.0 with a certificate). See [Accounts](./accounts).
 
 ## Reports
 

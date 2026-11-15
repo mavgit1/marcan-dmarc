@@ -11,7 +11,7 @@ use super::{count_noun, format_count, format_pct, one_or_many};
 use crate::view::readiness::{EvidenceRow, ParkedReadiness};
 use dmarc_assess::{
     NotApplicableReason, PolicyReadiness, PolicyStep, PolicyTarget, ReadinessReason,
-    ReadinessState, RATE_PASS_MIN_PCT, READINESS_MIN_MESSAGES, READINESS_MIN_POLICY_SHARE_PCT,
+    ReadinessState, RATE_PASS_MIN_PCT, READINESS_MAX_SPF_ONLY_PCT, READINESS_MIN_POLICY_SHARE_PCT,
     READINESS_WINDOW_DAYS,
 };
 
@@ -33,11 +33,6 @@ fn reason(reason: ReadinessReason, r: &PolicyReadiness) -> String {
     let days = READINESS_WINDOW_DAYS;
     let under = policy_name(r.window.policy);
     match reason {
-        ReadinessReason::TooLittleMail => format!(
-            "{} of {} messages under {under} over {days} days, too little mail to judge.",
-            format_count(r.window.policy_messages),
-            format_count(READINESS_MIN_MESSAGES)
-        ),
         ReadinessReason::NotEnoughHistory { .. } => format!(
             "reports cover {} of {days} days under {under} so far.",
             r.history_days.unwrap_or(0)
@@ -53,8 +48,17 @@ fn reason(reason: ReadinessReason, r: &PolicyReadiness) -> String {
                 format_pct(pct)
             ),
         },
+        ReadinessReason::ReliesOnSpf => format!(
+            "{} of {} over {days} days passed DMARC on SPF alone, without an aligned DKIM signature ({}, needs at most {READINESS_MAX_SPF_ONLY_PCT:.0}%). {SIGN_WITH_DKIM}",
+            format_count(r.window.no_aligned_dkim),
+            count_noun(r.window.compliant, "message"),
+            format_pct(r.window.spf_only_pct.unwrap_or(0.0))
+        ),
     }
 }
+
+/// The fix for mail that passes on SPF alone, and why.
+const SIGN_WITH_DKIM: &str = "Sign that mail with DKIM aligned to the domain: forwarding keeps a DKIM signature but breaks SPF, so forwarded mail without one fails DMARC.";
 
 /// The verdict in one sentence, whatever the state.
 pub fn verdict(r: &PolicyReadiness) -> Verdict {
@@ -126,8 +130,9 @@ pub fn headline(r: &PolicyReadiness) -> Option<String> {
 }
 
 /// The rules of the next step, in the order the verdict reads them: the
-/// messages and days under the current policy, how much of the window's
-/// mail was evaluated under it, and delivered compliance over all of it.
+/// days under the current policy, how much of the window's
+/// mail was evaluated under it, delivered compliance over all of it and
+/// how much of the passing mail passed on SPF alone.
 /// Empty when the rules do not decide the state.
 pub fn evidence(r: &PolicyReadiness) -> Vec<EvidenceRow> {
     if !r.rules_decide() {
@@ -138,13 +143,6 @@ pub fn evidence(r: &PolicyReadiness) -> Vec<EvidenceRow> {
     let days = READINESS_WINDOW_DAYS;
     let policy = policy_name(w.policy);
     vec![
-        EvidenceRow {
-            label: "Messages".to_owned(),
-            value: format!("{} under {policy}", format_count(w.policy_messages)),
-            rule: Some(format!("needs {}", format_count(READINESS_MIN_MESSAGES))),
-            met: c.enough_mail,
-            hint: None,
-        },
         EvidenceRow {
             label: "Report history".to_owned(),
             value: match r.history_days {
@@ -179,6 +177,20 @@ pub fn evidence(r: &PolicyReadiness) -> Vec<EvidenceRow> {
             rule: Some(format!("needs {RATE_PASS_MIN_PCT:.0}%")),
             met: c.compliance_met,
             hint: None,
+        },
+        EvidenceRow {
+            label: "Passed on SPF alone".to_owned(),
+            value: w
+                .spf_only_pct
+                .map_or_else(|| "Nothing passed".to_owned(), format_pct),
+            rule: Some(format!("needs at most {READINESS_MAX_SPF_ONLY_PCT:.0}%")),
+            met: c.dkim_met,
+            hint: (!c.dkim_met).then(|| {
+                format!(
+                    "{} passed DMARC without an aligned DKIM signature. {SIGN_WITH_DKIM}",
+                    count_noun(w.no_aligned_dkim, "message")
+                )
+            }),
         },
     ]
 }
@@ -329,12 +341,14 @@ pub(crate) mod tests {
                     pct,
                     status: Status::Pass,
                 },
+                no_aligned_dkim: 0,
+                spf_only_pct: (messages > 3).then_some(0.0),
             },
             criteria: ReadinessCriteria {
-                enough_mail: true,
                 full_history: false,
                 policy_share_met: true,
                 compliance_met: true,
+                dkim_met: true,
             },
             history_days: Some(15),
             history_full_at: Some(1_800_592_000),
@@ -380,9 +394,21 @@ pub(crate) mod tests {
             )),
             "Not ready for p=reject yet: no delivered mail over 30 days to measure compliance."
         );
+        // A window without any mail: nothing delivered, no percentage of nothing.
         assert_eq!(
-            line(&readiness(not_ready(Q, ReadinessReason::TooLittleMail), 50, Some(99.8))),
-            "Not ready for p=quarantine yet: 50 of 200 messages under p=none over 30 days, too little mail to judge."
+            line(&readiness(
+                not_ready(Q, ReadinessReason::BelowThreshold),
+                0,
+                None
+            )),
+            "Not ready for p=quarantine yet: no delivered mail over 30 days to measure compliance."
+        );
+        // A few messages are enough; the sentence names how few.
+        let mut few = readiness(ready(Q), 4, Some(100.0));
+        few.history_days = Some(30);
+        assert_eq!(
+            line(&few),
+            "Ready for p=quarantine: 30 days and 4 messages under p=none, 100.0% delivered compliance."
         );
         let history = ReadinessReason::NotEnoughHistory {
             window_full_at: 1_800_000_000,
@@ -400,6 +426,13 @@ pub(crate) mod tests {
         assert_eq!(
             line(&late),
             "Not ready for p=reject yet: receivers still apply the old policy to 12.0% of mail."
+        );
+        let mut unsigned = readiness(not_ready(Q, ReadinessReason::ReliesOnSpf), 409, Some(100.0));
+        unsigned.window.no_aligned_dkim = 406;
+        unsigned.window.spf_only_pct = Some(100.0);
+        assert_eq!(
+            line(&unsigned),
+            "Not ready for p=quarantine yet: 406 of 406 messages over 30 days passed DMARC on SPF alone, without an aligned DKIM signature (100.0%, needs at most 10%). Sign that mail with DKIM aligned to the domain: forwarding keeps a DKIM signature but breaks SPF, so forwarded mail without one fails DMARC."
         );
         let raise = |pct, testing| ReadinessState::RaisePct { pct, testing };
         assert_eq!(
@@ -441,7 +474,7 @@ pub(crate) mod tests {
             Some("Ready for p=quarantine")
         );
         assert_eq!(
-            headline(not_ready(Q, ReadinessReason::TooLittleMail)).as_deref(),
+            headline(not_ready(Q, ReadinessReason::BelowThreshold)).as_deref(),
             Some("Not ready for p=quarantine yet")
         );
         assert_eq!(
@@ -538,16 +571,21 @@ pub(crate) mod tests {
         assert_eq!(
             rows(&r),
             [
-                "Messages: 4,120 under p=none, needs 200 (true)",
                 "Report history: 15 of 30 days under p=none (false)",
                 "Mail under p=none: 100.0%, needs 95% (true)",
                 "Delivered compliance: 99.8%, needs 99% (true)",
+                "Passed on SPF alone: 0.0%, needs at most 10% (true)",
             ]
         );
         assert!(evidence(&r).iter().all(|row| row.hint.is_none()));
 
         let mut r = readiness(
-            not_ready(R, ReadinessReason::TooLittleMail),
+            not_ready(
+                R,
+                ReadinessReason::NotEnoughHistory {
+                    window_full_at: 1_800_592_000,
+                },
+            ),
             1000,
             Some(99.8),
         );
@@ -555,35 +593,43 @@ pub(crate) mod tests {
         r.window.policy_share_pct = Some(14.0);
         r.window.other_policy = EnforcementState::Monitor;
         r.history_days = Some(0);
+        r.window.no_aligned_dkim = 200;
+        r.window.spf_only_pct = Some(20.0);
         r.criteria = ReadinessCriteria {
-            enough_mail: false,
             full_history: false,
             policy_share_met: false,
             compliance_met: true,
+            dkim_met: false,
         };
         assert_eq!(
             rows(&r),
             [
-                "Messages: 140 under p=quarantine, needs 200 (false)",
                 "Report history: 0 of 30 days under p=quarantine (false)",
                 "Mail under p=quarantine: 14.0%, needs 95% (false)",
                 "Delivered compliance: 99.8%, needs 99% (true)",
+                "Passed on SPF alone: 20.0%, needs at most 10% (false)",
             ]
         );
         assert_eq!(
-            evidence(&r)[2].hint.as_deref(),
+            evidence(&r)[3].hint.as_deref(),
+            Some("200 messages passed DMARC without an aligned DKIM signature. Sign that mail with DKIM aligned to the domain: forwarding keeps a DKIM signature but breaks SPF, so forwarded mail without one fails DMARC.")
+        );
+        assert_eq!(
+            evidence(&r)[1].hint.as_deref(),
             Some("86.0% of mail was still evaluated under p=none.")
         );
         r.window.other_policy = EnforcementState::Unknown;
         assert_eq!(
-            evidence(&r)[2].hint.as_deref(),
+            evidence(&r)[1].hint.as_deref(),
             Some("86.0% of mail was still evaluated under an unknown policy.")
         );
         r.history_days = None;
         r.window.delivered_compliance.pct = None;
         let rows = evidence(&r);
-        assert_eq!(rows[1].value, "No reports under p=quarantine");
-        assert_eq!(rows[3].value, "Nothing delivered");
+        assert_eq!(rows[0].value, "No reports under p=quarantine");
+        assert_eq!(rows[2].value, "Nothing delivered");
+        r.window.spf_only_pct = None;
+        assert_eq!(evidence(&r)[3].value, "Nothing passed");
         // Enforced and not applicable: no rules to list.
         assert!(evidence(&readiness(ReadinessState::Enforced, 10, None)).is_empty());
     }
@@ -610,7 +656,7 @@ pub(crate) mod tests {
             ]
         );
         assert_eq!(
-            steps_of(not_ready(Q, ReadinessReason::TooLittleMail)),
+            steps_of(not_ready(Q, ReadinessReason::BelowThreshold)),
             [
                 "Once ready: p=quarantine (false)",
                 "Then, once ready again: p=reject (false)"

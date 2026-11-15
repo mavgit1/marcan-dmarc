@@ -14,6 +14,7 @@
 	import HourInput from './hour-input.svelte';
 	import { joinPageForm } from './page-form.svelte';
 	import SettingRow from './setting-row.svelte';
+	import { SELECT_CLASS } from './select-class';
 	import SettingsPart from './settings-part.svelte';
 	import SettingsSection from './settings-section.svelte';
 	import TestRecipientLine from './test-recipient-line.svelte';
@@ -54,8 +55,7 @@
 	const WEEKDAYS = Object.keys(WEEKDAY_LABEL) as Weekday[];
 
 	const id = (name: string) => `${idPrefix}-${name}`;
-	const selectClass =
-		'border-input bg-background h-9 min-w-0 rounded-md border px-2 text-sm shadow-xs disabled:opacity-50';
+	const selectClass = `${SELECT_CLASS} h-9 min-w-0`;
 </script>
 
 {#snippet label(forId: string, text: string)}
@@ -73,7 +73,7 @@
 				id={id('recipients')}
 				bind:value={m.draft.recipients}
 				rows="3"
-				placeholder="dmarc-team@example.com"
+				placeholder="name@domain"
 				aria-label="Recipients"
 				aria-invalid={m.ariaInvalid('recipients')}
 				class="border-input bg-background w-full max-w-md rounded-md border px-3 py-2 text-sm shadow-xs aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
@@ -115,12 +115,12 @@
 			</div>
 		</SettingRow>
 
-		<SettingRow title="Base URL" hint="Marcan's own address, for links in emails. Empty: no links.">
+		<SettingRow title="Base URL" hint="Marcan's own address, for links in emails.">
 			<Input
 				id={id('base-url')}
 				type="url"
 				bind:value={m.draft.base_url}
-				placeholder="https://marcan.example.com"
+				placeholder="https://host.domain (empty: no links)"
 				aria-label="Base URL"
 				class="max-w-md text-sm"
 			/>

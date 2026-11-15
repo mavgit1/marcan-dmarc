@@ -1,40 +1,51 @@
 //! Every setting as `GET /api/settings` (and each `PUT /api/settings/{group}`)
 //! answers: the stored groups with the worker's defaults applied, what follows
-//! from them (`configured`, `report_org_domain`, `reporting_mode_saved`,
-//! `effective_sender`, the license `state` and `licensed_to`), and each
-//! group's defaults next to it. Secrets never leave: a password is
-//! `has_password`, the operator key `has_key` and its `key_hint`.
+//! from them (the sending `effective_test_recipient`, the license `state` and
+//! `licensed_to`), and each group's defaults next to it. Secrets never leave:
+//! a password is `has_password`, the operator key `has_key` and its
+//! `key_hint`.
+//!
+//! The mail accounts are `accounts` ([`AccountView`]; written by
+//! `/api/accounts`) with the providers' `presets` and the ports an
+//! account's fields start from (`account_defaults`).
 //!
 //! A group's `PUT` takes the group's values in the shape it answers them, the
-//! whole group each time: the store's own group (`SendingGroup`,
-//! `AlertSettings`, `ClientReportSettings`, `BrandingSettings`,
-//! `DnsSettings`, `MonitoringSettings`, `RetentionSettings`,
-//! `OnboardingSettings`, `UpdateSettings`), or `MailboxGroup` (the mailbox with the worker's
-//! defaults applied). A field means the same in and out, and an empty string
-//! means "not set" where the field says so. Only a secret is absent to keep
-//! the stored one (a password, the operator key), and the reporting group,
-//! which the setup saves one field at a time.
+//! whole group each time: the store's own group (`AlertSettings`, `ClientReportSettings`, `BrandingSettings`,
+//! `DnsSettings`, `MonitoringSettings`, `ReceivingSettings`, `RetentionSettings`,
+//! `SendingSettings`, `OnboardingSettings`, `UpdateSettings`). A field means
+//! the same in and out, and an empty string means "not set" where the field
+//! says so. Only a secret is absent to keep the stored one (the operator
+//! key). Where reports are sent is each receiving account's address
+//! (`accounts`).
 
+use crate::accounts::{self, AccountsSnapshot};
 use crate::client_reports::job::ClientReportSchedule;
-use crate::imap_backend::stored_imap_config;
 use crate::license::{self, Standing};
 use crate::mail;
 use crate::snapshots::dns::DEFAULT_NAMESERVERS;
+use crate::view::accounts::{account_views, presets, AccountDefaults, AccountView, ProviderPreset};
 use crate::wording::client_reports::undelivered_line;
 use dmarc_assess::{ClientReportHold, Status};
 use dmarc_store::{
-    AlertSettings, AppSettings, BrandingSettings, ClientReportSettings, DnsSettings, ImapSecurity,
+    AlertSettings, AppSettings, BrandingSettings, ClientReportSettings, DnsSettings,
     LicenseSettings, LogoInfo, LogoType, MonitoringSettings, OnboardingSettings, PixelSize,
-    ReportingMode, ReportingSettings, RetentionSettings, SendingGroup, UpdateSettings,
+    ReceivingSettings, RetentionSettings, SendingSettings, UpdateSettings, MAX_POLL_INTERVAL_SECS,
+    MIN_POLL_INTERVAL_SECS,
 };
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, TS)]
 #[ts(export)]
 pub struct SettingsResponse {
-    pub mailbox: MailboxSettingsResponse,
-    pub reporting: ReportingSettingsResponse,
+    /// Every account, in id order.
+    pub accounts: Vec<AccountView>,
+    /// The servers and login each Provider option starts from, in order.
+    pub presets: Vec<ProviderPreset>,
+    /// The ports and folder an account's unset fields start from.
+    pub account_defaults: AccountDefaults,
+    /// How often every receiving account is read.
+    pub receiving: ReceivingSettingsResponse,
     /// Saved clamped to one hour – one week.
     pub monitoring: MonitoringSettings,
     /// Saved clamped to one month – ten years.
@@ -251,7 +262,7 @@ impl ClientReportSettingsResponse {
             next_send_at: schedule.next_send_at,
             organizations_due: schedule.organizations_due,
             last_sent_at: schedule.last_sent_at,
-            held_reason: schedule.held,
+            held_reason: schedule.held.clone(),
             undelivered: undelivered_line(schedule.attempted, &schedule.undelivered).map(|line| {
                 UndeliveredReports {
                     line,
@@ -262,101 +273,67 @@ impl ClientReportSettingsResponse {
     }
 }
 
-/// The sending group, its stored password named, and what follows from it.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
+/// The sending group as stored, and what follows from it. `PUT
+/// /api/settings/sending` takes the group alone.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, TS)]
 #[ts(export)]
 pub struct SendingSettingsResponse {
     #[serde(flatten)]
     #[ts(flatten)]
-    pub group: SendingGroup,
-    /// The SMTP account's own password is stored.
-    pub has_password: bool,
-    /// The address mail goes out from: `sender`, else (with the same login)
-    /// the mailbox username when it is an address; empty when neither.
-    pub effective_sender: String,
-    /// Where test emails and previews go: `test_recipient`, else
-    /// `effective_sender`; empty when neither.
+    pub group: SendingSettings,
+    /// Where test emails and previews go: `test_recipient`, else the sending
+    /// account's address; empty when neither is valid.
     pub effective_test_recipient: String,
-    pub defaults: SendingDefaults,
-}
-
-/// The usual submission ports, for the port field's starting value.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
-#[ts(export)]
-pub struct SendingDefaults {
-    /// The usual port with TLS.
-    pub port: u16,
-    /// The usual port with `STARTTLS`.
-    pub starttls_port: u16,
 }
 
 impl SendingSettingsResponse {
-    fn new(settings: &AppSettings) -> Self {
-        let login = settings.sending_login();
+    fn new(settings: &AppSettings, snapshot: &AccountsSnapshot) -> Self {
+        let sending = &settings.sending;
+        let account = sending
+            .account_id
+            .and_then(|id| snapshot.get(id))
+            .map(|a| &a.fields);
         Self {
-            group: settings.sending.group.clone(),
-            has_password: !settings.sending.password.is_empty(),
-            effective_sender: mail::parse_address(&login.sender)
-                .map(|a| a.to_string())
-                .unwrap_or_default(),
-            effective_test_recipient: mail::parse_address(&settings.test_recipient())
-                .map(|a| a.to_string())
-                .unwrap_or_default(),
-            defaults: SendingDefaults {
-                port: mail::TLS_PORT,
-                starttls_port: mail::STARTTLS_PORT,
-            },
+            group: sending.clone(),
+            effective_test_recipient: mail::parse_address(accounts::test_recipient(
+                sending, account,
+            ))
+            .map(|a| a.to_string())
+            .unwrap_or_default(),
         }
     }
 }
 
-/// The mailbox the IMAP worker polls, as stored with its defaults applied,
-/// and as `PUT /api/settings/mailbox` takes it (with the password beside it).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
-pub struct MailboxGroup {
-    /// Never empty once saved.
-    pub host: String,
-    /// 1–65535; the usual one for `security` until one is saved.
-    pub port: u16,
-    /// TLS from the start or `STARTTLS`; never plaintext.
-    pub security: ImapSecurity,
-    /// Never empty once saved.
-    pub username: String,
-    /// The folder reports are read from. Empty: `INBOX`.
-    pub folder: String,
-    /// At least 10 seconds.
-    pub poll_interval_secs: u64,
-}
-
-/// The mailbox group, its stored password named, and whether it polls.
+/// The receiving group and its range.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[ts(export)]
-pub struct MailboxSettingsResponse {
+pub struct ReceivingSettingsResponse {
     #[serde(flatten)]
     #[ts(flatten)]
-    pub group: MailboxGroup,
-    pub has_password: bool,
-    /// Host, username and password are all set, so the loop polls.
-    pub configured: bool,
-    /// What an unset field means, for placeholders and resets.
-    pub defaults: MailboxDefaults,
+    pub group: ReceivingSettings,
+    pub defaults: ReceivingDefaults,
 }
 
-/// Where DMARC reports are sent, and how they reach the mailbox. `PUT
-/// /api/settings/reporting` takes the same two values, each optional.
+/// The receiving group's default and the range it is clamped to.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[ts(export)]
-pub struct ReportingSettingsResponse {
-    /// Mailbox address DMARC `rua=` tags point at. Empty: not set.
-    pub report_address: String,
-    /// Organizational domain (PSL) of `report_address`'s domain; empty when no
-    /// address is set. Domains under the same organizational domain need no
-    /// RFC 7489 §7.1 authorization record.
-    pub report_org_domain: String,
-    pub reporting_mode: ReportingMode,
-    /// A reporting mode was saved explicitly (the setup's "Report delivery"
-    /// step); `false` while `reporting_mode` is only the default.
-    pub reporting_mode_saved: bool,
+pub struct ReceivingDefaults {
+    pub poll_interval_secs: u64,
+    pub min_poll_interval_secs: u64,
+    pub max_poll_interval_secs: u64,
+}
+
+impl ReceivingSettingsResponse {
+    fn new(receiving: ReceivingSettings) -> Self {
+        Self {
+            group: receiving,
+            defaults: ReceivingDefaults {
+                poll_interval_secs: ReceivingSettings::default().poll_interval_secs,
+                min_poll_interval_secs: MIN_POLL_INTERVAL_SECS,
+                max_poll_interval_secs: MAX_POLL_INTERVAL_SECS,
+            },
+        }
+    }
 }
 
 /// The DNS group and the built-in resolvers.
@@ -370,42 +347,22 @@ pub struct DnsSettingsResponse {
     pub defaults: Vec<String>,
 }
 
-/// The mailbox settings' defaults.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
-#[ts(export)]
-pub struct MailboxDefaults {
-    /// The usual port with TLS.
-    pub port: u16,
-    /// The usual port with `STARTTLS`.
-    pub starttls_port: u16,
-    pub folder: String,
-    pub poll_interval_secs: u64,
-}
-
 impl SettingsResponse {
-    /// Every group of `settings`, the client reports with their `schedule`,
-    /// the branding with the stored `logo`'s type and size.
+    /// Every group of `settings` with the accounts of `snapshot` (at `now`),
+    /// the client reports with their `schedule`, the branding with the
+    /// stored `logo`'s type and size.
     pub fn new(
         settings: &AppSettings,
+        snapshot: &AccountsSnapshot,
         schedule: &ClientReportSchedule,
         logo: Option<LogoInfo>,
+        now: i64,
     ) -> Self {
-        let cfg = stored_imap_config(&settings.mailbox);
         Self {
-            mailbox: MailboxSettingsResponse {
-                group: MailboxGroup {
-                    host: cfg.host.clone(),
-                    port: cfg.port,
-                    security: settings.mailbox.security.unwrap_or_default(),
-                    username: cfg.username.clone(),
-                    folder: cfg.folder.clone(),
-                    poll_interval_secs: cfg.poll_interval_secs,
-                },
-                has_password: !cfg.password.is_empty(),
-                configured: cfg.is_complete(),
-                defaults: MailboxDefaults::default(),
-            },
-            reporting: ReportingSettingsResponse::new(&settings.reporting),
+            accounts: account_views(snapshot, now),
+            presets: presets(),
+            account_defaults: AccountDefaults::default(),
+            receiving: ReceivingSettingsResponse::new(settings.receiving),
             monitoring: settings.monitoring,
             retention: settings.retention,
             dns: DnsSettingsResponse {
@@ -415,42 +372,13 @@ impl SettingsResponse {
                     .map(ToString::to_string)
                     .collect(),
             },
-            sending: SendingSettingsResponse::new(settings),
+            sending: SendingSettingsResponse::new(settings, snapshot),
             alerts: settings.alerts.clone(),
             client_reports: ClientReportSettingsResponse::new(&settings.client_reports, schedule),
             license: LicenseSettingsResponse::new(&settings.license),
             branding: BrandingSettingsResponse::new(&settings.branding, logo),
             onboarding: settings.onboarding.clone(),
             updates: settings.updates,
-        }
-    }
-}
-
-impl Default for MailboxDefaults {
-    fn default() -> Self {
-        Self {
-            port: dmarc_imap::DEFAULT_PORT,
-            starttls_port: dmarc_imap::STARTTLS_PORT,
-            folder: dmarc_imap::DEFAULT_FOLDER.to_owned(),
-            poll_interval_secs: dmarc_imap::DEFAULT_POLL_INTERVAL_SECS,
-        }
-    }
-}
-
-impl ReportingSettingsResponse {
-    fn new(reporting: &ReportingSettings) -> Self {
-        let report_address = reporting.report_address.clone().unwrap_or_default();
-        Self {
-            report_org_domain: report_address
-                .rsplit_once('@')
-                .map(|(_, domain)| {
-                    dmarc_domain::organizational_domain(domain)
-                        .unwrap_or_else(|| dmarc_domain::normalize_name(domain))
-                })
-                .unwrap_or_default(),
-            report_address,
-            reporting_mode: reporting.reporting_mode.unwrap_or_default(),
-            reporting_mode_saved: reporting.reporting_mode.is_some(),
         }
     }
 }

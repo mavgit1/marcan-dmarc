@@ -132,6 +132,12 @@ pub struct FailureRow {
     #[ts(skip)]
     pub checks: RecordChecks,
     pub count: i64,
+    /// The earliest `date_begin` (unix seconds) of the reports with these records.
+    pub first_seen: i64,
+    /// The latest `date_begin` of the reports with these records.
+    pub last_seen: i64,
+    /// The newest report with these records (latest `date_begin`, then highest id).
+    pub newest_report_id: i64,
 }
 
 #[derive(Debug, FromRow)]
@@ -147,6 +153,9 @@ struct DomainFailureSql {
     dkim_auth: Option<String>,
     overrides: Option<String>,
     count: i64,
+    first_seen: i64,
+    last_seen: i64,
+    newest_report_id: i64,
     total: i64,
 }
 
@@ -163,6 +172,7 @@ sort_keys!(
         SpfDomain => "spf_domain",
         DkimSelector => "dkim_selector",
         OrgName => "org_name",
+        LastSeen => "last_seen",
     }
 );
 
@@ -187,8 +197,14 @@ pub struct DomainFailureQuery<'a> {
 /// of SPF/DKIM is not an aligned pass (`verdict` is `fail`, `pass_spf` or
 /// `pass_dkim`).
 ///
+/// What makes records one row of the tab.
+const GROUP_KEYS: &str =
+    "source_ip, verdict, outcome_kind, disposition, org_name, spf_auth, dkim_auth, overrides";
+
 /// Records are first reduced to one row each (child rows are JSON arrays), so
-/// message volume is not inflated. Returns the page and the total number of rows.
+/// message volume is not inflated. Each row also names when its records were
+/// reported and the newest report among them. Returns the page and the total
+/// number of rows.
 pub async fn list_domain_failures(
     pool: &SqlitePool,
     q: &DomainFailureQuery<'_>,
@@ -204,8 +220,18 @@ pub async fn list_domain_failures(
             json_extract(spf_auth, '$[0].domain') AS spf_domain,
             json_extract(dkim_auth, '$[0].selector') AS dkim_selector,
             COALESCE(SUM(count), 0) AS count,
+            MIN(date_begin) AS first_seen,
+            MAX(date_begin) AS last_seen,
+            MAX(CASE WHEN newest = 1 THEN report_id END) AS newest_report_id,
             COUNT(*) OVER() AS total
         FROM (
+          SELECT *,
+            -- 1 on the group's record from its newest report.
+            ROW_NUMBER() OVER (
+                PARTITION BY {GROUP_KEYS}
+                ORDER BY date_begin DESC, report_id DESC
+            ) AS newest
+          FROM (
             SELECT
                 rec.source_ip AS source_ip,
                 {VERDICT_EXPR} AS verdict,
@@ -213,6 +239,8 @@ pub async fn list_domain_failures(
                 rec.disposition AS disposition,
                 r.org_name AS org_name,
                 rec.count AS count,
+                r.id AS report_id,
+                r.date_begin AS date_begin,
                 {RECORD_CHECKS_JSON}
             FROM records rec
             INNER JOIN reports r ON r.id = rec.report_id
@@ -223,9 +251,9 @@ pub async fn list_domain_failures(
     q.filter.push_predicate(&mut qb);
     qb.push(format!(
         r#"
+          )
         )
-        GROUP BY source_ip, verdict, outcome_kind, disposition, org_name, spf_auth, dkim_auth,
-                 overrides
+        GROUP BY {GROUP_KEYS}
         ORDER BY {}, count DESC, source_ip
         LIMIT "#,
         q.sort.order_by()
@@ -253,6 +281,9 @@ pub async fn list_domain_failures(
                 r.overrides.as_deref(),
             ),
             count: r.count,
+            first_seen: r.first_seen,
+            last_seen: r.last_seen,
+            newest_report_id: r.newest_report_id,
         })
         .collect();
     Ok((items, total))

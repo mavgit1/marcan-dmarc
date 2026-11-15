@@ -1,16 +1,19 @@
 //! Everything around the reports: the settings of a running installation
-//! (sending and the mailbox filled in with example values, sending off),
+//! (a receiving and a sending account with example values and a placeholder
+//! password each, sending off),
 //! the operator's branding and logo, the client report recipients and the
 //! months already sent, the senders' reverse DNS, and when each report
 //! arrived.
 
-use crate::catalogue::{OrgSpec, OPERATOR, OPERATOR_DOMAIN, REPORT_ADDRESS};
+use crate::catalogue::{
+    forwarder, OrgSpec, FORWARDING_ORGS, OPERATOR, OPERATOR_DOMAIN, REPORT_ADDRESS,
+};
 use crate::services::Services;
 use dmarc_store::{
-    record_client_report_send, replace_client_report_recipients, save_settings, set_logo,
-    upsert_identity_snapshot, AlertSettings, BrandingSettings, ClientReportRecipient,
-    ClientReportSettings, DigestFrequency, ImapSecurity, LogoType, MailboxSettings,
-    OnboardingSettings, OnboardingState, PixelSize, ReportingMode, ReportingSettings, SendingGroup,
+    insert_account, record_client_report_send, replace_client_report_recipients, save_settings,
+    set_logo, upsert_identity_snapshot, AccountFields, AlertSettings, BrandingSettings,
+    ClientReportRecipient, ClientReportSettings, DigestFrequency, ImapSecurity, LogoType,
+    OnboardingSettings, OnboardingState, PixelSize, ReceivingSettings, SecretKind, SecretRow,
     SendingSettings, SmtpSecurity, StoredLogo, Weekday, DEFAULT_CLIENT_REPORT_DAY,
     DEFAULT_CLIENT_REPORT_HOUR,
 };
@@ -20,15 +23,8 @@ use sqlx::SqlitePool;
 use std::collections::BTreeSet;
 use std::io::Write;
 
-pub async fn settings(pool: &SqlitePool) -> anyhow::Result<()> {
-    save_settings(
-        pool,
-        &ReportingSettings {
-            report_address: Some(REPORT_ADDRESS.to_owned()),
-            reporting_mode: Some(ReportingMode::Direct),
-        },
-    )
-    .await?;
+/// The settings and accounts, the accounts added at `added`.
+pub async fn settings(pool: &SqlitePool, added: i64) -> anyhow::Result<()> {
     save_settings(
         pool,
         &OnboardingSettings {
@@ -36,36 +32,48 @@ pub async fn settings(pool: &SqlitePool) -> anyhow::Result<()> {
         },
     )
     .await?;
-    // The mailbox without its password: with one, the server would try to
-    // reach the made-up host at once and show the mailbox failing.
+    // Each account has a placeholder password, so it reads as configured;
+    // the server's checks fail against the made-up host (`.example` does
+    // not resolve), and sending is off.
+    let password = || [SecretRow::plain(SecretKind::Password, "demo-placeholder")];
+    let mailbox = AccountFields {
+        name: "Reports".to_owned(),
+        address: REPORT_ADDRESS.to_owned(),
+        username: REPORT_ADDRESS.to_owned(),
+        imap_host: format!("imap.{OPERATOR_DOMAIN}"),
+        imap_port: 993,
+        imap_security: ImapSecurity::Tls,
+        folder: "INBOX".to_owned(),
+        forwarded_from: FORWARDING_ORGS.iter().map(|&org| forwarder(org)).collect(),
+        ..AccountFields::default()
+    };
+    insert_account(pool, Some(1), &mailbox, &password(), added).await?;
+    // Sending through an account of its own, switched off.
+    let sender = AccountFields {
+        name: "Notifications".to_owned(),
+        address: format!("notifications@{OPERATOR_DOMAIN}"),
+        username: format!("notifications@{OPERATOR_DOMAIN}"),
+        smtp_host: format!("smtp.{OPERATOR_DOMAIN}"),
+        smtp_port: Some(587),
+        smtp_security: SmtpSecurity::StartTls,
+        receive_enabled: false,
+        ..AccountFields::default()
+    };
+    let sending_account = insert_account(pool, Some(2), &sender, &password(), added).await?;
     save_settings(
         pool,
-        &MailboxSettings {
-            host: format!("imap.{OPERATOR_DOMAIN}"),
-            port: Some(993),
-            security: Some(ImapSecurity::Tls),
-            username: REPORT_ADDRESS.to_owned(),
-            password: String::new(),
-            folder: Some("INBOX".to_owned()),
-            poll_interval_secs: Some(300),
+        &ReceivingSettings {
+            poll_interval_secs: 300,
         },
     )
     .await?;
     save_settings(
         pool,
         &SendingSettings {
-            group: SendingGroup {
-                enabled: false,
-                host: format!("smtp.{OPERATOR_DOMAIN}"),
-                port: Some(587),
-                security: SmtpSecurity::StartTls,
-                same_login_as_mailbox: false,
-                username: format!("marcan@{OPERATOR_DOMAIN}"),
-                sender: format!("marcan@{OPERATOR_DOMAIN}"),
-                reply_to: format!("support@{OPERATOR_DOMAIN}"),
-                test_recipient: format!("ops@{OPERATOR_DOMAIN}"),
-            },
-            password: String::new(),
+            enabled: false,
+            account_id: Some(sending_account),
+            reply_to: format!("support@{OPERATOR_DOMAIN}"),
+            test_recipient: format!("ops@{OPERATOR_DOMAIN}"),
         },
     )
     .await?;

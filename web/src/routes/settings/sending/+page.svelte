@@ -9,8 +9,8 @@
 
 <SettingsPage
 	page="sending"
-	hint="The SMTP account alerts and client reports are sent through."
-	docs="mailbox#sending"
+	hint="Which account sends alerts and client reports."
+	docs="accounts#sending"
 	feature={m.feature}
 >
 	<SendingSettingsForm model={m} />

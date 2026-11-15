@@ -5,13 +5,17 @@
 //! Events are what the UI's alert list shows and what the alert email sends;
 //! `notified_at` says which were mailed. Both tables follow their domain:
 //! deleted with it, and cleared when it is ignored. An event about the
-//! installation (a newer release) has no domain; the update alert's state
-//! is one `app_settings` row ([`get_update_alert_state`]), written with the
-//! run's events.
+//! installation (a newer release, an account's credential or reading) has
+//! no domain; each such alert's state is one `app_settings` row
+//! ([`get_update_alert_state`], [`get_credential_alert_state`],
+//! [`get_unread_alert_state`]), written with the run's events.
 
 use crate::queries::{begin_write, Scope};
 use crate::StoreError;
-use dmarc_assess::{AlertEvent, AlertKind, AlertState, Status, UpdateAlertState, ALERT_FORMAT};
+use dmarc_assess::{
+    AlertEvent, AlertKind, AlertState, CredentialAlertState, Status, UnreadAlertState,
+    UpdateAlertState, ALERT_FORMAT,
+};
 use serde::Serialize;
 use sqlx::sqlite::SqlitePool;
 use sqlx::{FromRow, QueryBuilder, Sqlite};
@@ -31,6 +35,29 @@ pub struct AlertEvaluation {
 pub struct UpdateEvaluation {
     pub state: UpdateAlertState,
     pub events: Vec<AlertEvent>,
+}
+
+/// The credential alert's run: its new state and the events it raised.
+#[derive(Debug, Clone)]
+pub struct CredentialEvaluation {
+    pub state: CredentialAlertState,
+    pub events: Vec<AlertEvent>,
+}
+
+/// The "Account not read" alert's run: its new state and the events it raised.
+#[derive(Debug, Clone)]
+pub struct UnreadEvaluation {
+    pub state: UnreadAlertState,
+    pub events: Vec<AlertEvent>,
+}
+
+/// The installation's alerts of one run, each stored with its state when
+/// it was evaluated.
+#[derive(Debug, Clone, Default)]
+pub struct InstallationEvaluation {
+    pub update: Option<UpdateEvaluation>,
+    pub credentials: Option<CredentialEvaluation>,
+    pub unread: Option<UnreadEvaluation>,
 }
 
 /// One stored event with its domain. The four domain fields are all `null`
@@ -139,6 +166,8 @@ pub async fn domains_with_reports_stored_since_evaluated(
 }
 
 const UPDATE_ALERT_STATE_KEY: &str = "alert_update_state";
+const CREDENTIAL_ALERT_STATE_KEY: &str = "alert_credential_state";
+const UNREAD_ALERT_STATE_KEY: &str = "alert_unread_state";
 
 /// The update alert's stored state; `None` before its first evaluation, or
 /// when it does not read (the next evaluation is then a new baseline).
@@ -148,6 +177,46 @@ pub async fn get_update_alert_state(
     Ok(crate::settings::get_setting(pool, UPDATE_ALERT_STATE_KEY)
         .await?
         .and_then(|raw| serde_json::from_str(&raw).ok()))
+}
+
+/// The credential alert's stored state (which account was alerted for
+/// which expiry date); `None` before its first evaluation, or when it does
+/// not read.
+pub async fn get_credential_alert_state(
+    pool: &SqlitePool,
+) -> Result<Option<CredentialAlertState>, StoreError> {
+    Ok(
+        crate::settings::get_setting(pool, CREDENTIAL_ALERT_STATE_KEY)
+            .await?
+            .and_then(|raw| serde_json::from_str(&raw).ok()),
+    )
+}
+
+/// The "Account not read" alert's stored state (the accounts alerted and
+/// not read since); `None` before its first evaluation, or when it does not
+/// read.
+pub async fn get_unread_alert_state(
+    pool: &SqlitePool,
+) -> Result<Option<UnreadAlertState>, StoreError> {
+    Ok(crate::settings::get_setting(pool, UNREAD_ALERT_STATE_KEY)
+        .await?
+        .and_then(|raw| serde_json::from_str(&raw).ok()))
+}
+
+async fn put_state(
+    tx: &mut sqlx::SqliteConnection,
+    key: &str,
+    value: String,
+) -> Result<(), StoreError> {
+    sqlx::query(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?) \
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(tx)
+    .await?;
+    Ok(())
 }
 
 async fn insert_event(
@@ -173,30 +242,51 @@ async fn insert_event(
 }
 
 /// Store one evaluation run in one transaction: every domain's new state and
-/// its events, and the update alert's state and event (`update`, without a
-/// domain), all stamped `evaluated_at`. A domain ignored meanwhile keeps
-/// nothing. Returns the number of events stored.
+/// its events, and the installation's alerts' states and events
+/// (`installation`: the update, credential and "Account not read" alerts,
+/// without a domain),
+/// all stamped `evaluated_at`. A domain ignored meanwhile keeps nothing.
+/// Returns the number of events stored.
 pub async fn save_alert_evaluations(
     pool: &SqlitePool,
     evaluated_at: i64,
     evaluations: &[AlertEvaluation],
-    update: Option<&UpdateEvaluation>,
+    installation: Option<&InstallationEvaluation>,
 ) -> Result<usize, StoreError> {
     let mut tx = begin_write(pool).await?;
     let mut stored = 0;
-    if let Some(update) = update {
-        sqlx::query(
-            "INSERT INTO app_settings (key, value) VALUES (?, ?) \
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    let installation = installation.cloned().unwrap_or_default();
+    let mut installation_events = Vec::new();
+    if let Some(update) = &installation.update {
+        put_state(
+            &mut tx,
+            UPDATE_ALERT_STATE_KEY,
+            serde_json::to_string(&update.state)?,
         )
-        .bind(UPDATE_ALERT_STATE_KEY)
-        .bind(serde_json::to_string(&update.state)?)
-        .execute(&mut *tx)
         .await?;
-        for event in &update.events {
-            insert_event(&mut tx, None, evaluated_at, event).await?;
-            stored += 1;
-        }
+        installation_events.extend(&update.events);
+    }
+    if let Some(credentials) = &installation.credentials {
+        put_state(
+            &mut tx,
+            CREDENTIAL_ALERT_STATE_KEY,
+            serde_json::to_string(&credentials.state)?,
+        )
+        .await?;
+        installation_events.extend(&credentials.events);
+    }
+    if let Some(unread) = &installation.unread {
+        put_state(
+            &mut tx,
+            UNREAD_ALERT_STATE_KEY,
+            serde_json::to_string(&unread.state)?,
+        )
+        .await?;
+        installation_events.extend(&unread.events);
+    }
+    for event in installation_events {
+        insert_event(&mut tx, None, evaluated_at, event).await?;
+        stored += 1;
     }
     for e in evaluations {
         let state = serde_json::to_string(&e.state)?;
@@ -650,7 +740,12 @@ mod tests {
             },
             events: vec![],
         };
-        save_alert_evaluations(&pool, 100, &[], Some(&first))
+        let only_update = |update: &UpdateEvaluation| InstallationEvaluation {
+            update: Some(update.clone()),
+            credentials: None,
+            unread: None,
+        };
+        save_alert_evaluations(&pool, 100, &[], Some(&only_update(&first)))
             .await
             .unwrap();
         assert_eq!(
@@ -670,10 +765,37 @@ mod tests {
             events: vec![opened(AlertedIssue::ReportsStopped)],
         }];
         assert_eq!(
-            save_alert_evaluations(&pool, 200, &run, Some(&update))
+            save_alert_evaluations(&pool, 200, &run, Some(&only_update(&update)))
                 .await
                 .unwrap(),
             2
+        );
+        // The credential alert keeps its own state; the update's stays.
+        assert_eq!(get_credential_alert_state(&pool).await.unwrap(), None);
+        let credentials = CredentialEvaluation {
+            state: CredentialAlertState {
+                alerted: [(
+                    1,
+                    dmarc_assess::AlertedCredential {
+                        expires_at: 1_800_000_000,
+                        stage: dmarc_assess::CredentialStage::Expiring,
+                    },
+                )]
+                .into(),
+            },
+            events: vec![],
+        };
+        let only_credentials = InstallationEvaluation {
+            update: None,
+            credentials: Some(credentials.clone()),
+            unread: None,
+        };
+        save_alert_evaluations(&pool, 300, &[], Some(&only_credentials))
+            .await
+            .unwrap();
+        assert_eq!(
+            get_credential_alert_state(&pool).await.unwrap(),
+            Some(credentials.state)
         );
         assert_eq!(
             get_update_alert_state(&pool).await.unwrap(),

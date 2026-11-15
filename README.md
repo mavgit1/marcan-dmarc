@@ -2,7 +2,7 @@
 
 **Self-hosted DMARC report processing and mail security monitoring.**
 
-Marcan reads DMARC aggregate reports from an IMAP mailbox, checks your domains' SPF, DKIM and DMARC records live, and shows the results in a web dashboard. It is one Rust binary with the UI built in, and it keeps everything in one SQLite file.
+Marcan reads DMARC aggregate reports from one or more mailboxes (over IMAP, or Microsoft Graph for Microsoft 365), checks your domains' SPF, DKIM and DMARC records live, and shows the results in a web dashboard. It is one Rust binary with the UI built in, and it keeps everything in one SQLite file.
 
 **Documentation: <https://marcan.kaitiaki.tech/>**
 
@@ -19,7 +19,7 @@ Marcan reads DMARC aggregate reports from an IMAP mailbox, checks your domains' 
 
 ## Features
 
-- **Its own alignment checks.** Recomputes SPF and DKIM alignment (RFC 7489) for every record with the Public Suffix List instead of trusting each reporter's verdict.
+- **Verdicts from the evidence.** Every record's DMARC result is decided from the report's raw SPF and DKIM results (RFC 9989 alignment, with the Public Suffix List for the organizational domain), the same evidence that explains it: which domain signed, which selector, why SPF passed for a forwarder and not for you. One rule across every reporter, so the numbers do not move with who reported this week.
 - **Forwarding-aware.** Splits failures into blocked by policy, forwarded (the receiver trusted the forwarder) and real delivered failures, so mailing lists are not mistaken for spoofing.
 - **An attention list ranked by severity**, not by mail volume, so problems on small domains are not hidden.
 - **Live DNS checks** for DMARC, SPF (full include tree and lookup limit), DKIM, MTA-STS, TLS-RPT and BIMI, with a 0–100 DNS score. A check that fails never replaces the last good result.
@@ -28,8 +28,10 @@ Marcan reads DMARC aggregate reports from an IMAP mailbox, checks your domains' 
 - **Organizations, parked and ignored domains**, all editable as one CSV list.
 - **Alerts on changes** (experimental), never on a state that persists: DNS records and the DMARC policy, health, failing mail reaching inboxes, reports stopping, readiness for the next policy step, a domain marked as parked, a newer Marcan release, by email with an optional digest.
 - **Monthly client reports** (experimental): a short email per organization about its own domains, to the recipients you list: a verdict, the month's mail against the month before, and a few lines only for the domains with something to say (open issues, the next policy step, a failing DNS grade, what changed). Your name and logo in the letterhead, free for everyone: under Marcan's line, the logo at most 120×32 px; with an [operator key](https://marcan.kaitiaki.tech/license#what-a-key-changes), your letterhead alone.
+- **Mail accounts at any provider**: reports from as many mailboxes as you need, each tested before it is saved, with any IMAP/SMTP provider (Gmail with an app password) or Microsoft 365 over Microsoft Graph through an app registration (OAuth 2.0 with a certificate Marcan generates). Alerts and client reports go out through one of them.
+- **Credentials encrypted at rest**, optionally, under `MARCAN_SECRET_KEY` (AES-256-GCM); OAuth tokens stay in memory.
 - **CSV exports** of domains, senders, authentication issues and DNS findings.
-- **Read-only on your mailbox.** It never moves, flags or deletes mail.
+- **Read-only on your mailboxes.** It never moves, flags or deletes mail.
 
 ## Quickstart
 
@@ -47,8 +49,8 @@ Marcan has no user accounts of its own: the login comes from the reverse proxy i
 
 ## Limitations
 
-- One IMAP mailbox and folder, TLS or STARTTLS, password login.
-- Microsoft 365 / Exchange Online mailboxes cannot connect (no OAuth2).
+- One folder per account, IMAP over TLS or STARTTLS only.
+- Microsoft 365 in the global cloud only (no sovereign clouds); other providers log in with a password or an app password.
 - Aggregate reports only.
 
 See the [roadmap](https://marcan.kaitiaki.tech/roadmap) for what is planned.

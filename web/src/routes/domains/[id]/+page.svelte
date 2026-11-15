@@ -94,9 +94,11 @@
 
 	$effect(() => {
 		pageMeta.entityName = notFound ? null : (domain.data?.domain ?? null);
+		pageMeta.organization = notFound ? null : (domain.data?.organization ?? null);
 	});
 	$effect(() => () => {
 		pageMeta.entityName = null;
+		pageMeta.organization = null;
 	});
 
 	/** This page with tab `id` open, the other parameters kept. */
@@ -154,10 +156,12 @@
 			/>
 		{/snippet}
 		{#snippet below()}
-			<!-- The Enforcement tab opens with the same sentence, so the header leaves it out there. -->
-			{@const readiness = activeTab === 'enforcement' ? null : overview.policy_readiness.headline}
+			<!-- The Enforcement tab opens with the same sentence, so the header hides it there, keeping
+			     its height so the tab bar does not jump. -->
+			{@const readiness = overview.policy_readiness.headline}
+			{@const hidden = activeTab === 'enforcement'}
 			{#if readiness}
-				<p class="max-w-2xl text-sm">
+				<p class={['max-w-2xl text-sm', hidden && 'invisible']} aria-hidden={hidden || undefined} inert={hidden}>
 					<span class={statusTextStrong[overview.policy_readiness.status]}>{readiness}</span>
 					<span class="text-muted-foreground" aria-hidden="true">·</span>
 					<a

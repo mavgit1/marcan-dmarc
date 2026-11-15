@@ -9,7 +9,7 @@ vi.mock('$lib/api', () => ({ getSettings: vi.fn() }));
 const getSettings = vi.mocked(api.getSettings);
 
 function answer(folder: string): SettingsResponse {
-	return settingsFixture({ mailbox: { folder }, onboarding: { state: null } });
+	return settingsFixture({ branding: { operator_name: folder }, onboarding: { state: null } });
 }
 
 /** A fresh state per test: the module holds one for the app. */
@@ -37,7 +37,7 @@ describe('settings', () => {
 		await settings.load();
 		await settings.load();
 		expect(getSettings).toHaveBeenCalledTimes(2);
-		expect(settings.current?.mailbox.folder).toBe('INBOX');
+		expect(settings.current?.branding.operator_name).toBe('INBOX');
 		expect(settings.error).toBeNull();
 
 		await settings.reload();
@@ -49,10 +49,10 @@ describe('settings', () => {
 		getSettings.mockResolvedValue(answer('INBOX'));
 		await settings.load();
 		const saved = await settings.save(Promise.resolve(answer('DMARC')));
-		expect(saved.mailbox.folder).toBe('DMARC');
-		expect(settings.current?.mailbox.folder).toBe('DMARC');
+		expect(saved.branding.operator_name).toBe('DMARC');
+		expect(settings.current?.branding.operator_name).toBe('DMARC');
 		await expect(settings.save(Promise.reject(new Error('400')))).rejects.toThrow('400');
-		expect(settings.current?.mailbox.folder).toBe('DMARC');
+		expect(settings.current?.branding.operator_name).toBe('DMARC');
 		// The saved answer counts as loaded.
 		await settings.load();
 		expect(getSettings).toHaveBeenCalledTimes(1);
@@ -66,7 +66,7 @@ describe('settings', () => {
 		await settings.save(Promise.resolve(answer('DMARC')));
 		finish(answer('INBOX'));
 		await loading;
-		expect(settings.current?.mailbox.folder).toBe('DMARC');
+		expect(settings.current?.branding.operator_name).toBe('DMARC');
 	});
 
 	it('reloads on every refresh tick once loaded, never before', async () => {
@@ -86,14 +86,14 @@ describe('settings', () => {
 		refresh.refresh();
 		await settle();
 		expect(getSettings).toHaveBeenCalledTimes(2);
-		expect(settings.current?.mailbox.folder).toBe('Changed elsewhere');
+		expect(settings.current?.branding.operator_name).toBe('Changed elsewhere');
 
 		// A failed refresh keeps what was loaded.
 		getSettings.mockRejectedValueOnce(new Error('offline'));
 		refresh.refresh();
 		await settle();
 		expect(getSettings).toHaveBeenCalledTimes(3);
-		expect(settings.current?.mailbox.folder).toBe('Changed elsewhere');
+		expect(settings.current?.branding.operator_name).toBe('Changed elsewhere');
 		expect((settings.error as Error).message).toBe('offline');
 	});
 });

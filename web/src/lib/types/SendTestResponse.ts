@@ -2,9 +2,9 @@
 
 /**
  * A test message was handed to the server. A failure is an error answer
- * instead: `409` while sending is off or incomplete, `422` when the server
- * could not be reached or refused, each with the plain-language `error`, the
- * failed step as `reason` (`resolve`, `connect`, `tls`,
+ * instead: `409` while sending is off, incomplete or locked, `422` when the
+ * server could not be reached or refused, each with the plain-language
+ * `error`, the failed step as `reason` (`resolve`, `connect`, `tls`,
  * `starttls_not_offered`, `auth`, `rejected`, …) and the raw `detail`.
  */
 export type SendTestResponse = { ok: boolean; message: string };

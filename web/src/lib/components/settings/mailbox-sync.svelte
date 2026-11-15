@@ -11,13 +11,13 @@
 	import FeedbackAlert from './feedback-alert.svelte';
 
 	/**
-	 * Mailbox poll state (running pass, last poll, last error) and the "Sync now" button, for the
+	 * Mailbox poll state (running pass, last poll, last error) and the "Check now" button (the one verb for reading a mailbox: the schedule "checks" too), for the
 	 * setup (`panel`), the dashboard banner (`inline`) and the header's status popover
 	 * (`button`: the button only; the popover shows the poll state itself).
 	 */
 	let {
 		health,
-		mailboxConfigured = health.imap_configured,
+		mailboxConfigured = health.receive_configured,
 		variant = 'panel',
 		note,
 		actions
@@ -27,15 +27,15 @@
 		variant?: 'panel' | 'inline' | 'button';
 		/** Inline: text before the last-poll line. */
 		note?: string;
-		/** Rendered beside the Sync button (`inline`: after it, else before it). */
+		/** Rendered beside the Check now button (`inline`: after it, else before it). */
 		actions?: Snippet;
 	} = $props();
 
 	const sync = new Action();
 	/** The shared poll is live (3 s while a pass runs); `health` may be a parent's snapshot. */
 	const live = $derived(systemHealth.current ?? health);
-	const progress = $derived(live.imap_progress);
-	/** While a pass runs only its progress shows; poll history and Sync return when it ends. */
+	const progress = $derived(live.pass_progress);
+	/** While a pass runs only its progress shows; poll history and Check now return when it ends. */
 	const importing = $derived(mailboxConfigured && progress != null);
 	const error = $derived(lastErrorText(live));
 	const pollAt = $derived(live.last_poll.at);
@@ -52,11 +52,11 @@
 			variant="outline"
 			size="sm"
 			busy={sync.busy || progress != null}
-			busyLabel="Syncing…"
+			busyLabel="Checking…"
 			onclick={onSync}
 		>
 			<RefreshCwIcon class="mr-1.5 size-3.5" />
-			Sync now
+			Check now
 		</BusyButton>
 	{/if}
 {/snippet}
@@ -98,7 +98,7 @@
 		{:else if variant === 'panel'}
 			<dl class="divide-border divide-y rounded-lg border text-xs">
 				<div class="flex justify-between gap-3 px-3 py-2">
-					<dt class="text-muted-foreground">Last poll</dt>
+					<dt class="text-muted-foreground">Last check</dt>
 					<dd>
 						{#if !mailboxConfigured}
 							Not set up
@@ -110,8 +110,8 @@
 					</dd>
 				</div>
 				<div class="flex justify-between gap-3 px-3 py-2">
-					<dt class="text-muted-foreground">Last successful poll</dt>
-					<dd>{live.imap_last_success_at ? relativeTime(live.imap_last_success_at) : 'Never'}</dd>
+					<dt class="text-muted-foreground">Last successful check</dt>
+					<dd>{live.receive_last_success_at ? relativeTime(live.receive_last_success_at) : 'Never'}</dd>
 				</div>
 				{#if error}
 					<div class="space-y-0.5 px-3 py-2">

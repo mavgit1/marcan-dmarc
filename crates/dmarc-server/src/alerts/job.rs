@@ -2,13 +2,13 @@
 //! send the digest when it is due.
 
 use super::evaluate::evaluate_all;
-use crate::mail::{self, digest::DigestInput, Address, Letterhead, SendError, SmtpConfig};
+use crate::mail::{self, digest::DigestInput, Address, Letterhead, SendConfig, SendError};
 use crate::view::alerts::AlertItem;
 use crate::view::domain::{domain_summaries, Judging};
 use crate::AppState;
 use chrono::{DateTime, Datelike, Duration as Days, TimeZone, Utc};
 use dmarc_assess::readiness_window_start;
-use dmarc_imap::ImapWorker;
+use dmarc_mailbox::MailboxWorker;
 use dmarc_store::{
     alert_events_in, get_last_digest_at, list_domain_summaries, mark_alert_events_notified,
     set_alerts_held_at, set_last_digest_at, unix_now, unnotified_alert_events, AlertSettings,
@@ -70,7 +70,7 @@ fn mailed(alerts: &AlertSettings, item: &AlertItem) -> bool {
 /// error when none did.
 async fn send_to_all(
     state: &AppState,
-    config: &SmtpConfig,
+    config: &SendConfig,
     to: &[Address],
     content: &mail::Content,
 ) -> Result<usize, SendError> {
@@ -119,7 +119,7 @@ pub async fn deliver(state: &AppState, settings: &AppSettings, now: i64) -> Deli
     if items.is_empty() {
         return Delivery::Nothing;
     }
-    let config = match SmtpConfig::from_settings(settings) {
+    let config = match state.accounts.send_config(settings).await {
         Ok(config) => config,
         Err(e) => return Delivery::Failed(e),
     };
@@ -208,7 +208,7 @@ pub async fn send_digest_if_due(state: &AppState, settings: &AppSettings, now: i
         return false;
     }
     let since = last.max(slot - period_secs(alerts.digest));
-    let config = match SmtpConfig::from_settings(settings) {
+    let config = match state.accounts.send_config(settings).await {
         Ok(config) => config,
         Err(e) => {
             tracing::warn!(reason = e.reason(), error = %e, "digest: sending is not ready");
@@ -259,7 +259,7 @@ pub async fn send_digest_if_due(state: &AppState, settings: &AppSettings, now: i
 /// One run at `now`: evaluate and store, then mail what changed and the
 /// digest when due.
 pub async fn run_once(state: &AppState, now: i64, token: &CancellationToken) {
-    match evaluate_all(&state.pool, now, token).await {
+    match evaluate_all(&state.pool, state.accounts.key(), now, token).await {
         Ok(summary) => {
             if !summary.skipped.is_empty() {
                 tracing::warn!(
@@ -313,28 +313,32 @@ pub async fn run_once(state: &AppState, now: i64, token: &CancellationToken) {
 /// the evaluation back: a routine poll ends within it, an import does not.
 pub const SHORT_PASS_WAIT: Duration = Duration::from_secs(60);
 
-/// The mailbox import as the alert job sees it: the IMAP worker's, the same
-/// source as the health endpoint's progress.
+/// The mailbox import as the alert job sees it: the mailbox worker's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ImportStatus {
-    /// When the running pass started; `None` while no pass runs.
-    pub running_since: Option<i64>,
-    /// Passes ended since startup.
-    pub passes_done: u64,
+    /// An import is unfinished ([`MailboxWorker::import_unfinished`]): a pass
+    /// runs, an account's import gave way to another account, was stopped
+    /// or failed after progress and goes on soon, or a re-import waits.
+    pub unfinished: bool,
+    /// Every mailbox has ended one pass since startup
+    /// ([`MailboxWorker::round_complete`]).
+    pub round_complete: bool,
 }
 
 impl ImportStatus {
-    pub fn of(imap: &ImapWorker) -> Self {
+    pub fn of(mailboxes: &MailboxWorker) -> Self {
         Self {
-            running_since: imap.progress().map(|p| p.started_at),
-            passes_done: imap.passes_done(),
+            unfinished: mailboxes.import_unfinished(),
+            round_complete: mailboxes.round_complete(),
         }
     }
 }
 
 impl ImportStatus {
-    /// Whether the evaluation waits: a pass still runs (after
-    /// [`SHORT_PASS_WAIT`]), or none has ended since startup.
+    /// Whether the evaluation waits: an import is unfinished (a pass still
+    /// runs after [`SHORT_PASS_WAIT`], or between the passes of a long
+    /// import, where no pass runs for a moment), or not every mailbox has
+    /// had its first pass since startup.
     ///
     /// Reports land in any order during an import, so a domain's window
     /// figures in between are no state it was ever in: evaluating them raised
@@ -346,14 +350,14 @@ impl ImportStatus {
     /// a restart in the middle of an import or a failed evaluation does not
     /// bring the import's noise back.
     pub fn holds(&self) -> bool {
-        self.running_since.is_some() || self.passes_done == 0
+        self.unfinished || !self.round_complete
     }
 }
 
 /// Wait up to [`SHORT_PASS_WAIT`] for a running mailbox pass to end.
-async fn wait_for_short_pass(imap: &ImapWorker, token: &CancellationToken) {
+async fn wait_for_short_pass(mailboxes: &MailboxWorker, token: &CancellationToken) {
     let deadline = tokio::time::Instant::now() + SHORT_PASS_WAIT;
-    while imap.progress().is_some() && tokio::time::Instant::now() < deadline {
+    while mailboxes.progress().is_some() && tokio::time::Instant::now() < deadline {
         tokio::select! {
             () = token.cancelled() => return,
             () = tokio::time::sleep(Duration::from_secs(1)) => {}
@@ -365,12 +369,12 @@ async fn wait_for_short_pass(imap: &ImapWorker, token: &CancellationToken) {
 /// import holds it back ([`ImportStatus::holds`]; then nothing runs, the
 /// emails included: they go out with the next run).
 pub async fn run(state: AppState, token: CancellationToken) {
-    wait_for_short_pass(&state.imap, &token).await;
+    wait_for_short_pass(&state.mailboxes, &token).await;
     if token.is_cancelled() {
         return;
     }
     let now = unix_now();
-    if ImportStatus::of(&state.imap).holds() {
+    if ImportStatus::of(&state.mailboxes).holds() {
         tracing::info!("alerts: the mailbox is importing; evaluation held back");
         if let Err(e) = set_alerts_held_at(&state.pool, now).await {
             tracing::warn!(error = %e, "alerts: held back, but could not record it");
@@ -398,25 +402,25 @@ mod tests {
         }
     }
 
-    fn import(running_since: Option<i64>, passes_done: u64) -> ImportStatus {
+    fn import(unfinished: bool, round_complete: bool) -> ImportStatus {
         ImportStatus {
-            running_since,
-            passes_done,
+            unfinished,
+            round_complete,
         }
     }
 
-    /// No evaluation before the first pass since startup ends or while one
-    /// runs.
+    /// No evaluation before every mailbox's first pass since startup ends,
+    /// or while an import is unfinished.
     #[test]
     fn the_gate_holds_during_an_import() {
         // Startup: no pass has ended yet.
-        assert!(import(None, 0).holds());
+        assert!(import(false, false).holds());
         // The first pass is an import.
-        assert!(import(Some(1_100), 0).holds());
-        // It ended.
-        assert!(!import(None, 1).holds());
-        // A later long pass (a re-import).
-        assert!(import(Some(5_000), 1).holds());
+        assert!(import(true, false).holds());
+        // Every mailbox had its first pass.
+        assert!(!import(false, true).holds());
+        // A later long import, while a pass runs or between its passes.
+        assert!(import(true, true).holds());
     }
 
     #[test]

@@ -5,12 +5,14 @@
 //! word events with these; `GET /api/alerts` sends both with every event
 //! (`AlertItem::text`, `AlertItem::severity_label`).
 
+use super::accounts::locked_sentence;
 use super::issues::issue_name;
 use super::{capitalized, count_noun, format_pct};
 use dmarc_assess::{
     AlertGroup, AlertKind, AlertedIssue, BimiRecordFacts, CatalogueKind, CheckKind,
     DeliveredFigures, DmarcRecordFacts, EnforcementState, HealthState, MtaStsRecordFacts,
-    NewSender, PolicyStep, RecordDelta, Status, NEW_SENDER_MIN_FAILURES, READINESS_WINDOW_DAYS,
+    NewSender, PolicyStep, RecordDelta, Status, ACCOUNT_NOT_READ_DAYS, CREDENTIAL_EXPIRING_DAYS,
+    NEW_SENDER_MIN_FAILURES, RATE_PASS_MIN_PCT, READINESS_WINDOW_DAYS,
 };
 
 /// A line's colour in a word: the alert email's plain text, and the badge
@@ -31,10 +33,11 @@ pub fn group_title(group: AlertGroup) -> &'static str {
         AlertGroup::Health => "Health",
         AlertGroup::DnsRecords => "DNS records",
         AlertGroup::Policy => "Policy",
-        AlertGroup::Readiness => "Readiness",
+        AlertGroup::Readiness => "Enforcement",
         AlertGroup::Parked => "Parked",
         AlertGroup::Senders => "Senders",
         AlertGroup::Updates => "Updates",
+        AlertGroup::Accounts => "Accounts",
     }
 }
 
@@ -54,15 +57,32 @@ pub fn catalogue_title(kind: CatalogueKind) -> String {
         CatalogueKind::ParkedChanged { parked: false } => "No longer parked".to_owned(),
         CatalogueKind::NewFailingSender => "New failing sender".to_owned(),
         CatalogueKind::UpdateAvailable => "Update available".to_owned(),
+        CatalogueKind::AccountCredentialExpiring => "Microsoft certificate expiring".to_owned(),
+        CatalogueKind::AccountNotRead => "Account not read".to_owned(),
     }
 }
 
-/// What makes a kind of alert, in one sentence.
+/// What makes a kind of alert, in one short sentence. How alerts are
+/// counted and kept from repeating is told in `docs/alerts.md`, not here.
 pub fn catalogue_trigger(kind: CatalogueKind) -> String {
+    use AlertedIssue::DeliveredFailures;
+    let threshold = 100.0 - RATE_PASS_MIN_PCT;
     match kind {
+        CatalogueKind::IssueOpened(DeliveredFailures) => {
+            format!("More than {threshold}% of the domain's delivered mail fails DMARC.")
+        }
+        CatalogueKind::IssueResolved(DeliveredFailures) => {
+            format!("Delivered failures fall back under {threshold}% of delivered mail.")
+        }
         CatalogueKind::NewFailingSender => format!(
-            "A sender that sent nothing as the domain before the last {READINESS_WINDOW_DAYS} days had at least {NEW_SENDER_MIN_FAILURES} messages fail DMARC in them (forwarded mail not counted)."
+            "A sender new to the domain fails DMARC with at least {NEW_SENDER_MIN_FAILURES} messages in the last {READINESS_WINDOW_DAYS} days."
         ),
+        CatalogueKind::AccountCredentialExpiring => format!(
+            "An account's Microsoft 365 certificate expires within {CREDENTIAL_EXPIRING_DAYS} days, or has expired."
+        ),
+        CatalogueKind::AccountNotRead => {
+            format!("A receiving account has not been read for {ACCOUNT_NOT_READ_DAYS} days.")
+        }
         _ => catalogue_trigger_line(kind).to_owned(),
     }
 }
@@ -70,65 +90,54 @@ pub fn catalogue_trigger(kind: CatalogueKind) -> String {
 fn catalogue_trigger_line(kind: CatalogueKind) -> &'static str {
     use AlertedIssue::{DeliveredFailures, ReportsStopped};
     match kind {
-        CatalogueKind::IssueOpened(DeliveredFailures) => {
-            "An issue opened: mail that failed DMARC is delivered at a warning or failing rate."
-        }
-        CatalogueKind::IssueResolved(DeliveredFailures) => {
-            "That issue cleared: failing mail is no longer delivered at that rate."
-        }
         CatalogueKind::IssueOpened(ReportsStopped) => {
-            "An issue opened: reports for the domain arrived before and then none for the days of the domain warning (Settings → Mailbox)."
+            "Reports for the domain stop for longer than the domain warning under Settings → Accounts."
         }
-        CatalogueKind::IssueResolved(ReportsStopped) => {
-            "That issue cleared: reports for the domain arrive again."
-        }
-        CatalogueKind::HealthChanged => {
-            "The domain's health moved between two measured states (to or from no data is not alerted)."
-        }
+        CatalogueKind::IssueResolved(ReportsStopped) => "Reports for the domain arrive again.",
+        CatalogueKind::HealthChanged => "The domain's health moves to another state.",
         CatalogueKind::DnsRecordChanged(check) => match check {
             CheckKind::Dmarc => {
-                "A DMARC record was published or removed, or its rua or alignment changed (a new p, sp or pct, or testing mode turned on or off, is a DMARC policy change)."
+                "A DMARC record is published or removed, or its rua or alignment changes."
             }
             CheckKind::Spf => {
-                "An SPF record was published or removed, terms were added or removed, or the lookup count moved."
+                "An SPF record is published or removed, or its terms or lookup count change."
             }
-            CheckKind::Dkim => {
-                "A DKIM key was published, changed, revoked or removed under a selector checked before."
-            }
-            CheckKind::MtaSts => {
-                "An MTA-STS record was published or removed, its id changed, or the policy's mode or MX hosts changed."
-            }
+            CheckKind::Dkim => "A DKIM key is published, changed, revoked or removed.",
+            CheckKind::MtaSts => "An MTA-STS record or policy is published, removed or changed.",
             CheckKind::TlsRpt => {
-                "A TLS-RPT record was published or removed, or its report address changed."
+                "A TLS-RPT record is published or removed, or its report address changes."
             }
-            CheckKind::Bimi => {
-                "A BIMI record was published or removed, or its logo changed or was declined."
-            }
+            CheckKind::Bimi => "A BIMI record is published or removed, or its logo changes.",
         },
         CatalogueKind::PolicyChanged => {
-            "The DMARC record in DNS changed its p, sp or pct, or turned testing mode (t=y) on or off (other tags changed with them are named too)."
+            "The DMARC policy in DNS changes: p, sp, pct or testing mode (t=y)."
         }
         CatalogueKind::ReadinessReached => {
-            "The domain became ready for its next policy step: quarantine, then reject."
+            "The domain becomes ready for p=quarantine, then for p=reject."
         }
-        CatalogueKind::ParkedChanged { parked: true } => {
-            "The domain was marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one."
-        }
+        CatalogueKind::ParkedChanged { parked: true } => "The domain is marked as parked.",
         CatalogueKind::ParkedChanged { parked: false } => {
-            "The domain is no longer marked as parked: one alert, and its issues, health and readiness start over from there instead of each raising one."
+            "The domain is no longer marked as parked."
         }
-        CatalogueKind::UpdateAvailable => {
-            "The daily version check (Settings → License) found a Marcan release newer than the one running: once per version, never while the check is off."
+        CatalogueKind::UpdateAvailable => "The daily version check finds a newer Marcan release.",
+        CatalogueKind::IssueOpened(DeliveredFailures)
+        | CatalogueKind::IssueResolved(DeliveredFailures)
+        | CatalogueKind::NewFailingSender
+        | CatalogueKind::AccountCredentialExpiring
+        | CatalogueKind::AccountNotRead => {
+            unreachable!("worded with its numbers")
         }
-        CatalogueKind::NewFailingSender => unreachable!("worded with its numbers"),
     }
 }
 
+/// A health state as every page and email names it. The best state is
+/// "Healthy" (its API and stored name stays `protected`): it says the
+/// delivered mail is authentic, not that spoofing is stopped.
 fn health_name(health: HealthState) -> &'static str {
     match health {
         HealthState::NoData => "No data",
         HealthState::AllBlocked => "All blocked",
-        HealthState::Protected => "Protected",
+        HealthState::Protected => "Healthy",
         HealthState::Warning => "Warning",
         HealthState::Critical => "Critical",
     }
@@ -173,21 +182,35 @@ fn list_or_none(items: &[String]) -> String {
     }
 }
 
-/// `tag before → after` for each DMARC tag that differs.
+/// `tag=before → tag=after` for each DMARC tag that differs, as the record
+/// writes it (`p=none → p=quarantine`); a tag the record leaves out is `no
+/// sp`.
 fn dmarc_tag_changes(before: &DmarcRecordFacts, after: &DmarcRecordFacts) -> Vec<String> {
-    let opt = |v: &Option<String>| v.clone().unwrap_or_else(|| "—".into());
+    let rua = |v: &[String]| (!v.is_empty()).then(|| v.join(","));
     let mut out = Vec::new();
-    let mut tag = |name: &str, a: String, b: String| {
+    let mut tag = |name: &str, a: Option<String>, b: Option<String>| {
         if a != b {
-            out.push(format!("{name} {a} → {b}"));
+            let shown = |v: Option<String>| match v {
+                Some(v) => format!("{name}={v}"),
+                None => format!("no {name}"),
+            };
+            out.push(format!("{} → {}", shown(a), shown(b)));
         }
     };
-    tag("p", opt(&before.p), opt(&after.p));
-    tag("sp", opt(&before.sp), opt(&after.sp));
-    tag("pct", before.pct.to_string(), after.pct.to_string());
-    tag("rua", list_or_none(&before.rua), list_or_none(&after.rua));
-    tag("adkim", before.adkim.clone(), after.adkim.clone());
-    tag("aspf", before.aspf.clone(), after.aspf.clone());
+    tag("p", before.p.clone(), after.p.clone());
+    tag("sp", before.sp.clone(), after.sp.clone());
+    tag(
+        "pct",
+        Some(before.pct.to_string()),
+        Some(after.pct.to_string()),
+    );
+    tag("rua", rua(&before.rua), rua(&after.rua));
+    tag(
+        "adkim",
+        Some(before.adkim.clone()),
+        Some(after.adkim.clone()),
+    );
+    tag("aspf", Some(before.aspf.clone()), Some(after.aspf.clone()));
     if before.testing != after.testing {
         out.push(
             if after.testing {
@@ -329,24 +352,22 @@ pub fn alert_line(kind: &AlertKind) -> String {
                 format!("{}.", capitalized(&delivered_phrase(mail)))
             }
             (AlertedIssue::ReportsStopped, _, Some(s)) => format!(
-                "No reports for {}. (Threshold {}.)",
+                "No reports for {} (threshold {}).",
                 count_noun(s.days, "day"),
                 count_noun(s.threshold_days, "day")
             ),
             _ => format!("New issue: {}.", issue_name(issue.kind())),
         },
+        // A cleared issue says where it stands now, not the problem again.
         AlertKind::IssueResolved {
             issue,
             mail,
             stopped,
         } => match (issue, mail, stopped) {
-            (AlertedIssue::DeliveredFailures, Some(mail), _) => {
-                format!("Delivered failures resolved: {}.", delivered_phrase(mail))
-            }
+            (AlertedIssue::DeliveredFailures, Some(mail), _) => resolved_line(mail),
             (AlertedIssue::ReportsStopped, _, Some(s)) => format!(
-                "Reports are arriving again after {} without any. (Threshold {}.)",
-                count_noun(s.days, "day"),
-                count_noun(s.threshold_days, "day")
+                "Reports are arriving again after {} without any.",
+                count_noun(s.days, "day")
             ),
             _ => format!("Resolved: {}.", issue_name(issue.kind())),
         },
@@ -383,8 +404,83 @@ pub fn alert_line(kind: &AlertKind) -> String {
             window_days,
         } => new_sender_line(sender, *window_days),
         AlertKind::UpdateAvailable { version, .. } => format!("Marcan {version} is available."),
+        AlertKind::AccountCredentialExpiring { .. } => {
+            format!("{}.", capitalized(&installation_phrase(kind)))
+        }
+        AlertKind::AccountNotRead {
+            account,
+            locked,
+            error,
+            ..
+        } => {
+            let why = match (locked, error) {
+                (Some(reason), _) => format!(" {}", locked_sentence(account, *reason)),
+                (None, Some(error)) => format!(" The last attempt failed: {}", sentence(error)),
+                (None, None) => String::new(),
+            };
+            format!("{}.{why}", capitalized(&installation_phrase(kind)))
+        }
     }
 }
+
+/// `text` ending in a full stop (or the mark it ends in).
+fn sentence(text: &str) -> String {
+    let text = text.trim();
+    if text.ends_with(['.', '!', '?']) {
+        text.to_owned()
+    } else {
+        format!("{text}.")
+    }
+}
+
+/// `20 November 2026`.
+pub(crate) fn long_date(unix: i64) -> String {
+    chrono::DateTime::<chrono::Utc>::from_timestamp(unix, 0)
+        .map(|t| t.format("%-d %B %Y").to_string())
+        .unwrap_or_default()
+}
+
+/// An event about the installation as a phrase the alert email's title
+/// can end in (`…, and Marcan 0.3.2 is available`): no full stop, a first
+/// word in lower case unless it is a name. Any other event is its sentence
+/// without the full stop.
+pub fn installation_phrase(kind: &AlertKind) -> String {
+    match kind {
+        AlertKind::UpdateAvailable { version, .. } => format!("Marcan {version} is available"),
+        AlertKind::AccountCredentialExpiring {
+            account,
+            expires_at,
+            expired,
+            ..
+        } => format!(
+            "the Microsoft certificate of account “{account}” {} on {}",
+            if *expired { "expired" } else { "expires" },
+            long_date(*expires_at)
+        ),
+        AlertKind::AccountNotRead {
+            account,
+            last_read_at: Some(last_read_at),
+            ..
+        } => format!(
+            "account “{account}” has not been read since {}",
+            long_date(*last_read_at)
+        ),
+        AlertKind::AccountNotRead {
+            account,
+            last_read_at: None,
+            unread_since,
+            ..
+        } => format!(
+            "account “{account}” has not been read since it was set up on {}",
+            long_date(*unread_since)
+        ),
+        other => alert_line(other).trim_end_matches('.').to_owned(),
+    }
+}
+
+/// The words of a new sender's sentence that link to its sender page (the
+/// alert list, the HTML email): the sentence ends in them.
+pub const SENDER_PAGE_WORDS: &str = "its sender page";
 
 /// "New sender 192.0.2.1 (Example Mail) failed DMARC with 42 messages in the
 /// last 30 days (12 delivered) and sent nothing as the domain before. A new
@@ -402,11 +498,29 @@ fn new_sender_line(sender: &NewSender, window_days: i64) -> String {
     };
     format!(
         "New sender {}{name} failed DMARC with {} in the last {} ({delivered}) and sent nothing as the domain before. \
-         A new system sending as the domain, or spoofing: check its sender page.",
+         A new system sending as the domain, or spoofing: check {SENDER_PAGE_WORDS}.",
         sender.source_ip,
         count_noun(sender.failed, "message"),
         count_noun(window_days, "day"),
     )
+}
+
+/// Delivered failures cleared, as where they stand now: "Delivered failures
+/// back under 1%: 1 in the last 30 days (0.7% of delivered mail)."
+fn resolved_line(m: &DeliveredFigures) -> String {
+    let window = count_noun(m.window_days, "day");
+    match m.failure_pct {
+        Some(pct) => format!(
+            "Delivered failures back under {}%: {} in the last {window} ({} of delivered mail).",
+            m.threshold_pct,
+            super::format_count(m.delivered_failures),
+            format_pct(pct)
+        ),
+        None => format!(
+            "No delivered failures: nothing delivered in the last {window}, {} blocked by policy.",
+            count_noun(m.blocked, "message")
+        ),
+    }
 }
 
 /// The window's delivered mail against the event's threshold: "12
@@ -507,7 +621,7 @@ mod tests {
                     mail: Some(mail(1, 1_000, 1.0)),
                     stopped: None,
                 },
-                "Delivered failures resolved: 1 delivered failure in the last 30 days (0.1% of delivered mail, threshold 1%).",
+                "Delivered failures back under 1%: 1 in the last 30 days (0.1% of delivered mail).",
             ),
             (
                 AlertKind::IssueOpened {
@@ -515,7 +629,7 @@ mod tests {
                     mail: None,
                     stopped: Some(stopped(9, 7)),
                 },
-                "No reports for 9 days. (Threshold 7 days.)",
+                "No reports for 9 days (threshold 7 days).",
             ),
             (
                 AlertKind::IssueOpened {
@@ -523,7 +637,7 @@ mod tests {
                     mail: None,
                     stopped: Some(stopped(1, 1)),
                 },
-                "No reports for 1 day. (Threshold 1 day.)",
+                "No reports for 1 day (threshold 1 day).",
             ),
             (
                 AlertKind::IssueResolved {
@@ -531,7 +645,7 @@ mod tests {
                     mail: None,
                     stopped: Some(stopped(12, 7)),
                 },
-                "Reports are arriving again after 12 days without any. (Threshold 7 days.)",
+                "Reports are arriving again after 12 days without any.",
             ),
             (
                 AlertKind::IssueOpened {
@@ -571,7 +685,7 @@ mod tests {
                     to: HealthState::Critical,
                     mail: Some(mail(30, 400, 5.0)),
                 },
-                "Health changed from Protected to Critical: 30 delivered failures in the last 30 days (7.5% of delivered mail, threshold 5%).",
+                "Health changed from Healthy to Critical: 30 delivered failures in the last 30 days (7.5% of delivered mail, threshold 5%).",
             ),
             (
                 AlertKind::HealthChanged {
@@ -590,6 +704,22 @@ mod tests {
                 "Health changed from No data to Warning.",
             ),
             (
+                AlertKind::HealthChanged {
+                    from: HealthState::Warning,
+                    to: HealthState::Protected,
+                    mail: Some(mail(7, 1_000, 1.0)),
+                },
+                "Health changed from Warning to Healthy: 7 delivered failures in the last 30 days (0.7% of delivered mail, threshold 1%).",
+            ),
+            (
+                AlertKind::IssueResolved {
+                    issue: AlertedIssue::DeliveredFailures,
+                    mail: Some(mail(0, 0, 1.0)),
+                    stopped: None,
+                },
+                "No delivered failures: nothing delivered in the last 30 days, 40 messages blocked by policy.",
+            ),
+            (
                 AlertKind::PolicyChanged {
                     from: dmarc(),
                     to: DmarcRecordFacts {
@@ -598,7 +728,7 @@ mod tests {
                         ..dmarc()
                     },
                 },
-                "DMARC policy changed: p none → quarantine, pct 100 → 50.",
+                "DMARC policy changed: p=none → p=quarantine, pct=100 → pct=50.",
             ),
             (
                 AlertKind::PolicyChanged {
@@ -610,7 +740,7 @@ mod tests {
                         ..dmarc()
                     },
                 },
-                "DMARC policy changed: p none → reject, sp — → none, rua mailto:d@example.com → none.",
+                "DMARC policy changed: p=none → p=reject, no sp → sp=none, rua=mailto:d@example.com → no rua.",
             ),
             (
                 AlertKind::ReadinessReached {
@@ -682,7 +812,7 @@ mod tests {
                         },
                     },
                 ),
-                "DMARC record changed: adkim r → s.",
+                "DMARC record changed: adkim=r → adkim=s.",
             ),
             (
                 change(
@@ -773,7 +903,7 @@ mod tests {
                         ..dmarc()
                     },
                 },
-                "DMARC policy changed: p reject → none, pct 100 → 50.",
+                "DMARC policy changed: p=reject → p=none, pct=100 → pct=50.",
             ),
             (
                 AlertKind::PolicyChanged {
@@ -800,7 +930,7 @@ mod tests {
                         ..dmarc()
                     },
                 },
-                "DMARC policy changed: p none → quarantine, testing mode off.",
+                "DMARC policy changed: p=none → p=quarantine, testing mode off.",
             ),
             (
                 new_sender(Some("Example Mail"), 42, 12),
@@ -818,10 +948,60 @@ mod tests {
                 "Marcan 0.3.2 is available.",
             ),
             (
+                AlertKind::AccountCredentialExpiring {
+                    account_id: 1,
+                    account: "Reports".into(),
+                    expires_at: 1_795_132_800,
+                    expired: false,
+                },
+                "The Microsoft certificate of account “Reports” expires on 20 November 2026.",
+            ),
+            (
+                AlertKind::AccountCredentialExpiring {
+                    account_id: 1,
+                    account: "Reports".into(),
+                    expires_at: 1_795_132_800,
+                    expired: true,
+                },
+                "The Microsoft certificate of account “Reports” expired on 20 November 2026.",
+            ),
+            (
                 new_sender(None, 10, 10),
                 "New sender 203.0.113.5 failed DMARC with 10 messages in the last 30 days (all delivered) and sent nothing as the domain before. A new system sending as the domain, or spoofing: check its sender page.",
             ),
+            (
+                not_read(Some(1_795_132_800), None, Some("connection refused")),
+                "Account “Reports” has not been read since 20 November 2026. The last attempt failed: connection refused.",
+            ),
+            (
+                not_read(None, None, Some("Login failed.")),
+                "Account “Reports” has not been read since it was set up on 20 November 2026. The last attempt failed: Login failed.",
+            ),
+            (
+                not_read(Some(1_795_132_800), Some(dmarc_assess::LockReason::KeyMissing), None),
+                "Account “Reports” has not been read since 20 November 2026. The credentials of Reports are encrypted and MARCAN_SECRET_KEY is not set. Restore MARCAN_SECRET_KEY, or enter the credentials again under Settings.",
+            ),
+            (
+                not_read(Some(1_795_132_800), None, None),
+                "Account “Reports” has not been read since 20 November 2026.",
+            ),
         ]
+    }
+
+    fn not_read(
+        last_read_at: Option<i64>,
+        locked: Option<dmarc_assess::LockReason>,
+        error: Option<&str>,
+    ) -> AlertKind {
+        AlertKind::AccountNotRead {
+            account_id: 1,
+            account: "Reports".into(),
+            last_read_at,
+            unread_since: 1_795_132_800,
+            days: 3,
+            locked,
+            error: error.map(str::to_owned),
+        }
     }
 
     fn new_sender(name: Option<&str>, failed: i64, delivered_failures: i64) -> AlertKind {
@@ -842,6 +1022,13 @@ mod tests {
         let trigger = catalogue_trigger(CatalogueKind::NewFailingSender);
         assert!(trigger.contains(&format!("last {READINESS_WINDOW_DAYS} days")));
         assert!(trigger.contains(&format!("at least {NEW_SENDER_MIN_FAILURES} messages")));
+    }
+
+    /// The words the sender page link takes are the end of the sentence.
+    #[test]
+    fn a_new_sender_line_ends_in_its_link_words() {
+        let line = alert_line(&new_sender(None, 10, 0));
+        assert!(line.ends_with(&format!("{SENDER_PAGE_WORDS}.")), "{line}");
     }
 
     #[test]

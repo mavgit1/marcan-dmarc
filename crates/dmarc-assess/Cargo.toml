@@ -11,6 +11,7 @@ serde = { workspace = true }
 ts-rs = { workspace = true }
 
 [dev-dependencies]
+ts-rs = { workspace = true, features = ["format"] }
 serde_json = { workspace = true }
 
 [lints]

@@ -74,7 +74,6 @@ export class ClientReportsModel extends SettingsForm<SettingsResponse, ClientRep
 			blank: { enabled: false, day_of_month: 1, hour_utc: 7, reply_to: '' },
 			feature: {
 				title: 'Send client reports',
-				hint: 'Emails each organization its report once a month.',
 				off: 'Turn on client reports to send a preview.'
 			}
 		});

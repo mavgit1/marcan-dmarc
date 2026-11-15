@@ -5,7 +5,7 @@
 	import SecretInput from './secret-input.svelte';
 
 	/**
-	 * A stored secret in Settings (the mailbox and SMTP passwords, the operator key). With a stored
+	 * A stored secret in Settings (an account's password, the operator key). With a stored
 	 * value that applies and nothing typed, it is a locked field reading "Stored" (or the server's
 	 * `storedLabel`, such as the operator key's hint) with Replace (and Remove, with `onRemove`); Replace opens an empty masked field, focused, with Cancel to
 	 * go back. Without one it is the masked field. What is stored never comes back; a typed value

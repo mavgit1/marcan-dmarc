@@ -3,7 +3,7 @@
 //! about the installation), and its words (`crate::wording::alerts`), the
 //! same the alert email uses.
 
-use crate::wording::alerts::{alert_line, status_word};
+use crate::wording::alerts::{alert_line, status_word, SENDER_PAGE_WORDS};
 use dmarc_assess::{catalogue_id, AlertKind};
 use dmarc_store::AlertEventRow;
 use serde::Serialize;
@@ -29,6 +29,9 @@ pub struct AlertItem {
     /// The source IP of the sender the event is about, whose sender page
     /// the line links to (a new failing sender); `null` for the others.
     pub sender_ip: Option<String>,
+    /// The words at the end of `text` that link to the sender page ("its
+    /// sender page"); `null` without a `sender_ip`.
+    pub sender_link_words: Option<&'static str>,
     /// The release notes the line links to (a newer release: the `url` of
     /// the version check's `latest.json`); `null` for the others.
     pub release_notes: Option<String>,
@@ -50,6 +53,10 @@ impl From<AlertEventRow> for AlertItem {
             severity_label: status_word(row.event.severity),
             sender_ip: match &row.event.kind {
                 AlertKind::NewFailingSender { sender, .. } => Some(sender.source_ip.clone()),
+                _ => None,
+            },
+            sender_link_words: match &row.event.kind {
+                AlertKind::NewFailingSender { .. } => Some(SENDER_PAGE_WORDS),
                 _ => None,
             },
             release_notes: match &row.event.kind {

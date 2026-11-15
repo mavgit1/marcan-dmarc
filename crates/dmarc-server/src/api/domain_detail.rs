@@ -7,13 +7,14 @@ use crate::extract::{Json, Path, Query};
 use crate::filters::{parse_pagination, parse_sort, Page};
 use crate::since::parse_since;
 use crate::view::domain::{domain_page, DomainFailureRow, DomainOverview, Judging};
+use crate::view::reporting_setup::ReportAddresses;
 use crate::AppState;
 use axum::extract::State;
 use dmarc_assess::readiness_window_start;
 use dmarc_store::FailureOutcome;
 use dmarc_store::{
-    domain_exists, get_domain_overview, list_domain_failures, readiness_mail, unix_now,
-    AppSettings, DomainFailureFilter, DomainFailureQuery, FailureSort,
+    domain_exists, get_domain_overview, list_accounts, list_domain_failures, readiness_mail,
+    unix_now, AppSettings, DomainFailureFilter, DomainFailureQuery, FailureSort,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -99,8 +100,9 @@ pub async fn get_domain(
     let readiness = readiness_mail(&state.pool, id, policy, readiness_since).await?;
     let settings = AppSettings::load(&state.pool).await?;
     let at = Judging::new(now, &settings.monitoring);
-    let report_address = settings.reporting.report_address.unwrap_or_default();
-    let mut overview = domain_page(overview, &readiness, at, &report_address);
+    // A new record names the first receiving account's address.
+    let known = ReportAddresses::of(&list_accounts(&state.pool).await?);
+    let mut overview = domain_page(overview, &readiness, at, known.default_address());
     let check_failed = state.dns.failing(&overview.row.domain);
     overview.note_failed_policy_check(check_failed);
     Ok(Json(overview))

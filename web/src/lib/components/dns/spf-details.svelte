@@ -17,7 +17,7 @@
 			tone: check?.exceeds_lookup_limit ? statusFg.fail : ''
 		},
 		{ label: 'Void lookups', value: check ? spfVoidLookupsLabel(check) : '—', tone: '' },
-		{ label: 'Trailing all', value: trailing.label, tone: statusFg[trailing.tone], mono: trailing.mono }
+		{ label: 'SPF ending', value: trailing.label, tone: statusFg[trailing.tone], mono: trailing.mono }
 	]);
 </script>
 

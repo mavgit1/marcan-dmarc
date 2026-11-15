@@ -11,12 +11,12 @@ use dmarc_assess::ClientReportHold;
 use dmarc_server::alerts::evaluate::evaluate_all;
 use dmarc_server::client_reports::job::{run_once, schedule, Delivery};
 use dmarc_server::client_reports::report::organization_report;
-use dmarc_server::mail::{Letterhead, MailSender, MemorySender, Message, SendError, SmtpConfig};
+use dmarc_server::mail::{Letterhead, MailSender, MemorySender, Message, SendConfig, SendError};
 use dmarc_server::wording::client_reports::undelivered_line;
 use dmarc_server::{router_with_state, AppState};
 use dmarc_store::{
     client_reports_last_sent_at, get_or_create_domain, get_or_create_organization, ingest_report,
-    init, save_settings, AppSettings, ClientReportSettings, SendingGroup, SendingSettings,
+    init, save_settings, AppSettings, ClientReportSettings,
 };
 use futures::future::BoxFuture;
 use serde_json::json;
@@ -41,6 +41,8 @@ struct Flaky {
     memory: Arc<MemorySender>,
     refused: Mutex<Vec<String>>,
     unreachable: Mutex<Vec<String>>,
+    /// The server refuses the sending account (Exchange's send-as refusal).
+    sender_refused: std::sync::atomic::AtomicBool,
     tried: Mutex<Vec<String>>,
     cancel_after: Option<(usize, CancellationToken)>,
 }
@@ -51,6 +53,7 @@ impl Flaky {
             memory,
             refused: Mutex::default(),
             unreachable: Mutex::default(),
+            sender_refused: std::sync::atomic::AtomicBool::new(false),
             tried: Mutex::default(),
             cancel_after: None,
         }
@@ -69,6 +72,8 @@ impl Flaky {
     fn accept_all(&self) {
         self.refused.lock().unwrap().clear();
         self.unreachable.lock().unwrap().clear();
+        self.sender_refused
+            .store(false, std::sync::atomic::Ordering::SeqCst);
     }
 
     /// How often a send to `address` was tried.
@@ -85,20 +90,29 @@ impl Flaky {
 impl MailSender for Flaky {
     fn send<'a>(
         &'a self,
-        config: &'a SmtpConfig,
+        config: &'a SendConfig,
         message: &'a Message,
     ) -> BoxFuture<'a, Result<(), SendError>> {
         let to = message.to.to_string();
         self.tried.lock().unwrap().push(to.clone());
+        if self
+            .sender_refused
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Box::pin(std::future::ready(Err(SendError::SenderRejected {
+                reply: "554 5.2.0 STOREDRV.Submission.Exception:SendAsDeniedException".into(),
+            })));
+        }
         if self.refused.lock().unwrap().contains(&to) {
             return Box::pin(std::future::ready(Err(SendError::Rejected {
                 reply: format!("550 5.1.1 <{to}>: mailbox unavailable"),
             })));
         }
         if self.unreachable.lock().unwrap().contains(&to) {
+            let server = config.smtp().expect("sent over SMTP");
             return Box::pin(std::future::ready(Err(SendError::Connect {
-                host: config.host.clone(),
-                port: config.port,
+                host: server.host.clone(),
+                port: server.port,
                 silent: false,
                 detail: "connection timed out".into(),
             })));
@@ -211,7 +225,9 @@ async fn app_through(sender: Arc<MemorySender>, mail: Arc<dyn MailSender>) -> Ap
             common::store_dns(&pool, domain, "v=DMARC1; p=none", SPF, now() - 60 * DAY).await;
         }
     }
-    evaluate_all(&pool, now() - 24 * DAY, &token).await.unwrap();
+    evaluate_all(&pool, None, now() - 24 * DAY, &token)
+        .await
+        .unwrap();
     for tenant in [&ACME, &BETA] {
         let domain = tenant.domains[0];
         ingest(
@@ -232,7 +248,9 @@ async fn app_through(sender: Arc<MemorySender>, mail: Arc<dyn MailSender>) -> Ap
         )
         .await;
     }
-    evaluate_all(&pool, now() - 9 * DAY, &token).await.unwrap();
+    evaluate_all(&pool, None, now() - 9 * DAY, &token)
+        .await
+        .unwrap();
     // The mailbox was read an hour before the report day.
     common::record_mailbox_read(&pool, now() - 3600).await;
     App {
@@ -252,19 +270,7 @@ async fn app() -> App {
 
 /// Sending through a made-up account (never contacted: the sender is stubbed).
 async fn enable_sending(pool: &SqlitePool) {
-    let sending = SendingSettings {
-        group: SendingGroup {
-            enabled: true,
-            host: "smtp.example.com".into(),
-            port: Some(465),
-            same_login_as_mailbox: false,
-            username: "reports@msp.example".into(),
-            sender: "dmarc@msp.example".into(),
-            ..SendingGroup::default()
-        },
-        password: "secret".into(),
-    };
-    save_settings(pool, &sending).await.unwrap();
+    common::enable_sending(pool, "reports@msp.example", "dmarc@msp.example").await;
 }
 
 async fn enable_reports(a: &App) {
@@ -338,7 +344,7 @@ async fn each_report_holds_only_its_own_organization() {
         assert!(
             content
                 .text
-                .contains("DMARC policy changed: p none → quarantine."),
+                .contains("DMARC policy changed: p=none → p=quarantine."),
             "{}",
             content.text
         );
@@ -608,6 +614,39 @@ async fn a_refused_address_is_not_tried_again() {
     assert_eq!(sends(&a.sender).len(), 2);
 }
 
+/// A refusal of the sending account (not of the recipients) is held
+/// against nobody: every recipient is tried again on the next run, and gets
+/// the report once the account may send.
+#[tokio::test]
+async fn a_refused_sender_is_retried_for_every_recipient() {
+    let memory = Arc::new(MemorySender::default());
+    let flaky = Arc::new(Flaky::new(memory.clone()));
+    let a = app_through(memory, flaky.clone()).await;
+    enable_sending(&a.pool).await;
+    enable_reports(&a).await;
+    flaky
+        .sender_refused
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(run(&a.state, now()).await, Delivery::Failed);
+    assert_eq!(run(&a.state, now() + 3600).await, Delivery::Failed);
+    assert_eq!(flaky.tries("ops@beta.example"), 2);
+    let line = undelivered_at(&a, now() + 3600).await.unwrap();
+    assert!(line.starts_with("3 of 3 reports not delivered: "), "{line}");
+    assert!(
+        line.contains("ops@beta.example (sending account refused, retrying until 4 March)"),
+        "{line}"
+    );
+    flaky.accept_all();
+    assert_eq!(
+        run(&a.state, now() + 2 * 3600).await,
+        Delivery::Sent {
+            organizations: 2,
+            sent: 3,
+            failed: 0
+        }
+    );
+}
+
 /// The retries end with the month: at the next report time a recipient
 /// that failed is owed the new month's report, not the old one's.
 #[tokio::test]
@@ -716,7 +755,7 @@ async fn the_preview_goes_to_the_test_recipient_and_needs_sending_on() {
     // A saved test recipient takes the sender's place; an address in the
     // request is not one the preview reads.
     let mut settings = dmarc_store::AppSettings::load(&a.pool).await.unwrap();
-    settings.sending.group.test_recipient = "me@msp.example".into();
+    settings.sending.test_recipient = "me@msp.example".into();
     save_settings(&a.pool, &settings.sending).await.unwrap();
     let (status, ok) = post_json(
         &a.app,
@@ -942,15 +981,17 @@ async fn the_reports_are_held_while_the_mailbox_is_not_read() {
         .timestamp();
     // The fixture's last read is an hour before 1 March: a month old.
     let last_read_at = Some(now() - 3600);
-    let held = Delivery::Held(ClientReportHold::MailboxNotRead { last_read_at });
+    let reason = ClientReportHold::MailboxNotRead {
+        account: Some("Reports".into()),
+        last_read_at,
+        receiving_since: Some(0),
+    };
+    let held = Delivery::Held(reason.clone());
     assert_eq!(run(&a.state, april).await, held);
     assert!(a.sender.sent().is_empty());
     let settings = AppSettings::load(&a.pool).await.unwrap();
     let at = schedule(&a.pool, &settings, april + 3600).await.unwrap();
-    assert_eq!(
-        at.held,
-        Some(ClientReportHold::MailboxNotRead { last_read_at })
-    );
+    assert_eq!(at.held, Some(reason));
     assert_eq!(at.next_send_at, Some(april));
 
     // Past the report day: still held, still due.
@@ -1013,7 +1054,7 @@ async fn the_report_reads_the_month_and_words_what_needs_attention() {
     );
     for line in [
         "\n\nOver the last 30 days:\n- acme-shop.example, p=none, ready for p=quarantine: 1,209 messages, 99.3% passed DMARC, 9 failed but were delivered. DNS grade D, no reports for 19 days.\n- acme-mail.example, p=quarantine: 1,612 messages, 99.3% passed DMARC, 12 failed but were delivered. No reports for 11 days.\n\n",
-        "\n\nacme-mail.example: 1 change in February 2030:\n- DMARC policy changed: p none → quarantine.\n",
+        "\n\nacme-mail.example: 1 change in February 2030:\n- DMARC policy changed: p=none → p=quarantine.\n",
     ] {
         assert!(text.contains(line), "missing {line:?} in\n{text}");
     }
@@ -1028,4 +1069,74 @@ async fn the_report_reads_the_month_and_words_what_needs_attention() {
         .find(|m| m.to.to_string() == "it@acme.example")
         .expect("Acme's report");
     assert_eq!(&acme.text, text);
+}
+
+/// With a second receiving account, the reports hold on it too: one never
+/// read counts from when it was added, so it holds nothing for three days
+/// (being set up) and then holds them, named; once read, it holds them when
+/// it falls three days behind.
+#[tokio::test]
+async fn the_reports_hold_on_every_receiving_account() {
+    let a = app().await;
+    enable_sending(&a.pool).await;
+    enable_reports(&a).await;
+    common::record_mailbox_read(&a.pool, now() - 3600).await;
+    let second = dmarc_store::AccountFields {
+        name: "Second".into(),
+        address: "second@example.com".into(),
+        username: "second@example.com".into(),
+        imap_host: "imap.second.example".into(),
+        ..Default::default()
+    };
+    let password = dmarc_store::SecretRow::plain(dmarc_store::SecretKind::Password, "p");
+    let added = now() - 2 * DAY;
+    let id = dmarc_store::insert_account(&a.pool, None, &second, &[password], added)
+        .await
+        .unwrap();
+    let settings = AppSettings::load(&a.pool).await.unwrap();
+    let at = schedule(&a.pool, &settings, now()).await.unwrap();
+    assert_eq!(at.held, None, "never read, added two days ago: not yet");
+
+    // Set up four days ago and never read: it holds the reports, named.
+    let added = now() - 4 * DAY;
+    sqlx::query("UPDATE accounts SET receiving_since = ? WHERE id = ?")
+        .bind(added)
+        .bind(id)
+        .execute(&a.pool)
+        .await
+        .unwrap();
+    let never_read = ClientReportHold::MailboxNotRead {
+        account: Some("Second".into()),
+        last_read_at: None,
+        receiving_since: Some(added),
+    };
+    let at = schedule(&a.pool, &settings, now()).await.unwrap();
+    assert_eq!(at.held, Some(never_read.clone()));
+    assert_eq!(run(&a.state, now()).await, Delivery::Held(never_read));
+
+    // Read a day ago: not held. Three days after that read, the first
+    // account still read on time: held again, naming its last read.
+    let read = now() - DAY;
+    let pass = dmarc_store::ReceivePassRow {
+        account_id: id,
+        finished_at: read,
+        checked_at: Some(read),
+        ..Default::default()
+    };
+    dmarc_store::record_receive_pass(&a.pool, &pass, None)
+        .await
+        .unwrap();
+    let at = schedule(&a.pool, &settings, now()).await.unwrap();
+    assert_eq!(at.held, None, "read a day ago");
+    let behind = read + 3 * DAY + 1;
+    common::record_mailbox_read(&a.pool, behind - 3600).await;
+    let held = ClientReportHold::MailboxNotRead {
+        account: Some("Second".into()),
+        last_read_at: Some(read),
+        receiving_since: Some(added),
+    };
+    let at = schedule(&a.pool, &settings, behind).await.unwrap();
+    assert_eq!(at.held, Some(held.clone()));
+    assert_eq!(run(&a.state, behind).await, Delivery::Held(held));
+    assert!(a.sender.sent().is_empty());
 }

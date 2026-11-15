@@ -1,10 +1,12 @@
 //! Events: what changed between two [`AlertState`]s ([`alert_events`]),
 //! as [`AlertEvent`]s of an [`AlertKind`].
 
+use super::network::{sender_network, SenderNetwork};
 use super::state::{
     AlertFigures, AlertState, DeliveredFigures, DmarcRecordFacts, DnsState, NewSender, OpenIssue,
     ReadinessEvidence, RecordChange, RecordDelta, StoppedFigures,
 };
+use crate::credential::LockReason;
 use crate::dns::{CheckKind, Severity};
 use crate::domain::IssueKind;
 use crate::mail::{enforcement, EnforcementState, HealthState};
@@ -23,7 +25,10 @@ use ts_rs::TS;
 pub enum AlertKind {
     /// A domain issue (as the attention list shows it) opened. Delivered
     /// failures carry the window's mail (`mail`), stopped reports how long
-    /// (`stopped`).
+    /// (`stopped`). Delivered failures open on the delivered compliance
+    /// health is judged on: when health changed in the same evaluation,
+    /// [`AlertKind::HealthChanged`] is the one event (so it is this kind
+    /// only when health moved to or from no data).
     IssueOpened {
         issue: AlertedIssue,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -34,7 +39,8 @@ pub enum AlertKind {
         stopped: Option<StoppedFigures>,
     },
     /// An open issue cleared. Delivered failures carry the window's mail
-    /// now, stopped reports how long they had been missing.
+    /// now, stopped reports how long they had been missing. Like an opening,
+    /// delivered failures clearing with a health change is that event alone.
     IssueResolved {
         issue: AlertedIssue,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -78,18 +84,55 @@ pub enum AlertKind {
     ParkedChanged { parked: bool },
     /// A sender with no mail as the domain before the window had at least
     /// [`NEW_SENDER_MIN_FAILURES`](super::NEW_SENDER_MIN_FAILURES) failing
-    /// messages in the window (`window_days`). Once per sender: it stays
+    /// messages in the window (`window_days`). Once per sender's network
+    /// (see [`new_senders_by_network`](super::new_senders_by_network)): the
+    /// address with the most failures stands for it, and the network stays
     /// known while it keeps failing.
     NewFailingSender { sender: NewSender, window_days: i64 },
     /// A Marcan release newer than the running one (and than any the update
     /// alert saw before), with the link to its release notes. About the
     /// installation, not a domain: see [`update_events`](super::update_events).
     UpdateAvailable { version: String, url: String },
+    /// The certificate of an account's Microsoft login expires within
+    /// [`CREDENTIAL_EXPIRING_DAYS`](crate::CREDENTIAL_EXPIRING_DAYS), or has
+    /// expired (`expired`), at `expires_at`. About the installation, not a
+    /// domain: once per account and expiry date, see
+    /// [`credential_events`](super::credential_events).
+    AccountCredentialExpiring {
+        account_id: i64,
+        /// The account's name when it was raised.
+        account: String,
+        expires_at: i64,
+        expired: bool,
+    },
+    /// A receiving account has not been read successfully for more than
+    /// `days` ([`ACCOUNT_NOT_READ_DAYS`](crate::ACCOUNT_NOT_READ_DAYS)):
+    /// unread since `unread_since` (unix seconds), its last successful read
+    /// `last_read_at` (`None`: none since it reads this mailbox), with what
+    /// is known of why: its credentials `locked`, or the `error` of its last
+    /// pass. About the installation, not a domain: once until it is read
+    /// again, see [`unread_events`](super::unread_events).
+    AccountNotRead {
+        account_id: i64,
+        /// The account's name when it was raised.
+        account: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        last_read_at: Option<i64>,
+        unread_since: i64,
+        days: i64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        locked: Option<LockReason>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        error: Option<String>,
+    },
 }
 
 impl AlertKind {
     /// Every kind's name, as stored and as the UI's wording table keys it.
-    pub const NAMES: [&'static str; 9] = [
+    pub const NAMES: [&'static str; 11] = [
         "issue_opened",
         "issue_resolved",
         "health_changed",
@@ -99,6 +142,8 @@ impl AlertKind {
         "parked_changed",
         "new_failing_sender",
         "update_available",
+        "account_credential_expiring",
+        "account_not_read",
     ];
 
     /// The kind's name (the serialized tag).
@@ -113,6 +158,8 @@ impl AlertKind {
             Self::ParkedChanged { .. } => "parked_changed",
             Self::NewFailingSender { .. } => "new_failing_sender",
             Self::UpdateAvailable { .. } => "update_available",
+            Self::AccountCredentialExpiring { .. } => "account_credential_expiring",
+            Self::AccountNotRead { .. } => "account_not_read",
         }
     }
 }
@@ -210,8 +257,31 @@ pub fn alert_events(
     let reports_comparable = previous.has_reports && current.has_reports && !parked_changed;
 
     if reports_comparable {
-        // The alerted issues, both report-derived.
-        let alerted = |i: &OpenIssue| AlertedIssue::of(i.kind).map(|a| (a, i.status));
+        // Health moving between two measured states: decided first, because
+        // it carries the delivered-failures issue's figures.
+        let measured = |h: HealthState| h != HealthState::NoData;
+        let health_changed = (previous.health != current.health
+            && measured(previous.health)
+            && measured(current.health))
+        .then(|| {
+            AlertEvent::new(
+                AlertKind::HealthChanged {
+                    from: previous.health,
+                    to: current.health,
+                    mail: mail(current.health.status()),
+                },
+                current.health.status(),
+            )
+        });
+        // The alerted issues, both report-derived. Delivered failures open
+        // and clear on the same delivered compliance health is judged on, so
+        // they move together: when health changed, its event says it, and
+        // the issue's own opening or clearing is no second event.
+        let alerted = |i: &OpenIssue| {
+            AlertedIssue::of(i.kind)
+                .filter(|a| !(health_changed.is_some() && *a == AlertedIssue::DeliveredFailures))
+                .map(|a| (a, i.status))
+        };
         let before: BTreeSet<IssueKind> = previous.issues.iter().map(|i| i.kind).collect();
         for (issue, status) in current.issues.iter().filter_map(alerted) {
             if !before.contains(&issue.kind()) {
@@ -240,21 +310,7 @@ pub fn alert_events(
                 ));
             }
         }
-
-        let measured = |h: HealthState| h != HealthState::NoData;
-        if previous.health != current.health
-            && measured(previous.health)
-            && measured(current.health)
-        {
-            events.push(AlertEvent::new(
-                AlertKind::HealthChanged {
-                    from: previous.health,
-                    to: current.health,
-                    mail: mail(current.health.status()),
-                },
-                current.health.status(),
-            ));
-        }
+        events.extend(health_changed);
 
         if let Some(next) = current.ready_for {
             if previous.ready_for != Some(next) {
@@ -273,8 +329,14 @@ pub fn alert_events(
         if let (Some(known), Some(now)) =
             (&previous.new_failing_senders, &current.new_failing_senders)
         {
-            let known: BTreeSet<&str> = known.iter().map(|s| s.source_ip.as_str()).collect();
-            for sender in now.iter().filter(|s| !known.contains(s.source_ip.as_str())) {
+            // Known by network: another address of a network already
+            // alerted is no new sender.
+            let known: BTreeSet<SenderNetwork> =
+                known.iter().map(|s| sender_network(&s.source_ip)).collect();
+            for sender in now
+                .iter()
+                .filter(|s| !known.contains(&sender_network(&s.source_ip)))
+            {
                 events.push(AlertEvent::new(
                     AlertKind::NewFailingSender {
                         sender: sender.clone(),

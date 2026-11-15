@@ -35,7 +35,7 @@
 	 *
 	 * A parked domain with a policy has its own layout: the instruction and the record first,
 	 * then every message of the window (a parked domain should send none). `onPark` marks the
-	 * domain parked (the page's own handler, which reloads the overview); `parking` while it runs.
+	 * domain parked, offered beside a not-ready verdict on a window without any mail (the page's own handler, which reloads the overview); `parking` while it runs.
 	 */
 	let {
 		overview,
@@ -131,7 +131,7 @@
 			{#if readiness.blocked_note}
 				<p class="text-muted-foreground">{readiness.blocked_note}</p>
 			{/if}
-			{#if onPark && readiness.state.kind === 'not_ready' && readiness.state.reason.kind === 'too_little_mail'}
+			{#if onPark && readiness.state.kind === 'not_ready' && readiness.window.messages === 0}
 				<div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-1">
 					<span class="text-muted-foreground">Sends no mail at all?</span>
 					<BusyButton variant="outline" size="sm" busy={parking} busyLabel="Marking…" onclick={onPark}>
@@ -188,7 +188,8 @@
 
 		{#if readiness.steps.length > 0 || overview.dmarc_record}
 			<section class="space-y-3">
-				<h2 class="text-sm font-medium">What to publish</h2>
+				<!-- Nothing to publish once enforced: the section shows the record as it stands. -->
+				<h2 class="text-sm font-medium">{readiness.steps.length > 0 ? 'What to publish' : 'Current record'}</h2>
 				<p class="text-muted-foreground max-w-2xl text-sm">
 					The TXT record at <code class="font-mono text-xs">_dmarc.{overview.domain}</code>.
 					{#if !overview.dmarc_record && readiness.steps.length > 0}
@@ -199,7 +200,7 @@
 				{#if overview.dmarc_record}
 					<DnsRawRecord
 						value={overview.dmarc_record}
-						label="Current record"
+						label={readiness.steps.length > 0 ? 'Current record' : 'Record'}
 						emphasis={readiness.steps.length > 0 ? 'secondary' : undefined}
 					/>
 				{/if}

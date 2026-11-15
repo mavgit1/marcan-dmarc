@@ -56,13 +56,15 @@ pub async fn send_email(
         }
         settings.client_reports.reply_to = reply_to.to_owned();
     }
-    let config = report_config(&settings).map_err(|e| send_failed(&e))?;
+    let config = report_config(&state.accounts, &settings)
+        .await
+        .map_err(|e| send_failed(&e))?;
     let organization = get_organization_summary(&state.pool, req.organization_id)
         .await?
         .ok_or_else(|| {
             AppError::not_found(format!("organization {} not found", req.organization_id))
         })?;
-    let to = test_recipient(&settings)?;
+    let to = test_recipient(&settings.sending, &config)?;
     let mut content = organization_report(
         &state.pool,
         organization.id,

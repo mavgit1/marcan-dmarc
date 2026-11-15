@@ -3,7 +3,7 @@ import type { AuthVerdict } from "./AuthVerdict";
 import type { LookupStatus } from "./LookupStatus";
 
 /**
- * External reporting authorization result (RFC 7489 §7.1).
+ * External reporting authorization result (RFC 9990 §4).
  */
 export type ExternalAuthorization = {
   uri: string;

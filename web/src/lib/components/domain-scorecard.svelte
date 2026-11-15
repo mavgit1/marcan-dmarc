@@ -143,8 +143,6 @@
 							<Loader2Icon class="size-3 animate-spin" />
 							Checking live DNS…
 						</Badge>
-					{:else if dns?.cached}
-						<span class="text-[11px] text-muted-foreground">(cached)</span>
 					{/if}
 				</div>
 				<p class="text-muted-foreground mt-0.5 text-xs">

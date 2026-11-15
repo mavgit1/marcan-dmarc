@@ -31,6 +31,13 @@
 		outcomes?: OutcomeFigures;
 		class?: string;
 	} = $props();
+
+	/**
+	 * Today's bucket is left out of the chart: reports for a day arrive over the next one, so
+	 * its partial count would read as a drop to zero. The legend's counts still include it.
+	 */
+	const todayStart = $derived(Math.floor(Date.now() / 86_400_000) * 86_400_000);
+	const shown = $derived(series.filter((p) => p.dateObj.getTime() < todayStart));
 </script>
 
 <section class={cn('bg-card ring-foreground/10 space-y-3 rounded-xl p-4 ring-1', className)}>
@@ -40,7 +47,7 @@
 	</div>
 	{#if loading}
 		<Skeleton variant="block" class="h-[240px]" />
-	{:else if series.length === 0}
+	{:else if shown.length === 0}
 		<EmptyState
 			icon={InboxIcon}
 			headline="No trend yet"
@@ -49,7 +56,7 @@
 		/>
 	{:else}
 		<AreaChart
-			data={series}
+			data={shown}
 			x="dateObj"
 			legend={!outcomes}
 			xFormat={formatChartDate}

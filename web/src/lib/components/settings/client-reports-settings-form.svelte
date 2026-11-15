@@ -2,7 +2,6 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { meta } from '$lib/state/meta.svelte';
 	import { statusText } from '$lib/tokens';
-	import { resolve } from '$app/paths';
 	import type { RecipientsSummary } from '$lib/types/RecipientsSummary';
 	import { ClientReportsModel, dayRange } from './client-reports-draft.svelte';
 	import HourInput from './hour-input.svelte';
@@ -51,10 +50,7 @@
 <SettingsPart form={m} errorTitle="Client report settings failed to load" skeleton="h-56">
 	{#snippet children(saved)}
 		<SettingsSection title="Schedule">
-			<SettingRow
-				title="When"
-				hint="Covers the month before; issues and the next step are judged on the last {windowDays} days."
-			>
+			<SettingRow title="When" hint="Covers the month before; issues are judged on the last {windowDays} days.">
 				<div class="flex flex-wrap items-end gap-3">
 					<div>
 						{@render label(id('day'), 'Day of the month')}
@@ -78,13 +74,16 @@
 				{/if}
 			</SettingRow>
 
-			<SettingRow title="Reply-To" hint="Empty: the Reply-To set under Sending.">
+			<SettingRow title="Reply-To">
+				<!-- Empty: the Reply-To under Sending, else the sender address; the placeholder names it. -->
 				<Input
 					id={id('reply-to')}
 					type="email"
 					bind:value={m.draft.reply_to}
 					aria-invalid={m.ariaInvalid('reply_to')}
-					placeholder={saved.sending.reply_to || 'support@example.com'}
+					placeholder={saved.sending.reply_to
+						? `Same as under Sending: ${saved.sending.reply_to}`
+						: 'Same as the sender address'}
 					aria-label="Reply-To"
 					class="max-w-md text-sm"
 				/>
@@ -100,25 +99,15 @@
 			title="Recipients"
 			anchor="client-report-recipients"
 			example={'Acme,it@acme.example\nAcme,ceo@acme.example\nGlobex,dmarc@globex.example\nInitech,none'}
+			docs="client-reports#who-gets-it"
 		>
 			{#snippet format()}
 				<li>
-					One <code class="font-mono">organization,email</code> per line; an organization may have several. Every organization
-					is listed.
+					One <code class="font-mono">organization,email</code> per line, for an organization that exists (add it under
+					<SettingsLink to="domains" class="text-inherit" />). Organizations you leave out stay as they are.
 				</li>
-				<li><code class="font-mono">,none</code>: no recipient; saving it stops that organization's reports.</li>
-				<li>
-					An organization you list gets exactly the addresses listed for it. Organizations you leave out stay as they
-					are.
-				</li>
-				<li>
-					The organization must exist: add it under
-					<SettingsLink to="domains" class="text-inherit" /> or on
-					<a href={resolve('/organizations')} class="underline underline-offset-2">Organizations</a>.
-				</li>
-				<li>
-					Quote a name with a comma: <code class="font-mono">"Acme, Inc"</code>.
-					<code class="font-mono">#</code> starts a comment.
+				<li class={statusText.warn}>
+					An organization you list gets exactly its listed addresses; <code class="font-mono">,none</code> stops its reports.
 				</li>
 			{/snippet}
 		</ListEditor>

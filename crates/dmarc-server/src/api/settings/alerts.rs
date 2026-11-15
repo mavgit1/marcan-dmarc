@@ -6,7 +6,7 @@ use super::sending::{send_failed, test_recipient, SendTestResponse};
 use super::settings_response;
 use crate::error::{AppError, AppResult};
 use crate::extract::Json;
-use crate::mail::{self, parse_address, Letterhead, SmtpConfig};
+use crate::mail::{self, parse_address, Letterhead};
 use crate::view::settings::SettingsResponse;
 use crate::AppState;
 use axum::extract::State;
@@ -137,7 +137,11 @@ pub async fn send_test(
     Json(req): Json<SendTestAlertRequest>,
 ) -> AppResult<Json<SendTestResponse>> {
     let settings = AppSettings::load(&state.pool).await?;
-    let config = SmtpConfig::from_settings(&settings).map_err(|e| send_failed(&e))?;
+    let config = state
+        .accounts
+        .send_config(&settings)
+        .await
+        .map_err(|e| send_failed(&e))?;
     let alerts = match &req.alerts {
         Some(draft) => alert_settings(&AlertSettings {
             enabled: false,
@@ -145,7 +149,7 @@ pub async fn send_test(
         })?,
         None => settings.alerts.clone(),
     };
-    let to = test_recipient(&settings)?;
+    let to = test_recipient(&settings.sending, &config)?;
     let mut content = mail::alerts::render(
         &mail::alerts::sample_items(unix_now()),
         alerts.base_url(),

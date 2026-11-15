@@ -26,6 +26,12 @@ export type ErrorBody = {
    */
   detail?: string;
   /**
+   * A failed test send of a Microsoft login whose sentence asks for a
+   * setup step: the docs section that shows it, relative to their root
+   * (`accounts#exchange-online`).
+   */
+  docs?: string;
+  /**
    * A domain that already exists: the organization that has it.
    */
   organization_name?: string;

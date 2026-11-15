@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { getDkimSelectors, getSenderNames } from '$lib/api';
 	import { plural } from '$lib/format';
+	import { MAILBOX_LABEL } from '$lib/pipeline';
 	import { SETTINGS_GROUPS, SETTINGS_PAGES, type SettingsPageId } from '$lib/settings-nav';
 	import { resource } from '$lib/state/resource.svelte';
 	import { scopeOptions } from '$lib/state/scope.svelte';
@@ -30,10 +31,12 @@
 	const lines = $derived.by((): Partial<Record<SettingsPageId, { text: string; fail?: boolean } | null>> => {
 		const s = settings.current;
 		const failed = systemHealth.current?.pipeline.mailbox === 'error';
+		const receives = !!s?.accounts.some((a) => a.ready_to_receive);
 		return {
-			mailbox: s && {
-				text: !s.mailbox.configured ? 'Not set up' : failed ? 'Check failed' : 'Connected',
-				fail: s.mailbox.configured && failed
+			accounts: s && {
+				// The account cards' word for a failing account ("Check failed" is DNS's).
+				text: !receives ? 'Not set up' : failed ? MAILBOX_LABEL.error : plural(s.accounts.length, 'account'),
+				fail: receives && failed
 			},
 			sending: onOff(s?.sending.enabled),
 			alerts: onOff(s?.alerts.enabled),

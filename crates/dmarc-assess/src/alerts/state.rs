@@ -2,6 +2,7 @@
 //! ([`AlertState`], [`alert_state`]), its figures, and the facts of its DNS
 //! records and their changes.
 
+use super::network::one_per_network;
 use crate::dns::{CheckKind, Severity};
 use crate::domain::{DomainAssessment, IssueKind};
 use crate::mail::{
@@ -38,9 +39,9 @@ pub struct AlertState {
     /// The figures the events' sentences name (always set by
     /// [`alert_state`]).
     pub figures: Option<AlertFigures>,
-    /// The senders new to the domain in the window (no records from them
-    /// before it) with at least [`NEW_SENDER_MIN_FAILURES`] failing
-    /// messages in it, by source IP. `None` in a state stored before Marcan
+    /// The senders new to the domain in the window (no records from their
+    /// network before it) with at least [`NEW_SENDER_MIN_FAILURES`] failing
+    /// messages in it, one address per network, by source IP. `None` in a state stored before Marcan
     /// measured them: the next evaluation is their baseline.
     #[serde(default)]
     pub new_failing_senders: Option<Vec<NewSender>>,
@@ -51,12 +52,15 @@ pub struct AlertState {
 pub const NEW_SENDER_MIN_FAILURES: i64 = 10;
 
 /// The senders of `new_senders` with at least [`NEW_SENDER_MIN_FAILURES`]
-/// failing messages, by source IP.
+/// failing messages, one per network (the one with the most failures), by
+/// source IP.
 pub(super) fn failing_new_senders(new_senders: Vec<NewSender>) -> Vec<NewSender> {
-    let mut failing: Vec<NewSender> = new_senders
-        .into_iter()
-        .filter(|s| s.failed >= NEW_SENDER_MIN_FAILURES)
-        .collect();
+    let mut failing = one_per_network(
+        new_senders
+            .into_iter()
+            .filter(|s| s.failed >= NEW_SENDER_MIN_FAILURES)
+            .collect(),
+    );
     failing.sort_by(|a, b| a.source_ip.cmp(&b.source_ip));
     failing
 }
@@ -395,8 +399,10 @@ pub enum RecordDelta {
 /// A domain's [`AlertState`] from what the domain overview shows: its
 /// health, assessment and policy readiness (all over the readiness window)
 /// and the stored DNS result, whose DMARC record holds the policy alerts
-/// compare. `new_senders` are the senders new to the domain in the window;
-/// those with at least [`NEW_SENDER_MIN_FAILURES`] failing messages are kept.
+/// compare. `new_senders` are the senders new to the domain in the window
+/// (by network: [`new_senders_by_network`](super::new_senders_by_network));
+/// those with at least [`NEW_SENDER_MIN_FAILURES`] failing messages are
+/// kept, one address per network.
 pub fn alert_state(
     health: HealthState,
     assessment: &DomainAssessment,

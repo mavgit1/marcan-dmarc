@@ -5,8 +5,13 @@
 //! UI's time range, so the verdict does not change when the range does, and
 //! on the evidence gathered under the current policy (the DNS record's `p=`):
 //! each report carries the policy its receiver applied, and mail evaluated
-//! under an older one counts toward neither the message minimum nor the days
-//! of history. So publishing `p=quarantine` restarts the clock for `p=reject`.
+//! under an older one does not count toward the days of history. So
+//! publishing `p=quarantine` restarts the clock for `p=reject`.
+//!
+//! There is no minimum number of messages: a small domain never shows more
+//! than its window of passing mail, and the days of history are what lets
+//! senders that report rarely show up. The "Ready for…" sentence names the
+//! message count, so thin evidence stays visible.
 //!
 //! `t=y` (RFC 9989, testing) counts as `pct=0`: RFC 9989 receivers do not
 //! apply the policy, so it is to be ended before the next step.
@@ -20,16 +25,17 @@ use ts_rs::TS;
 /// and needs reports covering all of them.
 pub const READINESS_WINDOW_DAYS: i64 = 30;
 
-/// A domain with fewer messages than this in the window, under its current
-/// policy, is never called ready: a handful of passing messages says nothing
-/// about the senders that did not show up yet.
-pub const READINESS_MIN_MESSAGES: i64 = 200;
-
 /// At least this share of the window's messages must come from reports
 /// evaluated under the current policy. A receiver that still applies the old
 /// one (it read DNS before the change, or reports late) lowers the share; a
 /// few such stragglers do not block the verdict.
 pub const READINESS_MIN_POLICY_SHARE_PCT: f64 = 95.0;
+
+/// At most this share of the window's mail that passed DMARC may have passed
+/// without an aligned DKIM signature, on SPF alone: forwarding keeps a DKIM
+/// signature but breaks SPF, so that mail fails once it is forwarded, and an
+/// enforcing policy then acts on it.
+pub const READINESS_MAX_SPF_ONLY_PCT: f64 = 10.0;
 
 const DAY_SECS: i64 = 86_400;
 
@@ -43,15 +49,12 @@ pub enum PolicyStep {
 }
 
 /// Why a domain is not ready for its next step: one reason, the most
-/// fundamental first (volume, then history, then the policy share, then
-/// compliance).
+/// fundamental first (history, then the policy share, then compliance, then
+/// the mail that relies on SPF alone).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ReadinessReason {
-    /// Fewer than [`READINESS_MIN_MESSAGES`] messages in the window under the
-    /// current policy.
-    TooLittleMail,
     /// Reports under the current policy cover less than the window; they
     /// cover all of it at `window_full_at` (unix seconds) if they keep
     /// arriving.
@@ -61,8 +64,12 @@ pub enum ReadinessReason {
     /// one to the rest.
     OldPolicyApplied,
     /// Delivered compliance over the window is below the pass threshold
-    /// ([`RATE_PASS_MIN_PCT`]), or nothing was delivered to measure.
+    /// ([`RATE_PASS_MIN_PCT`]), or nothing was delivered to measure (a
+    /// window without mail included).
     BelowThreshold,
+    /// More than [`READINESS_MAX_SPF_ONLY_PCT`] of the window's mail that
+    /// passed DMARC did so without an aligned DKIM pass: forwarded, it fails.
+    ReliesOnSpf,
 }
 
 /// Why no policy step is judged.
@@ -86,8 +93,9 @@ pub enum ReadinessState {
     Ready { next: PolicyStep },
     /// `p=quarantine` or `p=reject` applies to only `pct` percent of failing
     /// mail, or is published with `t=y` (`testing`), which RFC 9989 receivers
-    /// read as none of it: raise `pct` to 100 and end testing before taking
-    /// the next step. `pct` is as published (100 when absent).
+    /// apply one level lower, as `pct=0` (§4.7): raise `pct` to 100 and end
+    /// testing before taking the next step. `pct` is as published (100 when
+    /// absent).
     RaisePct { pct: i64, testing: bool },
     /// Not yet ready for `next`.
     NotReady {
@@ -144,26 +152,34 @@ pub struct ReadinessWindow {
     /// Delivered compliance over the window: forwarded and blocked mail do
     /// not count against it.
     pub delivered_compliance: Rate,
+    /// Passed DMARC without an aligned DKIM pass (SPF alone carried it):
+    /// unsigned and signed by another domain alike. Part of `compliant`.
+    pub no_aligned_dkim: i64,
+    /// `no_aligned_dkim` as a share of `compliant`; `None` when nothing
+    /// passed DMARC.
+    pub spf_only_pct: Option<f64>,
 }
 
 /// Each rule of the next step, judged on its own over the window. The
-/// verdict's reason is the first unmet one (volume, history, policy share,
-/// compliance).
+/// verdict's reason is the first unmet one (history, policy share,
+/// compliance, DKIM).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 pub struct ReadinessCriteria {
-    /// At least [`READINESS_MIN_MESSAGES`] messages in the window under the
-    /// current policy.
-    pub enough_mail: bool,
     /// Reports under the current policy cover the whole window: they begin
     /// at or before its start.
     pub full_history: bool,
     /// At least [`READINESS_MIN_POLICY_SHARE_PCT`] of the window's messages
-    /// were evaluated under the current policy.
+    /// were evaluated under the current policy (met when the window has no
+    /// mail: the compliance rule speaks for that).
     pub policy_share_met: bool,
     /// Delivered compliance over the window is measured and at least
     /// [`RATE_PASS_MIN_PCT`].
     pub compliance_met: bool,
+    /// At most [`READINESS_MAX_SPF_ONLY_PCT`] of the window's mail that
+    /// passed DMARC did so without an aligned DKIM pass (met when nothing
+    /// passed: the compliance rule speaks for that).
+    pub dkim_met: bool,
 }
 
 /// A policy to publish: `p=` at `pct` percent.
@@ -257,8 +273,8 @@ pub struct ReadinessFacts<'a> {
     pub policy: Option<&'a str>,
     /// Published `pct=`; absent means 100.
     pub pct: Option<i64>,
-    /// Published `t=y` (RFC 9989): the policy is a test, applied by
-    /// RFC 9989 receivers to no mail, as with `pct=0`.
+    /// Published `t=y` (RFC 9989 §4.7): the policy is a test, applied one
+    /// level lower by RFC 9989 receivers, as with `pct=0`.
     pub testing: bool,
     pub parked: bool,
     /// Messages of the window from reports that applied `policy`.
@@ -268,6 +284,9 @@ pub struct ReadinessFacts<'a> {
     pub policy_first_report_at: Option<i64>,
     /// The `p=` most of the window's other messages were evaluated under.
     pub other_policy: Option<&'a str>,
+    /// Messages of the window (whatever policy was applied) that passed
+    /// DMARC without an aligned DKIM pass; part of `window_mail.compliant`.
+    pub no_aligned_dkim: i64,
 }
 
 /// Start of the readiness window that ends at `now` (unix seconds).
@@ -294,17 +313,22 @@ pub fn policy_readiness(facts: &ReadinessFacts<'_>, now: i64) -> PolicyReadiness
         blocked: mail.blocked(),
         forwarded_failures: mail.forwarded_failures,
         delivered_compliance: mail.delivered_compliance(),
+        no_aligned_dkim: facts.no_aligned_dkim,
+        spf_only_pct: (mail.compliant > 0)
+            .then(|| facts.no_aligned_dkim as f64 * 100.0 / mail.compliant as f64),
     };
     let criteria = ReadinessCriteria {
-        enough_mail: window.policy_messages >= READINESS_MIN_MESSAGES,
         full_history: window.policy_first_report_at.is_some_and(|f| f <= since),
         policy_share_met: window
             .policy_share_pct
-            .is_some_and(|pct| pct >= READINESS_MIN_POLICY_SHARE_PCT),
+            .is_none_or(|pct| pct >= READINESS_MIN_POLICY_SHARE_PCT),
         compliance_met: window
             .delivered_compliance
             .pct
             .is_some_and(|pct| pct >= RATE_PASS_MIN_PCT),
+        // Compared without dividing, so exactly the maximum is met.
+        dkim_met: facts.no_aligned_dkim as f64 * 100.0
+            <= READINESS_MAX_SPF_ONLY_PCT * mail.compliant as f64,
     };
     let history_full_at = window
         .policy_first_report_at
@@ -378,14 +402,14 @@ fn readiness_state(
         }
         EnforcementState::Monitor => PolicyStep::Quarantine,
     };
-    let reason = if !criteria.enough_mail {
-        Some(ReadinessReason::TooLittleMail)
-    } else if let (false, Some(window_full_at)) = (criteria.full_history, history_full_at) {
+    let reason = if let (false, Some(window_full_at)) = (criteria.full_history, history_full_at) {
         Some(ReadinessReason::NotEnoughHistory { window_full_at })
     } else if !criteria.policy_share_met {
         Some(ReadinessReason::OldPolicyApplied)
     } else if !criteria.compliance_met {
         Some(ReadinessReason::BelowThreshold)
+    } else if !criteria.dkim_met {
+        Some(ReadinessReason::ReliesOnSpf)
     } else {
         None
     };
@@ -423,6 +447,7 @@ mod tests {
             policy_messages: window_mail.total,
             policy_first_report_at: Some(OLD),
             other_policy: None,
+            no_aligned_dkim: 0,
         }
     }
 
@@ -445,7 +470,7 @@ mod tests {
         let good = mail(1000, 995, 5, 0);
         assert_eq!(judged(&facts("none", good)), (true, true, true), "ready");
         assert_eq!(
-            judged(&facts("none", mail(10, 10, 0, 0))),
+            judged(&facts("none", mail(10, 1, 9, 0))),
             (true, false, false),
             "not ready"
         );
@@ -574,20 +599,81 @@ mod tests {
     }
 
     #[test]
-    fn too_little_mail_comes_before_history_and_compliance() {
+    fn history_comes_before_the_share_compliance_and_dkim() {
+        let first = NOW - DAY_SECS;
         let f = ReadinessFacts {
-            policy_first_report_at: Some(NOW - DAY_SECS),
-            ..facts("none", mail(READINESS_MIN_MESSAGES - 1, 100, 99, 0))
+            policy_first_report_at: Some(first),
+            policy_messages: 5,
+            other_policy: Some("reject"),
+            no_aligned_dkim: 100,
+            ..facts("none", mail(199, 100, 99, 0))
         };
         let r = policy_readiness(&f, NOW);
         assert_eq!(
             r.state,
             ReadinessState::NotReady {
                 next: PolicyStep::Quarantine,
-                reason: ReadinessReason::TooLittleMail
+                reason: ReadinessReason::NotEnoughHistory {
+                    window_full_at: first + READINESS_WINDOW_DAYS * DAY_SECS
+                }
             }
         );
         assert_eq!(r.status, Status::Neutral);
+        let c = r.criteria;
+        assert!(!c.full_history && !c.policy_share_met && !c.compliance_met && !c.dkim_met);
+    }
+
+    /// There is no minimum volume: a few messages over a full window, all
+    /// passing with aligned DKIM, are ready, and the count is in the window
+    /// for the sentence to name.
+    #[test]
+    fn a_few_passing_messages_over_the_whole_window_are_ready() {
+        for n in [1, 4, 199] {
+            let r = policy_readiness(&facts("none", mail(n, n, 0, 0)), NOW);
+            assert_eq!(
+                r.state,
+                ReadinessState::Ready {
+                    next: PolicyStep::Quarantine
+                },
+                "{n} messages"
+            );
+            assert_eq!(r.window.policy_messages, n);
+            assert_eq!(r.history_days, Some(READINESS_WINDOW_DAYS));
+        }
+    }
+
+    /// A window without mail is not ready, whether its reports ever covered
+    /// the window, stopped before it or never came under the policy at all:
+    /// nothing was delivered to measure.
+    #[test]
+    fn no_mail_in_the_window_is_not_ready() {
+        let below = ReadinessState::NotReady {
+            next: PolicyStep::Quarantine,
+            reason: ReadinessReason::BelowThreshold,
+        };
+        for first in [Some(OLD), None] {
+            let f = ReadinessFacts {
+                policy_first_report_at: first,
+                ..facts("none", mail(0, 0, 0, 0))
+            };
+            let r = policy_readiness(&f, NOW);
+            assert_eq!(r.state, below, "first report {first:?}");
+            assert_eq!(r.window.policy_share_pct, None);
+            assert_eq!(r.window.delivered_compliance.pct, None);
+            assert!(r.criteria.policy_share_met && !r.criteria.compliance_met);
+        }
+        // Young reports without mail: history speaks first, as ever.
+        let young = ReadinessFacts {
+            policy_first_report_at: Some(NOW - 3 * DAY_SECS),
+            ..facts("none", mail(0, 0, 0, 0))
+        };
+        assert!(matches!(
+            state(&young),
+            ReadinessState::NotReady {
+                reason: ReadinessReason::NotEnoughHistory { .. },
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -672,10 +758,10 @@ mod tests {
         assert_eq!(
             r.criteria,
             ReadinessCriteria {
-                enough_mail: true,
                 full_history: true,
                 policy_share_met: true,
                 compliance_met: false,
+                dkim_met: true,
             }
         );
         assert_eq!(r.window.policy, EnforcementState::Monitor);
@@ -697,7 +783,7 @@ mod tests {
         let young = policy_readiness(&young, NOW);
         assert_eq!(young.history_days, Some(1));
         let c = young.criteria;
-        assert!(!c.enough_mail && !c.full_history && !c.compliance_met);
+        assert!(!c.full_history && !c.compliance_met);
         assert!(c.policy_share_met);
     }
 
@@ -713,7 +799,7 @@ mod tests {
     }
 
     #[test]
-    fn only_mail_under_the_current_policy_counts_toward_volume_and_history() {
+    fn only_mail_under_the_current_policy_counts_toward_history() {
         // The morning after publishing p=quarantine: 30 days of p=none mail
         // that said "ready for quarantine" say nothing about reject.
         let r = policy_readiness(&switched(0, 0), NOW);
@@ -721,13 +807,15 @@ mod tests {
             r.state,
             ReadinessState::NotReady {
                 next: PolicyStep::Reject,
-                reason: ReadinessReason::TooLittleMail
+                reason: ReadinessReason::NotEnoughHistory {
+                    window_full_at: NOW + READINESS_WINDOW_DAYS * DAY_SECS
+                }
             }
         );
         assert_eq!(r.history_days, Some(0));
         assert_eq!(r.window.policy, EnforcementState::Quarantine);
         assert_eq!(r.window.other_policy, EnforcementState::Monitor);
-        // Enough mail under it, but only 10 days of it.
+        // 300 messages under it, but only 10 days of it.
         let r = policy_readiness(&switched(10, 300), NOW);
         assert_eq!(
             r.state,
@@ -761,7 +849,7 @@ mod tests {
             }
         );
         assert!(!r.criteria.policy_share_met);
-        assert!(r.criteria.enough_mail && r.criteria.full_history && r.criteria.compliance_met);
+        assert!(r.criteria.full_history && r.criteria.compliance_met);
         // 3% does not block; exactly the minimum share does not either.
         assert!(matches!(
             state(&switched(40, 970)),
@@ -901,6 +989,102 @@ mod tests {
         assert_eq!(
             plan.iter().map(|t| (t.p, t.pct)).collect::<Vec<_>>(),
             [(Reject, 100)]
+        );
+    }
+
+    /// `no_aligned_dkim` of the window's passing mail had no aligned DKIM
+    /// pass; everything else is ready for `p=quarantine`.
+    fn spf_alone(compliant: i64, no_aligned_dkim: i64) -> ReadinessFacts<'static> {
+        ReadinessFacts {
+            no_aligned_dkim,
+            ..facts("none", mail(compliant, compliant, 0, 0))
+        }
+    }
+
+    #[test]
+    fn mail_passing_on_spf_alone_holds_the_step_back() {
+        let relies = ReadinessState::NotReady {
+            next: PolicyStep::Quarantine,
+            reason: ReadinessReason::ReliesOnSpf,
+        };
+        // All of it on SPF alone, as a domain that never signs.
+        let r = policy_readiness(&spf_alone(406, 406), NOW);
+        assert_eq!(r.state, relies);
+        assert_eq!(r.status, Status::Neutral);
+        assert_eq!(r.window.no_aligned_dkim, 406);
+        assert_eq!(r.window.spf_only_pct, Some(100.0));
+        assert!(!r.criteria.dkim_met);
+        // Exactly the maximum is ready; one message more is not.
+        assert!(matches!(
+            state(&spf_alone(1000, 100)),
+            ReadinessState::Ready { .. }
+        ));
+        assert_eq!(state(&spf_alone(1000, 101)), relies);
+        // Signed throughout (whether SPF passed as well or not): ready.
+        let signed = policy_readiness(&spf_alone(1000, 0), NOW);
+        assert!(matches!(signed.state, ReadinessState::Ready { .. }));
+        assert_eq!(signed.window.spf_only_pct, Some(0.0));
+        assert!(signed.criteria.dkim_met);
+    }
+
+    #[test]
+    fn no_passing_mail_is_the_compliance_rules_to_judge() {
+        let f = ReadinessFacts {
+            no_aligned_dkim: 0,
+            ..facts("none", mail(1000, 0, 0, 0))
+        };
+        let r = policy_readiness(&f, NOW);
+        assert_eq!(r.window.spf_only_pct, None);
+        assert!(r.criteria.dkim_met);
+        assert_eq!(
+            r.state,
+            ReadinessState::NotReady {
+                next: PolicyStep::Quarantine,
+                reason: ReadinessReason::BelowThreshold
+            }
+        );
+    }
+
+    #[test]
+    fn mail_passing_on_spf_alone_is_the_last_reason() {
+        // Compliance below the pass rate and no DKIM: compliance first.
+        let f = ReadinessFacts {
+            no_aligned_dkim: 900,
+            ..facts("none", mail(1000, 900, 100, 0))
+        };
+        assert_eq!(
+            state(&f),
+            ReadinessState::NotReady {
+                next: PolicyStep::Quarantine,
+                reason: ReadinessReason::BelowThreshold
+            }
+        );
+        // Short history and no DKIM: history first.
+        assert!(matches!(
+            state(&ReadinessFacts {
+                policy_first_report_at: Some(NOW - DAY_SECS),
+                ..spf_alone(100, 100)
+            }),
+            ReadinessState::NotReady {
+                reason: ReadinessReason::NotEnoughHistory { .. },
+                ..
+            }
+        ));
+        // A handful of messages on SPF alone holds the step back too.
+        assert_eq!(
+            state(&spf_alone(3, 3)),
+            ReadinessState::NotReady {
+                next: PolicyStep::Quarantine,
+                reason: ReadinessReason::ReliesOnSpf
+            }
+        );
+        // An enforced domain is enforced whatever its signing.
+        assert_eq!(
+            state(&ReadinessFacts {
+                no_aligned_dkim: 1000,
+                ..facts("reject", mail(1000, 1000, 0, 0))
+            }),
+            ReadinessState::Enforced
         );
     }
 }

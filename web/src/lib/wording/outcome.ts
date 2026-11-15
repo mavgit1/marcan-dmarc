@@ -52,7 +52,10 @@ export const FAILURE_KINDS = [
 	'spf_only'
 ] as const satisfies readonly FailureKind[];
 
-/** What `?outcome=all_failures` means: every DMARC failure, forwarded included (the tab ticks every kind by default). */
+/**
+ * What `?outcome=all_failures` means, and what the tab ticks by default: every DMARC failure,
+ * forwarded included. The single-check passes are an explicit choice under Show.
+ */
 export const DEFAULT_FAILURE_KINDS = ['delivered', 'forwarded', 'blocked'] as const satisfies readonly FailureKind[];
 
 /** The Failures tab's Show kinds (also the export dialog's scope line). */
@@ -94,9 +97,18 @@ export function failureKinds(outcome: readonly FailureOutcome[] | null | undefin
 	return FAILURE_KINDS.filter((kind) => set.has(kind));
 }
 
-/** The Show trigger: the kind's name when one is ticked, "All kinds" for all, else "3 kinds". */
+/** Whether exactly the default kinds are ticked: every DMARC failure and nothing else. */
+export function isDefaultFailureKinds(kinds: readonly FailureKind[]): boolean {
+	return kinds.length === DEFAULT_FAILURE_KINDS.length && DEFAULT_FAILURE_KINDS.every((k) => kinds.includes(k));
+}
+
+/**
+ * The Show trigger: the kind's name when one is ticked, "All failures" for the default,
+ * "All kinds" for all, else "4 kinds".
+ */
 export function failureKindsSummary(kinds: readonly FailureKind[]): string {
 	if (kinds.length === 1) return OUTCOME_FILTER_LABEL[kinds[0]];
+	if (isDefaultFailureKinds(kinds)) return 'All failures';
 	if (kinds.length >= FAILURE_KINDS.length) return 'All kinds';
 	return `${kinds.length} kinds`;
 }
@@ -105,6 +117,7 @@ export function failureKindsSummary(kinds: readonly FailureKind[]): string {
 export function failureKindsScope(outcome: readonly FailureOutcome[] | null | undefined): string | null {
 	const kinds = failureKinds(outcome);
 	if (kinds.length >= FAILURE_KINDS.length) return null;
+	if (isDefaultFailureKinds(kinds)) return 'All failures';
 	return kinds.map((kind) => OUTCOME_FILTER_LABEL[kind]).join(', ');
 }
 

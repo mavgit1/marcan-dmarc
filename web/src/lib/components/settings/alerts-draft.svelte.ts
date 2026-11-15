@@ -96,7 +96,6 @@ export class AlertsModel extends SettingsForm<SettingsResponse, AlertsDraft> {
 			},
 			feature: {
 				title: 'Send alerts',
-				hint: 'Emails each change and the digest to the recipients.',
 				off: 'Turn on alert emails to send a test.'
 			}
 		});

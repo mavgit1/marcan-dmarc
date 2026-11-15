@@ -30,6 +30,7 @@ struct RecSpec<'a> {
     disposition: &'a str,
     header_from: &'a str,
     envelope_from: Option<&'a str>,
+    envelope_to: Option<&'a str>,
     selector: Option<&'a str>,
     overrides: Vec<PolicyOverride>,
 }
@@ -44,6 +45,7 @@ impl<'a> RecSpec<'a> {
             disposition: "none",
             header_from: "example.com",
             envelope_from: None,
+            envelope_to: None,
             selector: None,
             overrides: vec![],
         }
@@ -58,7 +60,7 @@ impl<'a> RecSpec<'a> {
             spf_result: Some(self.spf.into()),
             header_from: Some(self.header_from.into()),
             envelope_from: self.envelope_from.map(str::to_owned),
-            envelope_to: None,
+            envelope_to: self.envelope_to.map(str::to_owned),
             dkim_auth: vec![DkimAuthResult {
                 domain: self.header_from.into(),
                 selector: self.selector.map(str::to_owned),
@@ -133,6 +135,7 @@ async fn fixture() -> (tempfile::TempDir, SqlitePool, axum::Router, i64, i64) {
 
     let mut dkim_only = RecSpec::new("192.0.2.1", 50, "pass", "fail");
     dkim_only.selector = Some("s1");
+    dkim_only.envelope_to = Some("recipient.example");
     ingest_report(
         &pool,
         &report(
@@ -266,6 +269,7 @@ async fn every_export_has_bom_header_row_and_attachment() {
                 "issues",
                 "policy_source",
                 "readiness",
+                "readiness_reason",
             ],
         ),
         (
@@ -323,6 +327,7 @@ async fn every_export_has_bom_header_row_and_attachment() {
                 "reporter_spf_verdict",
                 "reporter_dkim_verdict",
                 "policy_override",
+                "envelope_to",
             ],
         ),
         (
@@ -390,6 +395,7 @@ async fn auth_issues_rows_escaping_and_filters() {
     assert_eq!(fwd["header_from"], "foo,bar.example");
     assert_eq!(fwd["policy_override"], r#"forwarded: said "hello, world""#);
     assert_eq!(fwd["envelope_from"], "", "null is an empty cell");
+    assert_eq!(fwd["envelope_to"], "");
     assert_eq!(fwd["reporter_spf_verdict"], "fail");
     assert!(csv.raw.contains("\"foo,bar.example\""));
 
@@ -399,6 +405,7 @@ async fn auth_issues_rows_escaping_and_filters() {
     assert_eq!(dkim_only["dkim_aligned_pass"], "true");
     assert_eq!(dkim_only["dmarc_pass"], "true");
     assert_eq!(dkim_only["dkim_selector"], "s1");
+    assert_eq!(dkim_only["envelope_to"], "recipient.example");
     // Report-supplied text cannot start a formula.
     assert_eq!(dkim_only["reporter"], "'=1+2");
 
@@ -539,7 +546,14 @@ async fn domains_rows_match_the_domain_list() {
             .map(|p| format!("{p:.2}"))
             .unwrap_or_default();
         assert_eq!(row["delivered_compliance_pct"], delivered);
-        assert_eq!(row["health"], item["health"]["state"].as_str().unwrap());
+        // The API's state, but the best one is `healthy` in the file.
+        let state = item["health"]["state"].as_str().unwrap();
+        let health = if state == "protected" {
+            "healthy"
+        } else {
+            state
+        };
+        assert_eq!(row["health"], health);
         assert_eq!(
             row["policy_source"],
             item["policy_source"].as_str().unwrap()
@@ -564,6 +578,7 @@ async fn domains_rows_match_the_domain_list() {
     // ...and the columns say why: no check yet, so no readiness either.
     assert_eq!(ex["policy_source"], "not_checked");
     assert_eq!(ex["readiness"], "not_applicable");
+    assert_eq!(ex["readiness_reason"], "no_policy");
     assert_eq!(ex["total_messages"], "180");
     assert_eq!(ex["reporter_count"], "2");
     assert_eq!(ex["last_report_at"], "2024-01-03T23:59:59Z");
@@ -772,4 +787,54 @@ async fn exports_match_their_snapshots_byte_for_byte() {
             csv.raw.escape_debug()
         );
     }
+}
+
+/// A parameter an export does not read is refused with a JSON 400 naming it
+/// and the ones it takes, never answered with every domain's rows; a known
+/// parameter with a bad value is a JSON 400 as well.
+#[tokio::test]
+async fn unknown_parameters_are_refused_on_every_export() {
+    let (_dir, _pool, app, _, _) = fixture().await;
+    for (path, accepted) in [
+        (
+            "/api/export/domains.csv",
+            "organization_id, domain_id, since",
+        ),
+        (
+            "/api/export/senders.csv",
+            "organization_id, domain_id, since",
+        ),
+        (
+            "/api/export/auth-issues.csv",
+            "organization_id, domain_id, since, outcome, source_ip",
+        ),
+        ("/api/export/dns-findings.csv", "organization_id, domain_id"),
+    ] {
+        let file = path.rsplit('/').next().unwrap();
+        // The misspelt name is the error even beside a bad value.
+        let csv = get_csv(&app, &format!("{path}?domain=example.com&domain_id=x")).await;
+        assert_eq!(csv.status, StatusCode::BAD_REQUEST, "{path}");
+        assert!(csv.content_type.starts_with("application/json"), "{path}");
+        let body: serde_json::Value = serde_json::from_str(&csv.raw).unwrap();
+        assert_eq!(body["code"], "bad_request");
+        let error = body["error"].as_str().unwrap();
+        assert!(
+            error.starts_with(&format!(
+                "{file} has no parameter 'domain'. It takes {accepted};"
+            )),
+            "{error}"
+        );
+        let csv = get_csv(&app, &format!("{path}?domain_id=x")).await;
+        assert_eq!(csv.status, StatusCode::BAD_REQUEST, "{path}");
+        assert!(csv.content_type.starts_with("application/json"), "{path}");
+    }
+    // The dataset's own parameters still pass; another dataset's do not.
+    let ok = get_csv(
+        &app,
+        "/api/export/auth-issues.csv?outcome=blocked&source_ip=192.0.2.99",
+    )
+    .await;
+    assert_eq!(ok.status, StatusCode::OK);
+    let refused = get_csv(&app, "/api/export/dns-findings.csv?since=30d").await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST);
 }

@@ -45,7 +45,7 @@
 	const health = $derived(systemHealth.current);
 
 	/** A large import is running (the server's `bulk`, e.g. a first sync of a full mailbox): keep its progress in view. */
-	const bulkImport = $derived(health?.imap_progress?.bulk ?? false);
+	const bulkImport = $derived(health?.pass_progress?.bulk ?? false);
 
 	/** No report covers the scope: the dashboard lists its domains instead of figures. */
 	function noReportData(stats: Statistics): boolean {
@@ -56,7 +56,7 @@
 	 * The first import is running (nothing stored yet, or the server's `bulk` pass): an empty
 	 * scope means its reports are still on their way, not that there are none.
 	 */
-	const firstImport = $derived(!!health?.imap_progress && (health.total_reports === 0 || health.imap_progress.bulk));
+	const firstImport = $derived(!!health?.pass_progress && (health.total_reports === 0 || health.pass_progress.bulk));
 
 	/** The attention list shows this many domains; a line links to the rest. */
 	const ATTENTION_ROWS = 10;
@@ -196,7 +196,7 @@
 	{@const banner = onboarding !== undefined && health && (health.total_reports === 0 || bulkImport)}
 	{#if banner && health}
 		<div class="mb-6">
-			<WaitingBanner {health} mailboxConfigured={health.imap_configured} />
+			<WaitingBanner {health} mailboxConfigured={health.receive_configured} />
 		</div>
 	{/if}
 	<!-- The banner shows a running import itself; the DNS checks of new domains show here. -->

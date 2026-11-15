@@ -3,11 +3,11 @@
 The scope filter at the top narrows a page to an organization, a domain and a time range, as far as the page takes them:
 
 - The dashboard, **Reports**, **Alerts** and **Senders** take all three.
-- **Domains**, a domain's page and a sender's page take the organization and the time range.
-- **Organizations** and an organization's page take the time range only; on an organization's page, the organization and domain filters open another page.
+- **Domains** takes the organization and the time range; picking a domain opens its page.
+- **Organizations** and the page of one organization, domain or sender take the time range only: such a page shows all of its entity whatever the scope, and the filter there shows just the time range. The breadcrumb says where you are, a domain always under its organization.
 - Settings, the tools (such as the DNS inspector), a single report and the setup take none.
 
-Exports follow the same scope. The scope is part of the page address (for example `?org=2&since=7d`), so a reload or a bookmark opens the page with the same scope, and the browser's back button goes back to the scope you had.
+Opening a page never changes the scope: it stays as you set it until you change it in the filter, or follow a link that opens a narrowed list (a domain's **All changes of this domain** opens Alerts narrowed to that domain). Exports follow the same scope. The scope is part of the page address (for example `?org=2&since=7d`), so a reload or a bookmark opens the page with the same scope, and the browser's back button goes back to the scope you had.
 
 <Screenshot name="dashboard" alt="The dashboard with its figures, outcome counts and volume per day" />
 
@@ -18,11 +18,11 @@ Exports follow the same scope. The scope is part of the page address (for exampl
 | **Dashboard** | Messages, delivered compliance and senders with their change against the previous range; volume over time with the four [outcomes](#outcomes); the attention list. |
 | **Reports** | Every imported report, with its records. |
 | **Alerts** | Every [change](./alerts) Marcan found about your domains, newest first. |
-| **Domains** | Each domain's DNS grade, policy, messages, delivered compliance, delivered failures and last report, 50 at a time; the box above the list filters by domain or organization name (see [The domain list](./domains#the-domain-list)). The policy is the one in the domain's DMARC record, as the last DNS check found it; a new domain is checked within about a minute. Before that it reads **Not checked yet**, and without a DMARC record **No record**. The policy in a report is only what one receiver saw at the time (receivers disagree and lag behind DNS), so it is shown with that report and never as the domain's. A domain's page has an **Overview** tab (messages per day with the four outcomes and their counts for the time range under the chart, DNS, recent changes), a **Senders** tab, a **Failures** tab (how many messages failed DMARC in the time range and what became of them, then every record that failed SPF or DKIM; a **Show** list ticks the kinds to include, each with its message count in the time range: delivered failures, forwarded, blocked by policy, and mail that passed via DKIM only or via SPF only, all ticked by default) and an **Enforcement** tab (whether the next policy step is safe, and why: see [Policy readiness](./readiness)). |
-| **Senders** | Every sending IP with its identity, volume, failed mail and pass rate. Failed means failed DMARC and delivered anyway or blocked by policy; forwarded mail is counted apart. A sender's page shows each domain it sent for, and where a domain's SPF record lists it. |
+| **Domains** | Each domain's DNS grade, policy, messages, delivered compliance, delivered failures and last report, 50 at a time; the box above the list searches by domain or organization name (see [The domain list](./domains#the-domain-list)). The policy is the one in the domain's DMARC record, as the last DNS check found it; a new domain is checked within about a minute. Before that it reads **Not checked yet**, and without a DMARC record **No record**. The policy in a report is only what one receiver saw at the time (receivers disagree and lag behind DNS), so it is shown with that report and never as the domain's. A domain's page has an **Overview** tab (messages per day with the four outcomes and their counts for the time range under the chart, DNS, recent changes), a **Senders** tab, a **Failures** tab (how many messages failed DMARC in the time range and what became of them, then every record that failed DMARC; a **Show** list ticks the kinds to include, each with its message count in the time range: delivered failures, forwarded and blocked by policy, ticked by default, and mail that passed via DKIM only or via SPF only, ticked on request) and an **Enforcement** tab (whether the next policy step is safe, and why: see [Policy readiness](./readiness)). |
+| **Senders** | Every sending IP with its identity, volume, failed mail and pass rate, 50 at a time; the box above the list searches by IP or sender name. Failed means failed DMARC and delivered anyway or blocked by policy; forwarded mail is counted apart, and a sender whose only shortfall is forwarded mail shows its pass rate in green, not red. A sender's page shows each domain it sent for, and where a domain's SPF record lists it. |
 | **Organizations** | Domains grouped by organization: for each, its domains, reports and messages, a bar of its mail by outcome, how many of its domains need attention and the worst DNS grade. |
 | **DNS inspector** | Live checks for any domain, monitored or not. |
-| **Guide** | The principles with this installation's values and status: the report mailbox and `rua=`, the mailbox domain's authorization record, what Marcan reads and judges, enforcement, alerts and client reports, each with a link to its docs page, and **Run setup again**. |
+| **Guide** | The principles with this installation's values and status: the addresses reports reach Marcan at and how many domains name them in `rua=`, each address domain's authorization record, what Marcan reads and judges, enforcement, alerts and client reports, each with a link to its docs page, and **Run setup again**. |
 
 At the bottom of the sidebar, under **Settings**, one line shows the running version and a link to these docs (**Docs**), and "X.Y.Z available" when the [version check](./upgrade#checking-for-new-versions) found a newer release.
 
@@ -32,7 +32,7 @@ A domain's page puts its mail and its DNS side by side:
 
 <Screenshot name="domain" alt="A domain's overview: at p=none and ready for p=quarantine, messages per day with the four outcomes, the DNS grade and the checks behind it" />
 
-The **Failures** tab lists every record that failed SPF or DKIM, with what the receiver did with it. Its first line counts every message that failed DMARC in the range, forwarded mail included, and splits it into delivered, forwarded and blocked; everywhere else a bare "failed" count leaves forwarded mail out:
+The **Failures** tab lists every record that failed DMARC, with what the receiver did with it: delivered, forwarded or blocked. Mail that passed DMARC through only one check (DKIM only, or SPF only) is not a failure; tick it under **Show** to see where the other check fails. The first line counts every message that failed DMARC in the range, forwarded mail included, and splits it into delivered, forwarded and blocked; everywhere else a bare "failed" count leaves forwarded mail out. Each row says on which days its records were reported and links to the newest report with them, where the receiver's envelope sender shows under the source IP:
 
 <Screenshot name="failures" alt="The Failures tab of a domain: the messages that failed DMARC and what became of them, then each failing record, shown by kind" />
 
@@ -42,15 +42,15 @@ Health answers one question: **is the delivered mail authentic?** It is based on
 
 | Health | Meaning |
 | :--- | :--- |
-| **Protected** | 99% or more of delivered mail passed DMARC. |
+| **Healthy** | 99% or more of delivered mail passed DMARC. |
 | **Warning** | 95% to 99%. |
 | **Critical** | Below 95%. |
-| **All blocked** | Mail was seen, nothing was delivered: every message failed DMARC and was blocked by policy (or forwarded). Delivered mail that passed, with every failure blocked, is **Protected**. |
+| **All blocked** | Mail was seen, nothing was delivered: every message failed DMARC and was blocked by policy (or forwarded). Delivered mail that passed, with every failure blocked, is **Healthy**. |
 | **No data** | No reports in the selected time range. |
 
 A report's page shows its health as a badge. The dashboard shows the delivered compliance it is based on, and the attention list names the domains whose delivered failures reach a warning or failing rate.
 
-Health says nothing about DNS. A domain can be **Protected** and still have a poor DNS grade, for example with `p=none`. The attention list brings both together.
+Health says nothing about DNS or spoofing. A domain can be **Healthy** and still have a poor DNS grade, for example with `p=none`, where spoofed mail is still delivered. The attention list brings both together.
 
 ## When to move to the next policy step
 
@@ -68,7 +68,7 @@ One row per domain with every open issue, ranked by severity rather than by mail
 | `parked_not_rejecting` | A parked domain does not publish `p=reject`. |
 | `parked_passing_mail` | Mail passed DMARC for a parked domain: something sends as it. |
 | `dkim_coverage` | Too little of the passing mail is signed by the domain itself. |
-| `reports_stopped` | Reports arrived before and then stopped: none for the days of the domain warning (**Settings → Mailbox**, 14 by default). |
+| `reports_stopped` | Reports arrived before and then stopped: none for the days of the domain warning (**Settings → Accounts**, 14 by default). |
 
 A parked domain's `parked_not_rejecting` badge names the policy it has, or **No record**. The same issue names appear in the `issues` column of `domains.csv` (see [Exports](./exports)).
 
@@ -84,4 +84,4 @@ Counts and charts split mail into four outcomes: **DMARC pass**, **Blocked by po
 
 ## The status in the header
 
-The header shows the state of the import: when the mailbox was last polled, whether the last poll failed, how many reports were skipped, and whether reports have stopped arriving for longer than the mailbox warning (**Settings → Mailbox → Report arrival**). It also has **Sync now**.
+The header shows the state of the import, over every receiving [account](./accounts): when the accounts were last checked (the oldest check counts), whether a check failed, how many reports were skipped, and whether reports have stopped arriving for longer than the report warning (**Settings → Accounts → Report arrival**). It also has **Check now**.

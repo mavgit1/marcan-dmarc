@@ -1,2 +1,4 @@
-allowBuilds:
-  esbuild: true
+# No dependency runs an install script (anything not listed in allowBuilds is
+# refused, and strictDepBuilds fails the install on one). A version is
+# installed only once it has been public for three days (in minutes).
+minimumReleaseAge: 4320

@@ -1,4 +1,4 @@
-import { getSystemHealth, syncImap } from '$lib/api';
+import { getSystemHealth, syncAll } from '$lib/api';
 import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
 import { refresh } from './refresh.svelte';
 
@@ -62,12 +62,12 @@ class HealthState {
 	}
 
 	/**
-	 * "Sync now": start a background pass and poll at once so its progress shows. The
+	 * "Check now": start a background pass and poll at once so its progress shows. The
 	 * outcome arrives through health polling; only a sync that did not start returns
 	 * feedback (already running is not an error).
 	 */
 	async startSync(): Promise<{ ok: boolean; message: string } | void> {
-		const res = await syncImap();
+		const res = await syncAll();
 		await this.poll();
 		if (res.started) return;
 		return { ok: res.reason === 'already_running', message: res.message };
@@ -85,8 +85,8 @@ class HealthState {
 		} else if (dnsBefore?.checking && !dnsNow.checking) {
 			this.dnsTick += 1;
 		}
-		const before = this.current?.imap_progress ?? null;
-		const now = next.imap_progress;
+		const before = this.current?.pass_progress ?? null;
+		const now = next.pass_progress;
 		this.current = next;
 		if (now) {
 			if (!before || before.started_at !== now.started_at) this.#seenIngested = 0;
@@ -104,7 +104,7 @@ class HealthState {
 
 	#schedule() {
 		this.#clear();
-		const busy = this.current?.imap_progress || this.current?.dns_checks.checking;
+		const busy = this.current?.pass_progress || this.current?.dns_checks.checking;
 		const ms = busy ? RUNNING_POLL_MS : IDLE_POLL_MS;
 		this.#timer = setTimeout(() => void this.poll(), ms);
 	}

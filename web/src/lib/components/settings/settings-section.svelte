@@ -7,8 +7,9 @@
 	 * section and its title says it all) and its rows, separated by rules. `anchor` is the id a
 	 * link opens (`SETTINGS_SECTIONS`); a link to it scrolls it into view. No folding, no switch
 	 * and no save bar of its own; a feature that is off disables its rows through `SettingsPage`'s
-	 * fieldset. The one fold is Alerts' Alert kinds (fifteen checkbox rows that would push Test far
-	 * down), and its open state is that form's own flag, never a draft field.
+	 * fieldset. The two folds are Alerts' Alert kinds (fifteen checkbox rows that would push Test
+	 * far down) and the account form's Advanced (the servers its provider fills in); each open
+	 * state is that form's own flag, never a draft field.
 	 */
 	let {
 		title,

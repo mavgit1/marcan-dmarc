@@ -10,7 +10,7 @@
 	 */
 	const wide = new MediaQuery('min-width: 64rem');
 	$effect(() => {
-		if (wide.current) void goto(resolve('/settings/mailbox'), { replaceState: true });
+		if (wide.current) void goto(resolve('/settings/accounts'), { replaceState: true });
 	});
 </script>
 

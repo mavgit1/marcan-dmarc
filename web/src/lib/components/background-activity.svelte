@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { formatInt, plural } from '$lib/format';
-	import { importActivityLabel } from '$lib/imap-progress';
+	import { importActivityLabel } from '$lib/pass-progress';
 	import { systemHealth } from '$lib/state/system-health.svelte';
 	import { cn } from '$lib/utils.js';
 	import Loader2Icon from '@lucide/svelte/icons/loader-2';
@@ -21,7 +21,7 @@
 
 	const health = $derived(systemHealth.current);
 	const pass = $derived.by(() => {
-		const p = health?.imap_progress;
+		const p = health?.pass_progress;
 		if (!p || imports === 'none') return null;
 		return imports === 'any' || p.bulk ? p : null;
 	});

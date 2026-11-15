@@ -33,7 +33,7 @@ Two periods:
 - **The month's mail and changes** cover the **previous calendar month**: a report sent on 1 October covers September.
 - **Each domain's line**, its issues and its next step cover the **30 days before sending**, like the domain page.
 
-The email holds only verdicts Marcan is sure of. It names no senders, no IP addresses and no reporters. It is plain text with a simple HTML version, and it goes out through your [Sending](./mailbox#sending) account.
+The email holds only verdicts Marcan is sure of. It names no senders, no IP addresses and no reporters. It is plain text with a simple HTML version, and it goes out through your [Sending](./accounts#sending) account.
 
 ## Who gets it
 
@@ -71,12 +71,12 @@ An email that does not go out is recorded with its cause, and what happens next 
 
 | Failure | Examples | What Marcan does |
 | :--- | :--- | :--- |
-| Passing | The mail server unreachable or busy (a 4xx answer), a timeout, a login to fix under Sending | Tries again every hour for 3 days from the first failure, then gives up for the month. |
-| Permanent | The server refused the address or the message for good (a 5xx answer): the mailbox does not exist, the address is refused, a policy refusal | Does not try again this month. Fix the address in the list; the next month's report goes to it. |
+| Passing | The mail server unreachable or busy (a 4xx answer), a timeout, a login to fix under Sending, the server refusing the sending account rather than the recipient ("sending account refused": the login may not send as the account's address, Exchange Online's send-as or tenant refusals such as 5.7.60 or 5.7.708, Microsoft Graph refusing to send as the mailbox), a message refused with no reason of the recipient's | Tries again every hour for 3 days from the first failure, then gives up for the month. |
+| Permanent | The server refused the recipient for good (a 5xx answer to the address, or one about the recipient's mailbox after the message): the mailbox does not exist, the address is refused, the mailbox is full | Does not try again this month. Fix the address in the list; the next month's report goes to it. |
 
 Under the send line the page names them until the next report time, in red once one is given up or refused, else in amber: "2 of 4 reports not delivered: x@example.com (mailbox does not exist), ops@example.net (server unreachable, retrying until 4 November)."
 
-If the mailbox has not been read successfully for 3 days when the reports are due, none goes out: with the import broken, every report would say "No reports" for your clients' domains. The page says "Held: the mailbox has not been read since 28 October 2026. Reports go out once it is read again.", and the month's reports go out on the first hourly run after the mailbox is read again, even days after the report day, still once.
+If one of the receiving [accounts](./accounts) has not been read successfully for 3 days when the reports are due, none goes out: with the import broken, the reports would say "No reports" for your clients' domains. A new account counts from when it was added, and so does one saved with another server, login or folder, or whose receiving was switched back on: it holds the reports once it has gone 3 days without a successful read. The page names the account unread longest and since when: "Held: the account Reports has not been read since 28 October 2026. Reports go out once it is read again." (an account never read: "Held: the account Reports has not been read since it was set up on 28 October 2026. …"; no receiving account at all: "Held: no account receives reports."). The same rule raises the [Account not read](./alerts#accounts-not-read) alert. An organization's page says its report "is held until the receiving accounts are read again". The month's reports go out on the first hourly run after every receiving account is read again, even days after the report day, still once.
 
 The line under the switch says when the reports go out next, to how many organizations, and when one last went out: "Next send: 1 November 2026, 4 organizations. Last sent: 1 October 2026." While some recipients still wait for this month's report (not tried yet, or tried again after a passing failure), the next send is that report time and the count is the organizations still waiting. From three days before, an organization's page says so too, "Client report goes out on 1 November 2026 to 2 recipients.", with a **Preview** button; nothing while the reports or sending are off, or when the organization is not in the list.
 
@@ -86,7 +86,7 @@ Each organization has a **Preview** button: it shows that organization's report 
 
 <Screenshot name="client-report" alt="The preview of a client report for Nordlicht Logistik: 7 of 8 domains need attention, September against August, then a line per domain with its policy, readiness, messages, the share that passed DMARC, the failures delivered and forwarded, and its DNS grade" />
 
-Beside it, a **Send a preview** button: it sends that organization's report, as it would go out now, to the test recipient set under [Sending](./mailbox#sending) (the sender address unless you set one), with "[Preview]" in the subject; the line under the list says where it goes. The organization does not need to be listed. It uses the Reply-To on the page, saved or not; the switch and sending must be on.
+Beside it, a **Send a preview** button: it sends that organization's report, as it would go out now, to the test recipient set under [Sending](./accounts#sending) (the sender address unless you set one), with "[Preview]" in the subject; the line under the list says where it goes. The organization does not need to be listed. It uses the Reply-To on the page, saved or not; the switch and sending must be on.
 
 ## Your name and the notice
 

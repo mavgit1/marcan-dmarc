@@ -10,13 +10,16 @@
 //! An email that fails is recorded with its cause (`client_report_failures`)
 //! as the mail module classifies it ([`SendError::is_permanent`]): a passing
 //! failure (the server unreachable, a `4xx` answer, a timeout, a login to
-//! fix) is tried again on each run for [`CLIENT_REPORT_RETRY_DAYS`] from the
-//! first, then given up for the month; a refusal for good (a `5xx` answer,
-//! an address that is not valid) is not tried again
-//! ([`dmarc_assess::client_report_retry`]). Settings → Client reports lists
-//! both under the send line until the next report time.
+//! fix, a refusal of the sending account rather than the recipient) is
+//! tried again on each run for [`CLIENT_REPORT_RETRY_DAYS`] from the first,
+//! then given up for the month; a refusal of the recipient for good (a
+//! `5xx` answer about its address or mailbox, an address that is not
+//! valid) is not tried again ([`dmarc_assess::client_report_retry`]).
+//! Settings → Client reports lists both under the send line until the next
+//! report time, with the cause ("sending account refused" for the sender's).
 
 use super::report::{organization_report, report_config};
+use crate::accounts::receiving_reads;
 use crate::mail::Letterhead;
 #[cfg(doc)]
 use crate::mail::SendError;
@@ -27,7 +30,7 @@ use dmarc_assess::CLIENT_REPORT_RETRY_DAYS;
 use dmarc_assess::{client_report_hold, client_report_retry, ClientReportHold, ClientReportRetry};
 use dmarc_store::{
     client_reports_last_sent_at, count_client_report_sends, get_client_reports_held_at,
-    imap_pass_status, list_client_report_failures, list_client_report_recipients,
+    list_client_report_failures, list_client_report_recipients,
     list_unsent_client_report_recipients, record_client_report_failure, record_client_report_send,
     set_client_reports_held_at, unix_now, AppSettings, ClientReportFailure, ClientReportRecipient,
     ClientReportSettings, FailedClientReport, StoreError,
@@ -266,7 +269,7 @@ pub async fn schedule(
         undelivered = month.undelivered;
     }
     let held = match pending {
-        Some(_) => client_report_hold(imap_pass_status(pool).await?.last_success_at, now),
+        Some(_) => client_report_hold(&receiving_reads(pool, None).await?, now),
         None => None,
     };
     let upcoming = next_slot(reports, now);
@@ -374,24 +377,30 @@ pub async fn send_if_due(
     if unsent.is_empty() {
         return Delivery::Undeliverable;
     }
-    let last_read_at = match imap_pass_status(&state.pool).await {
-        Ok(status) => status.last_success_at,
+    let reads = match receiving_reads(&state.pool, None).await {
+        Ok(reads) => reads,
         Err(e) => {
             tracing::warn!(error = %e, "client reports: could not read when the mailbox was read");
             return Delivery::Failed;
         }
     };
-    if let Some(hold) = client_report_hold(last_read_at, now) {
-        tracing::warn!(
+    if let Some(hold) = client_report_hold(&reads, now) {
+        let ClientReportHold::MailboxNotRead {
+            account,
             last_read_at,
-            "client reports held: the mailbox has not been read lately; they go out once it is"
+            ..
+        } = &hold;
+        tracing::warn!(
+            account = account.as_deref(),
+            last_read_at,
+            "client reports held: an account has not been read lately; they go out once it is"
         );
         if let Err(e) = set_client_reports_held_at(&state.pool, now).await {
             tracing::warn!(error = %e, "client reports: held, but could not record it");
         }
         return Delivery::Held(hold);
     }
-    let config = match report_config(settings) {
+    let config = match report_config(&state.accounts, settings).await {
         Ok(config) => config,
         Err(e) => {
             tracing::warn!(reason = e.reason(), error = %e, "client reports: sending is not ready");

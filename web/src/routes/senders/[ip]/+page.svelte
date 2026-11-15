@@ -52,13 +52,14 @@
 	const ip = $derived(decodeIpParam(page.params.ip));
 
 	/**
-	 * Keyed on the IP: a refresh or another organization or range keeps the last answer (and
-	 * the open rows) on screen until the next arrives.
+	 * Keyed on the IP: a refresh or another range keeps the last answer (and the open rows) on
+	 * screen until the next arrives. Every domain the IP sent as, whatever the scope: the page is
+	 * about the sender, so only the time range applies.
 	 */
 	const detail = resource({
 		key: () => ip,
-		load: () => (ip ? getSender(ip, { organization_id: filters.organizationId, since: filters.since }) : null),
-		reloadOn: () => [filters.organizationId, filters.since],
+		load: () => (ip ? getSender(ip, { since: filters.since }) : null),
+		reloadOn: () => filters.since,
 		markUpdated: true,
 		onData: (data, previous) => {
 			// Another IP starts folded, a lone domain open; later refreshes leave the rows be.
@@ -90,7 +91,7 @@
 	<PageHeader title={ip} />
 	<NotFoundState
 		headline="Sender not seen"
-		description="This IP has no aggregate-report records in the current organization and time range."
+		description="This IP has no aggregate-report records in the time range."
 		backHref={resolve('/senders')}
 		backLabel="Back to senders"
 	/>

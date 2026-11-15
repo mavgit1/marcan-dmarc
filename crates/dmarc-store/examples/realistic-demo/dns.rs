@@ -2,7 +2,7 @@
 //! its reports and to earn its class's grade from the real checker (the
 //! server answers every TXT lookup from these while they are stored).
 
-use crate::catalogue::{OPERATOR_DOMAIN, REPORT_ADDRESS};
+use crate::catalogue::{report_address_of, FORWARDING_ORGS, OPERATOR_DOMAIN, ORGS};
 use crate::profile::DnsClass;
 use crate::services::{Services, GOOGLE_INCLUDE, MICROSOFT_INCLUDE};
 use crate::traffic::{Plan, Platform, Role};
@@ -21,11 +21,18 @@ pub fn records(services: &Services, plans: &[Plan]) -> BTreeMap<String, Vec<Stri
     for (name, spf) in services.spf_records() {
         put(name, spf);
     }
-    // The report address accepts every domain's reports (RFC 7489 §7.1).
+    // The report address accepts every domain's reports (RFC 9990 §4).
     put(
         format!("*._report._dmarc.{OPERATOR_DOMAIN}"),
         "v=DMARC1".into(),
     );
+    // So does each client's own forwarder, for the client's other domains.
+    for &org in &FORWARDING_ORGS {
+        put(
+            format!("*._report._dmarc.{}", ORGS[org].shaped[0]),
+            "v=DMARC1".into(),
+        );
+    }
 
     let all_includes: Vec<&str> = [MICROSOFT_INCLUDE, GOOGLE_INCLUDE]
         .into_iter()
@@ -40,7 +47,10 @@ pub fn records(services: &Services, plans: &[Plan]) -> BTreeMap<String, Vec<Stri
             Role::Parked => {
                 put(
                     format!("_dmarc.{d}"),
-                    format!("v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s; rua=mailto:{REPORT_ADDRESS}"),
+                    format!(
+                        "v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s; rua=mailto:{}",
+                        report_address_of(plan.org)
+                    ),
                 );
                 put(d.to_owned(), "v=spf1 -all".into());
                 put(format!("*._domainkey.{d}"), "v=DKIM1; p=".into());
@@ -49,7 +59,7 @@ pub fn records(services: &Services, plans: &[Plan]) -> BTreeMap<String, Vec<Stri
             Role::Shaped | Role::Clean => {}
         }
         let class = plan.shape.dns;
-        let rua = format!("rua=mailto:{REPORT_ADDRESS}");
+        let rua = format!("rua=mailto:{}", report_address_of(plan.org));
         let dmarc = match class {
             DnsClass::Clean => format!("v=DMARC1; p=reject; sp=reject; {rua}; fo=1"),
             DnsClass::RejectNoRua => "v=DMARC1; p=reject".into(),

@@ -17,6 +17,8 @@ export type PagePart = {
 	readonly blocked?: string | null;
 	/** Why the part holds Save (`blocked`, else why it cannot be saved); the save bar states it. */
 	readonly held?: { readonly message: string } | null;
+	/** Save was pressed while the part cannot be saved and says no reason yet: it says it now. */
+	reveal?(): void;
 	/** Saved after the other parts: a group whose switch, switched on, needs them saved first. */
 	readonly saveLast?: boolean;
 	/** Save the part's draft; a failure keeps it dirty with its error. */
@@ -68,12 +70,13 @@ export class PageForm {
 	/**
 	 * Why Save is disabled while the page is unsaved, said in the save bar: the page's `blocked`,
 	 * else the first unsaved part that cannot be saved (its `held`); `null` when Save may run.
-	 * Every disabled Save has one, so none is disabled silently.
+	 * Every disabled Save has one, so none is disabled silently. A part whose problem is not said
+	 * yet (its `held` is `null`) leaves Save enabled: pressing it makes the part say it (`submit`).
 	 */
 	get reason(): string | null {
 		const blocked = this.blocked;
 		if (blocked !== null || !this.dirty) return blocked;
-		const stuck = this.#list.find((p) => p.dirty && !p.canSave);
+		const stuck = this.#list.find((p) => p.dirty && !p.canSave && p.held !== null);
 		return stuck ? (stuck.held?.message ?? SAVE_HELD) : null;
 	}
 
@@ -91,6 +94,12 @@ export class PageForm {
 	/** The page form's submit: save the dirty parts in order, stopping at the first failure. */
 	submit(event?: SubmitEvent): void {
 		event?.preventDefault();
+		// A part that cannot be saved and has not said why: it says it now, and nothing is saved.
+		const quiet = this.#list.filter((p) => p.dirty && !p.canSave && p.reveal);
+		if (quiet.length > 0) {
+			for (const part of quiet) part.reveal?.();
+			return;
+		}
 		void this.save.run(async () => {
 			const saved: string[] = [];
 			const messages: string[] = [];

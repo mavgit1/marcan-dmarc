@@ -470,7 +470,7 @@ pub fn dkim_summary(verdicts: impl IntoIterator<Item = SelectorVerdict>) -> Sele
 
 // ---- DMARC ---------------------------------------------------------------------
 
-/// RFC 7489 §7.1 authorization of one external report destination.
+/// RFC 9990 §4 authorization of one external report destination.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
@@ -619,7 +619,7 @@ pub fn mta_sts_mode_status(mode: &str) -> Status {
 }
 
 /// Reaching the MTA-STS policy file: a host that answered wrongly or not at
-/// all (`unreachable`) warns, because receivers cannot apply the policy; not
+/// all (`unreachable`) warns, because senders cannot apply the policy; not
 /// fetched, read, or our own timeout states nothing.
 pub fn mta_sts_fetch_status(unreachable: bool) -> Status {
     if unreachable {

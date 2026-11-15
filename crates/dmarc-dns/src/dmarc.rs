@@ -1,6 +1,6 @@
-//! DMARC record parsing and evaluation (RFC 7489, and the tags RFC 9989,
-//! `DMARCbis`, adds or drops: `np=` and `t=` are parsed, `rf=` and `ri=` are
-//! obsolete, `pct=` is still honoured by RFC 7489 receivers).
+//! DMARC record parsing and evaluation (RFC 9989, `DMARCbis`, read the way
+//! RFC 7489 receivers read it too: `np=`, `t=` and `psd=` are parsed, `rf=`
+//! and `ri=` are obsolete, `pct=` is still honoured by RFC 7489 receivers).
 
 use crate::lookup::{parse_tag_list, LookupStatus, TxtLookup};
 use dmarc_assess::{
@@ -80,7 +80,7 @@ impl ParsedDmarc {
     }
 }
 
-/// External reporting authorization result (RFC 7489 §7.1).
+/// External reporting authorization result (RFC 9990 §4).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct ExternalAuthorization {
@@ -262,12 +262,12 @@ fn parse_report_uri(raw: &str) -> ReportUri {
     }
 }
 
-/// DNS name of the RFC 7489 §7.1 authorization record.
+/// DNS name of the RFC 9990 §4 authorization record.
 pub fn report_auth_name(checked_domain: &str, rua_host: &str) -> String {
     format!("{checked_domain}._report._dmarc.{rua_host}")
 }
 
-/// The `v=DMARC1` record in an RFC 7489 §7.1 authorization lookup, if any.
+/// The `v=DMARC1` record in an RFC 9990 §4 authorization lookup, if any.
 pub fn authorization_record(lookup: &TxtLookup) -> Option<String> {
     lookup
         .records()
@@ -420,7 +420,7 @@ pub fn evaluate_dmarc(
             CheckKind::Dmarc,
             "dmarc_multiple_records",
             format!(
-                "Found {} DMARC TXT records at _dmarc.{domain}. RFC 7489 allows only one; receivers may ignore all of them.",
+                "Found {} DMARC TXT records at _dmarc.{domain}. Receivers discard them all (RFC 9989 §4.10), as if none were published.",
                 records.len()
             ),
             "Delete extra _dmarc TXT records and keep a single v=DMARC1 record.",
@@ -434,7 +434,6 @@ pub fn evaluate_dmarc(
     result.subdomain_enforcement = parsed.sp.as_deref().map(|sp| enforcement(Some(sp)));
     result.nonexistent_enforcement = parsed.np.as_deref().map(|np| enforcement(Some(np)));
     result.testing_status = testing_status(parsed.testing());
-    let pct = parsed.pct.unwrap_or(100);
     result.pct_status = pct_status(parsed.pct);
     result.pct_below_100 = result.pct_status == Status::Warn;
 
@@ -463,7 +462,7 @@ pub fn evaluate_dmarc(
                     CheckKind::Dmarc,
                     "dmarc_rua_unauthorized",
                     format!(
-                        "Reporting URI `{}` is outside the organizational domain of {domain}, but the authorization record at {auth_name} is missing or invalid. Receivers will silently drop reports to that address (RFC 7489 §7.1).",
+                        "Reporting URI `{}` is outside the organizational domain of {domain}, but the authorization record at {auth_name} is missing or invalid. Receivers will silently drop reports to that address (RFC 9990 §4).",
                         uri.raw
                     ),
                     format!(
@@ -495,10 +494,15 @@ pub fn evaluate_dmarc(
 
     if no_issue_above_info(&findings) {
         let policy = parsed.p.as_deref().unwrap_or("none");
+        // A default is never stated: pct= only when the record publishes it.
+        let summary = match parsed.pct {
+            Some(pct) => format!("DMARC record is valid with p={policy} and pct={pct}."),
+            None => format!("DMARC record is valid with p={policy}."),
+        };
         findings.push(Finding::ok(
             CheckKind::Dmarc,
             "dmarc_ok",
-            format!("DMARC record is valid with p={policy} and pct={pct}."),
+            summary,
             "Keep monitoring aggregate reports; no DMARC syntax changes are required.",
         ));
     }
@@ -515,7 +519,7 @@ fn validate_parsed(domain: &str, parsed: &ParsedDmarc, findings: &mut Vec<Findin
         findings.push(Finding::critical(
             CheckKind::Dmarc,
             "dmarc_v_not_first",
-            "The DMARC record does not start with the v tag. RFC 7489 requires `v=DMARC1` to be first; receivers will ignore the record.",
+            "The DMARC record does not start with the v tag. RFC 9989 §4.7 requires `v=DMARC1` to be first; receivers will ignore the record.",
             "Reorder tags so the record begins with `v=DMARC1;`.",
         ));
     }
@@ -549,13 +553,13 @@ fn validate_parsed(domain: &str, parsed: &ParsedDmarc, findings: &mut Vec<Findin
         Some(p) => findings.push(Finding::critical(
             CheckKind::Dmarc,
             "dmarc_bad_policy",
-            format!("DMARC p={p} is not one of none, quarantine, or reject. Receivers may ignore the record."),
+            format!("DMARC p={p} is not one of none, quarantine, or reject."),
             "Set `p=` to none, quarantine, or reject.",
         )),
         None => findings.push(Finding::critical(
             CheckKind::Dmarc,
             "dmarc_missing_policy",
-            "DMARC record is missing the required p tag, so receivers have no policy to apply.",
+            "DMARC record has no p= tag.",
             "Add `p=none` (or quarantine/reject) to the record.",
         )),
     }
@@ -593,6 +597,13 @@ fn validate_parsed(domain: &str, parsed: &ParsedDmarc, findings: &mut Vec<Findin
         }
     }
     let enforcing = matches!(parsed.p.as_deref(), Some("quarantine" | "reject"));
+    // What a receiver applies instead under pct=0 (RFC 7489 §6.6.4) or t=y
+    // (RFC 9989 §4.7): the policy one level below the published one.
+    let one_lower = if parsed.p.as_deref() == Some("reject") {
+        "quarantine"
+    } else {
+        "none"
+    };
     let testing = parsed.testing();
     if let Some(t) = parsed.t.as_deref() {
         if !VALID_TESTING.contains(&t) {
@@ -624,13 +635,14 @@ fn validate_parsed(domain: &str, parsed: &ParsedDmarc, findings: &mut Vec<Findin
         ));
     } else if let Some(pct) = parsed.pct {
         if pct == 0 && enforcing {
-            // pct=0 applies the policy to no failing mail: monitoring only, the
-            // same outcome as p=none, so it carries the same severity.
+            // pct=0 applies the policy to no failing mail (receivers drop one
+            // level instead), so the domain is not at its policy yet: the same
+            // severity as p=none.
             findings.push(Finding::critical(
                 CheckKind::Dmarc,
                 "dmarc_pct_zero",
                 format!(
-                    "DMARC p={} but pct=0, so the policy applies to no failing messages. This is monitoring only, like p=none.",
+                    "DMARC p={} but pct=0, so RFC 7489 receivers apply the policy to no failing messages and treat them as p={one_lower} instead (§6.6.4).",
                     parsed.p.as_deref().unwrap_or("?")
                 ),
                 "Raise `pct=` (ideally to 100, or remove the tag) once legitimate mail passes alignment.",
@@ -648,7 +660,7 @@ fn validate_parsed(domain: &str, parsed: &ParsedDmarc, findings: &mut Vec<Findin
         }
         if pct < 100 && enforcing && !testing {
             // RFC 9989 dropped pct: its receivers apply the policy to all
-            // failing mail. With t=y they apply none of it, which the
+            // failing mail. With t=y they apply one level lower, which the
             // testing finding (or pct=0's) already says.
             findings.push(Finding::info(
                 CheckKind::Dmarc,
@@ -662,14 +674,14 @@ fn validate_parsed(domain: &str, parsed: &ParsedDmarc, findings: &mut Vec<Findin
         }
     }
     if testing && enforcing && parsed.pct != Some(0) {
-        // t=y is DMARCbis's pct=0: the policy is published but not applied,
-        // so it weighs like pct=0 (which already carries this when both are
-        // set).
+        // t=y is DMARCbis's pct=0 (RFC 9989 appendix A.6): the policy is
+        // published but applied one level lower, so it weighs like pct=0
+        // (which already carries this when both are set).
         findings.push(Finding::critical(
             CheckKind::Dmarc,
             "dmarc_testing",
             format!(
-                "DMARC p={} but t=y (testing), so receivers that follow RFC 9989 (DMARCbis) do not apply the policy. This is monitoring only, like p=none.",
+                "DMARC p={} but t=y (testing), so receivers that follow RFC 9989 (DMARCbis) do not apply the policy: they treat failing mail as p={one_lower} instead (§4.7).",
                 parsed.p.as_deref().unwrap_or("?")
             ),
             "Remove `t=y` (or set `t=n`) once legitimate mail passes alignment.",
@@ -885,6 +897,25 @@ mod tests {
 
     /// t=y weighs like pct=0: monitoring only under an enforcing policy,
     /// nothing under p=none, and said once when both are published.
+    #[test]
+    fn the_ok_summary_names_pct_only_when_published() {
+        let summary = |record: &str| {
+            evaluate_dmarc("example.com", &rec(record), &[])
+                .findings
+                .into_iter()
+                .find(|f| f.code == "dmarc_ok")
+                .map(|f| f.message)
+        };
+        assert_eq!(
+            summary("v=DMARC1; p=reject; rua=mailto:dmarc@example.com").as_deref(),
+            Some("DMARC record is valid with p=reject.")
+        );
+        assert_eq!(
+            summary("v=DMARC1; p=reject; pct=100; rua=mailto:dmarc@example.com").as_deref(),
+            Some("DMARC record is valid with p=reject and pct=100.")
+        );
+    }
+
     #[test]
     fn testing_is_critical_like_pct_zero() {
         let testing = evaluate_dmarc(

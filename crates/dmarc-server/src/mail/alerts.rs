@@ -7,7 +7,8 @@
 use super::frame::{finish, Body, Content};
 use super::text::{escape, format_time, status_colours, Letterhead, ALERTS_FOOTER};
 use crate::view::alerts::AlertItem;
-use crate::wording::plural;
+use crate::wording::alerts::installation_phrase;
+use crate::wording::{capitalized, plural};
 use dmarc_assess::{worst_first, Status};
 
 /// The heading of the installation's events (a newer release).
@@ -86,17 +87,37 @@ pub(crate) fn text_line(item: &AlertItem, base_url: Option<&str>) -> String {
 /// its sender page or its release notes when it has one.
 pub(crate) fn html_line(item: &AlertItem, base_url: Option<&str>) -> String {
     let (fg, bg) = status_colours(item.row.event.severity);
-    let link = match (sender_link(base_url, item), &item.release_notes) {
-        (Some(l), _) => format!(" <a href=\"{}\">Sender page</a>", escape(&l)),
-        (None, Some(l)) => format!(" <a href=\"{}\">Release notes</a>", escape(l)),
-        (None, None) => String::new(),
+    // A sender's sentence ends in the words that link to its page.
+    let linked_words = item
+        .sender_link_words
+        .and_then(|words| Some((item.text.strip_suffix(&format!("{words}."))?, words)));
+    let (text, link) = match (sender_link(base_url, item), &item.release_notes) {
+        (Some(l), _) => match linked_words {
+            Some((head, words)) => (
+                format!(
+                    "{}<a href=\"{}\">{}</a>.",
+                    escape(head),
+                    escape(&l),
+                    escape(words)
+                ),
+                String::new(),
+            ),
+            None => (
+                escape(&item.text),
+                format!(" <a href=\"{}\">Sender page</a>", escape(&l)),
+            ),
+        },
+        (None, Some(l)) => (
+            escape(&item.text),
+            format!(" <a href=\"{}\">Release notes</a>", escape(l)),
+        ),
+        (None, None) => (escape(&item.text), String::new()),
     };
     format!(
         "<li style=\"margin:4px 0;padding:6px 10px;border-left:3px solid {fg};background:{bg};list-style:none\">\
-         <strong style=\"color:{fg}\">{}</strong> {}{link} \
+         <strong style=\"color:{fg}\">{}</strong> {text}{link} \
          <span style=\"color:#737373;font-size:12px\">{}</span></li>",
         escape(item.severity_label),
-        escape(&item.text),
         escape(&format_time(item.row.created_at)),
     )
 }
@@ -119,14 +140,25 @@ pub(crate) fn html_domain_heading(domain: &str, link: Option<&str>) -> String {
 /// The alert email's title: `3 changes on example.com` / `5 changes on 2
 /// domains`; a newer release is named after them (`…, and Marcan 0.3.2 is
 /// available`) or alone (`Marcan 0.3.2 is available`), the newest when
-/// there are several.
+/// there are several; so is an account's certificate expiring (`…, and the
+/// Microsoft certificate of account “Reports” expires on 20 November 2026`),
+/// and an account not read (`…, and account “Reports” has not been read since
+/// 20 November 2026`).
 pub fn title(items: &[AlertItem]) -> String {
     let (domains, installation): (Vec<AlertItem>, Vec<AlertItem>) =
         items.iter().cloned().partition(|i| !i.is_installation());
-    let update = installation
+    let newest = installation
         .iter()
         .max_by_key(|i| (i.row.created_at, i.row.id))
-        .map(|i| i.text.trim_end_matches('.').to_owned());
+        .map(|i| installation_phrase(&i.row.event.kind));
+    // Alone it opens the title; after the domains it follows "and".
+    let update = newest.as_deref().map(|phrase| {
+        if domains.is_empty() {
+            capitalized(phrase)
+        } else {
+            phrase.to_owned()
+        }
+    });
     let groups = group_by_domain(&domains);
     let changes = plural(domains.len(), "change");
     let on_domains = match groups.as_slice() {
@@ -192,9 +224,21 @@ pub fn render(items: &[AlertItem], base_url: Option<&str>, letterhead: &Letterhe
 }
 
 /// A made-up set of events for the test email: one domain, a problem, a
-/// warning and a fix.
+/// warning and a fix (no delivered-failures issue beside the health change:
+/// the evaluation never raises that pair).
 pub fn sample_items(now: i64) -> Vec<AlertItem> {
-    use dmarc_assess::{AlertEvent, AlertKind, AlertedIssue, CheckKind, HealthState, RecordDelta};
+    use dmarc_assess::{
+        AlertEvent, AlertKind, AlertedIssue, CheckKind, DmarcRecordFacts, HealthState, RecordDelta,
+    };
+    let dmarc_policy = |p: &str| DmarcRecordFacts {
+        p: Some(p.into()),
+        sp: None,
+        pct: 100,
+        rua: vec!["mailto:dmarc@example.com".into()],
+        adkim: "r".into(),
+        aspf: "r".into(),
+        testing: false,
+    };
     let item = |id: i64, kind: AlertKind, severity: Status| {
         AlertItem::from(dmarc_store::AlertEventRow {
             id,
@@ -210,10 +254,9 @@ pub fn sample_items(now: i64) -> Vec<AlertItem> {
     vec![
         item(
             1,
-            AlertKind::IssueOpened {
-                issue: AlertedIssue::DeliveredFailures,
-                mail: None,
-                stopped: None,
+            AlertKind::PolicyChanged {
+                from: dmarc_policy("reject"),
+                to: dmarc_policy("none"),
             },
             Status::Fail,
         ),
@@ -404,7 +447,7 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
             "check its sender page. (2026-10-14 07:15 UTC) https://marcan.example.com/senders/203.0.113.5\n"
         ));
         assert!(mail.html.contains(
-            "check its sender page. <a href=\"https://marcan.example.com/senders/203.0.113.5\">Sender page</a>"
+            "check <a href=\"https://marcan.example.com/senders/203.0.113.5\">its sender page</a>. <span"
         ));
         let bare = render(&sender, None, &Letterhead::default());
         assert!(!bare.text.contains("/senders/") && !bare.html.contains("/senders/"));
@@ -465,6 +508,38 @@ Sent by Marcan, free software you may run yourself under the Beneficiary Copylef
         // on the docs site, not this installation.
         let bare = render(&all[..1], None, &Letterhead::default());
         assert!(bare.html.contains(">Release notes</a>"));
+    }
+
+    /// An account's certificate expiring comes last under "Marcan" too, and
+    /// the subject names it after the domains, or alone.
+    #[test]
+    fn an_expiring_credential_is_named_in_the_subject() {
+        let credential = AlertItem::from(dmarc_store::AlertEventRow {
+            event: AlertEvent {
+                kind: AlertKind::AccountCredentialExpiring {
+                    account_id: 1,
+                    account: "Reports".into(),
+                    expires_at: 1_795_132_800,
+                    expired: false,
+                },
+                severity: Status::Info,
+            },
+            ..update(5).row
+        });
+        let mut all = items();
+        all.insert(0, credential.clone());
+        assert_eq!(
+            subject(&all),
+            "Marcan: 3 changes on 2 domains, and the Microsoft certificate of account “Reports” expires on 20 November 2026"
+        );
+        assert_eq!(
+            subject(std::slice::from_ref(&credential)),
+            "Marcan: The Microsoft certificate of account “Reports” expires on 20 November 2026"
+        );
+        let mail = render(&[credential], None, &Letterhead::default());
+        assert!(mail.text.contains(
+            "\nMarcan\n  [Note] The Microsoft certificate of account “Reports” expires on 20 November 2026."
+        ), "{}", mail.text);
     }
 
     #[test]

@@ -43,7 +43,7 @@ pub fn issue_meaning(issue: IssueKind) -> String {
             "Too little of the passing mail is signed by the domain itself.".to_owned()
         }
         IssueKind::ReportsStopped => format!(
-            "Reports arrived before and then stopped: none for the days of the domain warning (Settings → Mailbox, {DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS} by default)."
+            "Reports arrived before and then stopped: none for the days of the domain warning (Settings → Accounts, {DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS} by default)."
         ),
     }
 }

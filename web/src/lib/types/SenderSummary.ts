@@ -11,7 +11,8 @@ export type SenderSummary = {
    */
   compliance_pct: number;
   /**
-   * `compliance_pct` judged by the 99 / 95 rule.
+   * `compliance_pct` judged by the 99 / 95 rule, green instead of red or
+   * amber when nothing but forwarded mail failed (`sender_pass_rate`).
    */
   compliance_status: Status;
   source_ip: string;

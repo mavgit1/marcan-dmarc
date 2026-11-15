@@ -2,12 +2,12 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import type { ScopeDomain } from '$lib/types/ScopeDomain';
 	import Skeleton from '$lib/components/skeleton.svelte';
 	import * as Select from '$lib/components/ui/select/index.js';
-	import { filters, scopedHref, SINCE_OPTIONS, sinceLabel, syncScopeUrl } from '$lib/state/filters.svelte';
+	import { filters, SINCE_OPTIONS, sinceLabel, syncScopeUrl } from '$lib/state/filters.svelte';
 	import { refresh } from '$lib/state/refresh.svelte';
 	import { scopeOptions } from '$lib/state/scope.svelte';
+	import { scopeParamsFor } from '$lib/state/scope-url';
 	import { cn } from '$lib/utils.js';
 
 	let {
@@ -21,15 +21,25 @@
 	} = $props();
 
 	const pathname = $derived(page.url.pathname);
-	const hideScopeSelectors = $derived(pathname.startsWith('/settings') || pathname.startsWith('/tools'));
-	/** The setup and its guide show no scoped data, so no filter applies there. */
-	const hideAll = $derived(pathname.startsWith('/guide') || pathname.startsWith('/setup'));
+	/**
+	 * The organization and domain pickers only where the scope narrows the page (the lists and
+	 * the dashboard). A page about one organization, domain or sender shows the time range alone:
+	 * the trail says where it is.
+	 */
+	const params = $derived(scopeParamsFor(pathname));
+	const showScopeSelectors = $derived(params.includes('org'));
+	/**
+	 * A page that reads no scope (Settings, the tools, a single report, the setup and its guide)
+	 * shows no filter at all, not even the time range it would ignore. `scopeParamsFor` is the one
+	 * list of what each page reads.
+	 */
+	const hideAll = $derived(params.length === 0);
 
 	/** Ids and names only (shared store); a refresh keeps the last answer until the next arrives. */
 	const scope = $derived(scopeOptions.current);
 	let scopeFailed = $state(false);
 	$effect(() => {
-		if (hideScopeSelectors) return;
+		if (!showScopeSelectors) return;
 		void refresh.tick;
 		scopeOptions.load().then(
 			() => (scopeFailed = false),
@@ -38,74 +48,33 @@
 		);
 	});
 
-	/**
-	 * An organization page shows its organization because of its route: there the filters open
-	 * another page and leave the stored scope alone (a domain's page with `?org=`, as the page's
-	 * own links do).
-	 */
-	const onOrganizationPage = $derived(pathname.startsWith('/organizations/') && Boolean(page.params.id));
-
-	async function onOrganizationChange(value: string, allDomains: ScopeDomain[]) {
-		const next = value === 'all' ? null : Number(value);
-		if (onOrganizationPage) {
-			await goto(resolve(next !== null ? `/organizations/${next}` : '/organizations'));
-			return;
-		}
-		filters.organizationId = next;
+	function onOrganizationChange(value: string) {
+		filters.organizationId = value === 'all' ? null : Number(value);
 		filters.domainId = null;
-
-		if (pathname.startsWith('/domains/')) {
-			if (next !== null) {
-				// Stay on a domain of this organization; otherwise open the organization
-				const currentDomain = allDomains.find((d) => String(d.id) === page.params.id);
-				if (!currentDomain || currentDomain.organization_id !== next) {
-					await goto(resolve(`/organizations/${next}`));
-				}
-			} else {
-				await goto(resolve('/domains'));
-			}
-		}
-		syncScopeUrl();
+		void syncScopeUrl();
 	}
 
+	/**
+	 * Narrows the list. A domain picked outside the alert list (which narrows in place) also
+	 * opens its page: the list's URL takes the domain first, so Back returns to it narrowed.
+	 */
 	async function onDomainChange(value: string) {
 		const next = value === 'all' ? null : Number(value);
-		if (onOrganizationPage) {
-			if (next !== null) {
-				const href = scopedHref(`/domains/${next}`, { organizationId: Number(page.params.id) });
-				await goto(resolve(href as '/'));
-			}
-			return;
-		}
 		filters.domainId = next;
-
-		// The alert list narrows to the domain in place.
-		if (pathname.startsWith('/alerts')) {
-			syncScopeUrl();
-			return;
-		}
-		if (next !== null) {
-			await goto(resolve(`/domains/${next}`));
-		} else if (pathname.startsWith('/domains/')) {
-			if (filters.organizationId !== null) {
-				await goto(resolve(`/organizations/${filters.organizationId}`));
-			} else {
-				await goto(resolve('/domains'));
-			}
-		}
-		syncScopeUrl();
+		await syncScopeUrl();
+		if (next !== null && !pathname.startsWith('/alerts')) await goto(resolve(`/domains/${next}`));
 	}
 
 	function onSinceChange(value: string) {
 		filters.since = value;
-		syncScopeUrl();
+		void syncScopeUrl();
 	}
 </script>
 
 {#if !hideAll}
 	<div class={cn('flex justify-end', className)}>
 		<div bind:this={ref} class="flex flex-wrap items-center justify-end gap-2">
-			{#if !hideScopeSelectors && !scopeFailed}
+			{#if showScopeSelectors && !scopeFailed}
 				{#if scope === null}
 					<Select.Root type="single" value={filters.organizationId?.toString() ?? 'all'} disabled>
 						<Select.Trigger size="sm" class="min-w-[120px] max-w-[200px] w-auto" aria-label="Organization">
@@ -120,16 +89,7 @@
 				{:else}
 					{@const data = scope}
 					{#if data}
-						{@const currentOrganizationValue = (() => {
-							if (pathname.startsWith('/organizations/') && page.params.id) {
-								return page.params.id;
-							}
-							if (pathname.startsWith('/domains/') && page.params.id) {
-								const dom = data.domains.find((d) => String(d.id) === page.params.id);
-								if (dom) return String(dom.organization_id);
-							}
-							return filters.organizationId?.toString() ?? 'all';
-						})()}
+						{@const currentOrganizationValue = filters.organizationId?.toString() ?? 'all'}
 
 						{@const organizationItems = [
 							{ value: 'all', label: 'All organizations' },
@@ -141,12 +101,7 @@
 								? data.domains.filter((d) => String(d.organization_id) === currentOrganizationValue)
 								: data.domains}
 
-						{@const currentDomainValue = (() => {
-							if (pathname.startsWith('/domains/') && page.params.id) {
-								return page.params.id;
-							}
-							return filters.domainId?.toString() ?? 'all';
-						})()}
+						{@const currentDomainValue = filters.domainId?.toString() ?? 'all'}
 
 						{@const domainItems = [
 							{ value: 'all', label: 'All domains' },
@@ -159,7 +114,7 @@
 							type="single"
 							items={organizationItems}
 							value={currentOrganizationValue}
-							onValueChange={(v) => onOrganizationChange(v, data.domains)}
+							onValueChange={onOrganizationChange}
 						>
 							<Select.Trigger size="sm" class="min-w-[120px] max-w-[200px] w-auto" aria-label="Organization">
 								<span class="truncate block max-w-[170px]" title={selectedOrganizationLabel}>

@@ -10,23 +10,30 @@
 //! There is no row limit: rows are written to the response while the query is
 //! still running. Parameters are validated before the first byte, so a bad
 //! filter is still a JSON 400; a database error mid-stream aborts the download.
+//! A parameter an export does not read is a 400 too ([`ExportQuery`]): a
+//! misspelt filter (`domain=` for `domain_id=`) would otherwise export every
+//! domain's rows.
 
 use crate::api::domain_detail::FailureFilterQuery;
 use crate::api::identity::identities;
 use crate::csv_text::{write_line, LineEnd};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::extract::Query;
 use crate::filters::ScopeQuery;
 use crate::view::domain::{
     domain_summaries, note_failed_checks, summary_readiness, DomainSummary, Judging,
 };
+use crate::wording::exports::unknown_parameter;
 use crate::AppState;
 use axum::body::{Body, Bytes};
-use axum::extract::State;
+use axum::extract::{FromRequestParts, State};
+use axum::http::request::Parts;
 use axum::http::{header, HeaderValue};
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
-use dmarc_assess::{readiness_window_start, AuthIssue, PolicyReadiness, Rate};
+use dmarc_assess::{
+    readiness_window_start, AuthIssue, HealthState, PolicyReadiness, Rate, ReadinessState,
+};
 use dmarc_dns::DnsReport;
 use dmarc_identity::SenderIdentity;
 use dmarc_store::{
@@ -34,6 +41,7 @@ use dmarc_store::{
     stream_dns_snapshot_export, stream_sender_export, unix_now, AuthIssueExportRow, Scope,
     SenderExportRow, StoreError,
 };
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::future::Future;
 use std::sync::Arc;
@@ -69,6 +77,7 @@ const DOMAINS_HEADER: &[&str] = &[
     "issues",
     "policy_source",
     "readiness",
+    "readiness_reason",
 ];
 
 const SENDERS_HEADER: &[&str] = &[
@@ -120,6 +129,8 @@ const AUTH_ISSUES_HEADER: &[&str] = &[
     "reporter_spf_verdict",
     "reporter_dkim_verdict",
     "policy_override",
+    // Added in 0.4.0, last so the earlier columns keep their positions.
+    "envelope_to",
 ];
 
 const DNS_FINDINGS_HEADER: &[&str] = &[
@@ -136,17 +147,98 @@ const DNS_FINDINGS_HEADER: &[&str] = &[
     "suggestion",
 ];
 
-/// Organization / domain scope of the exports without a time range.
+// ---- query parameters ------------------------------------------------------
+
+/// The query parameters of one export, in the order the refusal names them.
+pub(crate) trait ExportParams: DeserializeOwned {
+    const ACCEPTED: &'static [&'static str];
+}
+
+/// An export's query string as `T`, after refusing any parameter `T` does
+/// not read (a JSON 400 naming it and the accepted ones): the exports are
+/// fetched by scripts, and an unread filter would silently widen the file.
+/// Values are checked after the names, so a misspelt name is the error even
+/// when another value is bad too.
+pub(crate) struct ExportQuery<T>(pub T);
+
+impl<S, T> FromRequestParts<S> for ExportQuery<T>
+where
+    T: ExportParams,
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        refuse_unread(parts, T::ACCEPTED)?;
+        let Query(value) = Query::<T>::from_request_parts(parts, state).await?;
+        Ok(Self(value))
+    }
+}
+
+/// The first query parameter not in `accepted`, refused; a query string that
+/// does not parse is left to the typed extractor, which says why.
+fn refuse_unread(parts: &Parts, accepted: &[&str]) -> AppResult<()> {
+    let Ok(axum::extract::Query(pairs)) =
+        axum::extract::Query::<Vec<(String, String)>>::try_from_uri(&parts.uri)
+    else {
+        return Ok(());
+    };
+    match pairs
+        .iter()
+        .find(|(name, _)| !accepted.contains(&name.as_str()))
+    {
+        Some((name, _)) => {
+            let file = parts.uri.path().rsplit('/').next().unwrap_or_default();
+            Err(AppError::bad_request(unknown_parameter(
+                file, name, accepted,
+            )))
+        }
+        None => Ok(()),
+    }
+}
+
+/// `domains.csv` and `senders.csv`: the scope with its time range.
+impl ExportParams for ScopeQuery {
+    const ACCEPTED: &'static [&'static str] = &["organization_id", "domain_id", "since"];
+}
+
+/// Organization / domain scope of the exports without a time range
+/// (`dns-findings.csv`).
 #[derive(Debug, Deserialize)]
 pub struct ExportScopeQuery {
     pub organization_id: Option<i64>,
     pub domain_id: Option<i64>,
 }
 
+impl ExportParams for ExportScopeQuery {
+    const ACCEPTED: &'static [&'static str] = &["organization_id", "domain_id"];
+}
+
 impl ExportScopeQuery {
     fn scope(&self, since: Option<i64>) -> Scope {
         Scope::new(self.organization_id, self.domain_id, since)
     }
+}
+
+/// `auth-issues.csv`: the scope and the Failures tab's filters
+/// ([`FailureFilterQuery`]).
+#[derive(Debug, Deserialize)]
+pub struct AuthIssuesQuery {
+    pub organization_id: Option<i64>,
+    pub domain_id: Option<i64>,
+    pub since: Option<String>,
+    pub outcome: Option<String>,
+    pub source_ip: Option<String>,
+}
+
+impl ExportParams for AuthIssuesQuery {
+    const ACCEPTED: &'static [&'static str] = &[
+        "organization_id",
+        "domain_id",
+        "since",
+        "outcome",
+        "source_ip",
+    ];
 }
 
 // ---- cell formatting -------------------------------------------------------
@@ -216,6 +308,19 @@ fn tag<T: serde::Serialize>(value: &T) -> String {
         .ok()
         .and_then(|v| v.get("kind").and_then(|k| k.as_str()).map(str::to_owned))
         .unwrap_or_default()
+}
+
+/// A health state in `domains.csv`: its API name, except the best state,
+/// which the file names `healthy` as the pages do (the API and the stored
+/// alert history keep `protected`).
+fn health_token(state: HealthState) -> &'static str {
+    match state {
+        HealthState::NoData => "no_data",
+        HealthState::AllBlocked => "all_blocked",
+        HealthState::Protected => "healthy",
+        HealthState::Warning => "warning",
+        HealthState::Critical => "critical",
+    }
 }
 
 /// A unit enum as its API (`snake_case`) name, e.g. `delivered_failures`.
@@ -339,7 +444,7 @@ fn domain_fields(d: &DomainSummary, readiness: &PolicyReadiness) -> Vec<String> 
         opt_num(dns.map(|s| s.score)),
         opt_num(dns.map(|s| s.critical_count)),
         opt_iso(dns.map(|s| s.checked_at)),
-        token(&d.verdicts.health.state),
+        health_token(d.verdicts.health.state).to_owned(),
         list(
             &d.assessment
                 .issues
@@ -349,7 +454,18 @@ fn domain_fields(d: &DomainSummary, readiness: &PolicyReadiness) -> Vec<String> 
         ),
         token(&row.policy_source),
         tag(&readiness.state),
+        readiness_reason(&readiness.state),
     ]
+}
+
+/// Why a domain is not ready (`not_enough_history`, `relies_on_spf`, …) or not
+/// judged (`no_policy`, `parked`); empty in every other state.
+fn readiness_reason(state: &ReadinessState) -> String {
+    match state {
+        ReadinessState::NotReady { reason, .. } => tag(reason),
+        ReadinessState::NotApplicable { reason } => token(reason),
+        _ => String::new(),
+    }
 }
 
 /// `GET /api/export/domains.csv?organization_id&since` — the domain list's rows
@@ -357,7 +473,7 @@ fn domain_fields(d: &DomainSummary, readiness: &PolicyReadiness) -> Vec<String> 
 /// with its policy readiness (as the overview judges it).
 pub async fn export_domains_csv(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ScopeQuery>,
+    ExportQuery(q): ExportQuery<ScopeQuery>,
 ) -> AppResult<Response> {
     let scope = q.scope()?;
     let pool = state.pool.clone();
@@ -432,7 +548,7 @@ fn sender_fields(row: &SenderExportRow, identity: Option<&SenderIdentity>) -> Ve
 /// sender IP × domain.
 pub async fn export_senders_csv(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ScopeQuery>,
+    ExportQuery(q): ExportQuery<ScopeQuery>,
 ) -> AppResult<Response> {
     let scope = q.scope()?;
     // Named up front from stored evidence (never live DNS), like every page.
@@ -480,6 +596,7 @@ fn auth_issue_fields(row: &AuthIssueExportRow) -> Vec<String> {
         opt_text(row.reporter_spf_verdict.as_deref()),
         opt_text(row.reporter_dkim_verdict.as_deref()),
         list(&row.policy_overrides),
+        opt_text(row.envelope_to.as_deref()),
     ]
 }
 
@@ -489,10 +606,14 @@ fn auth_issue_fields(row: &AuthIssueExportRow) -> Vec<String> {
 /// or several separated by commas, as on the tab; the `outcome` column reads `delivered|forwarded|blocked|passed`.
 pub async fn export_auth_issues_csv(
     State(state): State<Arc<AppState>>,
-    Query(scope): Query<ExportScopeQuery>,
-    Query(filters): Query<FailureFilterQuery>,
+    ExportQuery(q): ExportQuery<AuthIssuesQuery>,
 ) -> AppResult<Response> {
-    let scope = scope.scope(filters.since_ts()?);
+    let filters = FailureFilterQuery {
+        since: q.since,
+        outcome: q.outcome,
+        source_ip: q.source_ip,
+    };
+    let scope = Scope::new(q.organization_id, q.domain_id, filters.since_ts()?);
     filters.filter()?;
     let pool = state.pool.clone();
     Ok(csv_download(
@@ -516,7 +637,7 @@ pub async fn export_auth_issues_csv(
 /// domains have no rows).
 pub async fn export_dns_findings_csv(
     State(state): State<Arc<AppState>>,
-    Query(scope): Query<ExportScopeQuery>,
+    ExportQuery(scope): ExportQuery<ExportScopeQuery>,
 ) -> AppResult<Response> {
     let pool = state.pool.clone();
     Ok(csv_download(
@@ -566,6 +687,19 @@ mod tests {
         let mut buf = Vec::new();
         push_record(&mut buf, fields);
         String::from_utf8(buf).unwrap()
+    }
+
+    /// The file names each health state as the API does, but the best one.
+    #[test]
+    fn health_is_the_api_name_but_healthy() {
+        use HealthState::*;
+        for state in [NoData, AllBlocked, Protected, Warning, Critical] {
+            let expected = match state {
+                Protected => "healthy".to_owned(),
+                other => token(&other),
+            };
+            assert_eq!(health_token(state), expected);
+        }
     }
 
     #[test]

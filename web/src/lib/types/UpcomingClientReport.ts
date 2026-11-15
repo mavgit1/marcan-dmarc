@@ -15,7 +15,7 @@ export type UpcomingClientReport = {
    */
   recipients: number;
   /**
-   * Its due report is held until the mailbox is read again.
+   * Its due report is held until the receiving accounts are read again.
    */
   held: boolean;
 };

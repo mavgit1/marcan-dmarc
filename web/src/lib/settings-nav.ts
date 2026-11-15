@@ -17,7 +17,7 @@ export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number]['id'];
 
 /** Every Settings page in nav order: its title (what links to it say) and its group. */
 export const SETTINGS_PAGES = [
-	{ id: 'mailbox', title: 'Mailbox', group: 'reports-in' },
+	{ id: 'accounts', title: 'Accounts', group: 'reports-in' },
 	{ id: 'sending', title: 'Sending', group: 'email-out' },
 	{ id: 'alerts', title: 'Alerts', group: 'email-out' },
 	{ id: 'client-reports', title: 'Client reports', group: 'email-out' },
@@ -52,9 +52,12 @@ export function settingsPage(id: string | null | undefined): (typeof SETTINGS_PA
 	return SETTINGS_PAGES.find((p) => p.id === id);
 }
 
-/** The page a Settings path shows (`/settings/alerts` → alerts); `undefined` on the list itself. */
+/**
+ * The page a Settings path shows (`/settings/alerts` → alerts, `/settings/accounts/3` →
+ * accounts); `undefined` on the list itself.
+ */
 export function pageFromPath(pathname: string): SettingsPageId | undefined {
-	const match = /^\/settings\/([^/]+)\/?$/.exec(pathname);
+	const match = /^\/settings\/([^/]+)(?:\/.*)?$/.exec(pathname);
 	return settingsPage(match?.[1])?.id;
 }
 

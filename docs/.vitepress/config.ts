@@ -30,7 +30,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
           { text: 'Caddy with OAuth2-Proxy', link: '/deploy-oauth2-proxy' }
         ]
       },
-      { text: 'Mailbox & reporting setup', link: '/mailbox' },
+      { text: 'Accounts', link: '/accounts' },
       { text: 'Domains & organizations', link: '/domains' },
       { text: 'Sender names', link: '/sender-names' }
     ]

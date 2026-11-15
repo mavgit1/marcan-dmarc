@@ -24,7 +24,7 @@ The image is `ghcr.io/mavgit1/marcan`, for `linux/amd64` and `linux/arm64`. Each
 
 The image runs as an unprivileged user (uid/gid 10001) and keeps its database in `/data`. It has a built-in health check against `/healthz`.
 
-**Marcan itself needs no configuration file.** Everything you set up (mailbox, domains, lists) lives in its database and is changed in the UI. The `.env` of a stack configures the proxy and the login.
+**Marcan itself needs no configuration file.** Everything you set up (accounts, domains, lists) lives in its database and is changed in the UI. The `.env` of a stack configures the proxy and the login.
 
 The server takes three options, as flags or environment variables:
 
@@ -34,9 +34,17 @@ The server takes three options, as flags or environment variables:
 | `--data-dir` | `DATA_DIR` | Directory holding `marcan.db` | `.` (image: `/data`) |
 | `--allowed-hosts` | `ALLOWED_HOSTS` | Host names requests may be addressed to besides the bind address and `localhost`, comma-separated | none |
 
+The key for [secrets at rest](./security#secrets-at-rest) is read from the environment only, never from a flag, which would show in the process list:
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `MARCAN_SECRET_KEY` | The key the mail accounts' passwords and certificate keys are encrypted with: 32 bytes in base64 or hex, from `openssl rand -base64 32`. Keep it apart from the backups | none: stored unencrypted |
+| `MARCAN_SECRET_KEY_FILE` | Instead of `MARCAN_SECRET_KEY`: a file that holds the key, such as a Docker secret (`/run/secrets/…`). Better than the variable: a container's environment is not private, `docker inspect` shows it | none |
+| `MARCAN_SECRET_KEY_PREVIOUS`, `MARCAN_SECRET_KEY_PREVIOUS_FILE` | Only while [changing the key](./security#secrets-at-rest): the key it replaces. The next start encrypts the credentials again with the new one | none |
+
 When Marcan listens on one address, such as the default `127.0.0.1:8080`, it answers only requests for that address, `localhost` and the names in `--allowed-hosts`, so a web page cannot reach it by pointing its own name at your machine (see [Security](./security#host-names-and-frames)). If you run the binary without Docker behind a proxy on the same server, add the name the proxy forwards, for example `--allowed-hosts dmarc.example.com`: Caddy and nginx pass the original host name on. The image listens on `0.0.0.0:8080` and answers any host there, so the Compose stacks need nothing.
 
-Logging follows `RUST_LOG` (default `info`). The server shuts down cleanly on SIGTERM and Ctrl-C. Everything else (the mailbox, domains, lists, DNS resolvers) is set in the UI under **Settings** and applies without a restart.
+Logging follows `RUST_LOG` (default `info`). The server shuts down cleanly on SIGTERM and Ctrl-C. Everything else (the accounts, domains, lists, DNS resolvers) is set in the UI under **Settings** and applies without a restart.
 
 Every stack serves `/healthz` without a login (it answers `ok`, nothing else) for uptime monitors. Everything else, including `/api/system/health`, needs a login.
 
@@ -85,10 +93,11 @@ This is for trying it out, not for keeping: reports keep arriving every day, so 
 
 Marcan needs outbound access only:
 
-- IMAP over TLS (port 993) or STARTTLS (port 143) to your mailbox host,
+- IMAP over TLS (port 993) or STARTTLS (port 143) to each receiving password account's server,
+- for a Microsoft 365 account, HTTPS to `login.microsoftonline.com` for its tokens and to `graph.microsoft.com` to read its mailbox and send as it,
 - DNS (port 53) to its resolvers: Cloudflare `1.1.1.1` and Google `8.8.8.8` by default, or your own under **Settings → DNS checks → Resolvers**,
 - HTTPS to `mta-sts.<domain>` for each domain that publishes an MTA-STS record,
-- with sending on (**Settings → Sending**), SMTP submission to your provider's SMTP server, usually port 465 with TLS or 587 with STARTTLS (never port 25),
+- with sending on (**Settings → Sending**) through a password account, SMTP submission to its SMTP server, usually port 465 with TLS or 587 with STARTTLS (never port 25),
 - unless the version check is switched off (**Settings → License**, on by default), HTTPS to `marcan.kaitiaki.tech` (GitHub Pages) once a day (see [Upgrade](./upgrade#checking-for-new-versions)).
 
 Nothing connects to Marcan except your proxy.

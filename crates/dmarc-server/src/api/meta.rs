@@ -1,7 +1,8 @@
 //! `GET /api/meta`: the rules' fixed numbers, for help text and legends; and
 //! what the app frame shows on every page: whether the free-software notice
 //! is shown, where the source, the operator license and its billing are,
-//! and the newer version the version check found.
+//! whether stored credentials are encrypted, and the newer version the
+//! version check found.
 //! The stored logo is not here: it is its own `GET /api/settings/branding/logo`,
 //! read only where it is shown (the UI carries no operator branding: name and
 //! logo are for the emails only).
@@ -22,7 +23,7 @@ use crate::AppState;
 use axum::extract::State;
 use dmarc_assess::{
     severity_points, AlertGroup, IssueKind, Severity, ALERT_CATALOGUE, GRADE_BANDS,
-    NEW_SENDER_MIN_FAILURES, RATE_PASS_MIN_PCT, RATE_WARN_MIN_PCT, READINESS_MIN_MESSAGES,
+    NEW_SENDER_MIN_FAILURES, RATE_PASS_MIN_PCT, RATE_WARN_MIN_PCT, READINESS_MAX_SPF_ONLY_PCT,
     READINESS_MIN_POLICY_SHARE_PCT, READINESS_WINDOW_DAYS, RSA_GOOD_BITS, RSA_MIN_BITS,
 };
 use dmarc_store::{
@@ -48,10 +49,11 @@ pub struct Meta {
     /// Policy readiness looks at the last this many days (and needs reports
     /// under the current policy covering all of them).
     pub readiness_window_days: i64,
-    /// ...and needs at least this many messages in them under the current policy.
-    pub readiness_min_messages: i64,
     /// ...and at least this share of the window's messages evaluated under it.
     pub readiness_min_policy_share_pct: f64,
+    /// ...and at most this share of the mail that passed DMARC passing
+    /// without an aligned DKIM signature, on SPF alone.
+    pub readiness_max_spf_only_pct: f64,
     /// RSA DKIM keys below this many bits are weak (critical).
     pub rsa_min_bits: usize,
     /// ...and below this many bits dated (warning).
@@ -67,7 +69,8 @@ pub struct Meta {
     /// the settings list them. The alert settings mute kinds by `id`.
     pub alert_catalogue: Vec<AlertCatalogueItem>,
     /// Every issue a domain can have open, with its name and what it means
-    /// (the open ones come worded with each domain's assessment).
+    /// (the open ones come worded with each domain's assessment), in the
+    /// fixed order the issue chips of a row take (`IssueKind::ALL`).
     pub issue_catalogue: Vec<IssueCatalogueItem>,
     /// The catalogue's groups with their headings, in the catalogue's order.
     pub alert_groups: Vec<AlertGroupTitle>,
@@ -103,6 +106,9 @@ pub struct Meta {
     pub notice_shown: bool,
     /// The email of the stored operator key, when it is valid.
     pub licensed_to: Option<String>,
+    /// `MARCAN_SECRET_KEY` is set: account passwords and
+    /// certificate keys are stored encrypted. Fixed while the server runs.
+    pub secrets_encrypted: bool,
     /// A newer version than the running one, as the version check last
     /// named it (the sidebar and Settings → License say so); `null` while
     /// the check is off, before its first answer, and when the running
@@ -196,8 +202,8 @@ pub async fn get_meta(State(state): State<Arc<AppState>>) -> AppResult<Json<Meta
         rate_warn_min_pct: RATE_WARN_MIN_PCT,
         reports_stopped_days: i64::from(settings.monitoring.domain_reports_stopped_days),
         readiness_window_days: READINESS_WINDOW_DAYS,
-        readiness_min_messages: READINESS_MIN_MESSAGES,
         readiness_min_policy_share_pct: READINESS_MIN_POLICY_SHARE_PCT,
+        readiness_max_spf_only_pct: READINESS_MAX_SPF_ONLY_PCT,
         rsa_min_bits: RSA_MIN_BITS,
         rsa_good_bits: RSA_GOOD_BITS,
         observed_selector_window_days: OBSERVED_SELECTOR_WINDOW_SECS / 86_400,
@@ -247,6 +253,7 @@ pub async fn get_meta(State(state): State<Arc<AppState>>) -> AppResult<Json<Meta
         billing_url: BILLING_URL.to_owned(),
         notice_shown: standing.notice_shown,
         licensed_to: standing.licensed_to,
+        secrets_encrypted: state.accounts.key().is_some(),
         available,
     }))
 }

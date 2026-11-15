@@ -53,6 +53,12 @@
 	});
 	const resolvedXFormat = $derived(xFormat ?? (isDateAxis ? formatChartDate : undefined));
 
+	/**
+	 * Pixels between the y-axis and the first point (and after the last), so the first x label
+	 * ("12 Oct") clears the y-axis's "0".
+	 */
+	const X_PADDING = [20, 8];
+
 	const resolvedPadding = $derived.by(() => {
 		const base = {
 			top: 10,
@@ -74,6 +80,7 @@
 		{seriesLayout}
 		xScale={resolvedXScale}
 		padding={resolvedPadding}
+		xPadding={X_PADDING}
 		props={{
 			xAxis: {
 				...(resolvedXFormat ? { format: resolvedXFormat } : {}),

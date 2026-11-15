@@ -17,6 +17,9 @@ describe('pageFromPath', () => {
 	it('names the page of each Settings path', () => {
 		for (const { id } of SETTINGS_PAGES) expect(pageFromPath(`/settings/${id}`)).toBe(id);
 		expect(pageFromPath('/settings/alerts/')).toBe('alerts');
+		// An account's page and a new one belong to Accounts.
+		expect(pageFromPath('/settings/accounts/new')).toBe('accounts');
+		expect(pageFromPath('/settings/accounts/3')).toBe('accounts');
 	});
 
 	it('is undefined on the list and elsewhere', () => {
@@ -28,7 +31,7 @@ describe('pageFromPath', () => {
 
 describe('links', () => {
 	it('opens a page at its own URL, without an anchor', () => {
-		expect(settingsHref('mailbox')).toBe('/settings/mailbox');
+		expect(settingsHref('accounts')).toBe('/settings/accounts');
 		expect(settingsHref('dns-checks')).toBe('/settings/dns-checks');
 		expect(settingsAnchor('alerts')).toBeUndefined();
 	});

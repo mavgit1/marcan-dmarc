@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 dmarc-store = { path = "../dmarc-store" }
-dmarc-imap = { path = "../dmarc-imap" }
+dmarc-mailbox = { path = "../dmarc-mailbox" }
 dmarc-assess = { path = "../dmarc-assess" }
 dmarc-identity = { path = "../dmarc-identity" }
 dmarc-dns = { path = "../dmarc-dns" }
@@ -38,8 +38,14 @@ ts-rs = { workspace = true }
 lettre = { workspace = true }
 # The version check (`updates.rs`); already in the build through dmarc-dns.
 reqwest = { workspace = true }
-ring = { workspace = true }
+# `alloc` for RSA signing (the Microsoft login's client assertion).
+ring = { workspace = true, features = ["alloc"] }
+# The Microsoft login's certificate: rsa generates the key (ring cannot),
+# rcgen writes the self-signed certificate, ring signs it.
+rsa = { workspace = true }
+rcgen = { workspace = true }
 base64 = { workspace = true }
+zeroize = { workspace = true }
 # The implicit-TLS (port 465) handshake, staged before lettre takes the stream.
 tokio-native-tls = "0.3"
 
@@ -49,8 +55,9 @@ tokio-native-tls = "0.3"
 test-keys = []
 
 [dev-dependencies]
+ts-rs = { workspace = true, features = ["format"] }
 dmarc-server = { path = ".", features = ["test-keys"] }
-dmarc-imap = { path = "../dmarc-imap", features = ["test-support"] }
+dmarc-mailbox = { path = "../dmarc-mailbox", features = ["test-support"] }
 tokio = { workspace = true, features = ["test-util"] }
 tempfile = { workspace = true }
 tower = { workspace = true }

@@ -4,7 +4,7 @@
  * How reading `https://mta-sts.<domain>/.well-known/mta-sts.txt` went.
  *
  * Everything but `NotAttempted`, `Ok` and `Timeout` is the policy host
- * answering wrongly or not at all: receivers cannot apply the policy either,
+ * answering wrongly or not at all: senders cannot apply the policy either,
  * so that is the domain's state, not a failed check.
  */
 export type PolicyFetch =

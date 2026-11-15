@@ -43,7 +43,7 @@
 	} = $props();
 
 	const SUBTITLE: Record<PillarId, string> = {
-		dmarc: 'Policy and report destinations (RFC 7489).',
+		dmarc: 'Policy and report destinations (RFC 9989, RFC 9990).',
 		spf: 'Include tree and the 10-lookup limit (RFC 7208).',
 		dkim: 'Keys of the selectors seen signing (RFC 6376).',
 		transport: 'MTA-STS (RFC 8461), TLS-RPT (RFC 8460) and BIMI.',

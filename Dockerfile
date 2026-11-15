@@ -1,15 +1,17 @@
 # ==============================================================================
 # Stage 1: Build SvelteKit static SPA
 # ==============================================================================
-FROM node:24-alpine AS web-builder
+# Base images pinned by digest (the multi-arch index); Dependabot proposes updates.
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS web-builder
 
 # pnpm version comes from the packageManager field in web/package.json
 RUN corepack enable
 
 WORKDIR /app/web
 
-# Install dependencies with locked versions
-COPY web/package.json web/pnpm-lock.yaml ./
+# Install dependencies with locked versions, under the workspace settings (the
+# build scripts allowed, the minimum release age) and .npmrc
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.npmrc ./
 RUN pnpm install --frozen-lockfile
 
 # Copy frontend source and compile static SPA to web/build/
@@ -20,7 +22,7 @@ RUN pnpm build
 # Stage 2: Build Rust backend with embedded SPA
 # ==============================================================================
 # Keep equal to rust-toolchain.toml
-FROM rust:1.98-alpine AS rust-builder
+FROM rust:1.98-alpine@sha256:7cc1c22d77d9432f7fe012a70e6d3e555af54c2a6832700ed7d553f1769ae89f AS rust-builder
 
 RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static build-base
 
@@ -35,12 +37,12 @@ COPY migrations/ migrations/
 COPY --from=web-builder /app/web/build ./web/build
 
 # Build the release binary
-RUN cargo build --release -p dmarc-server
+RUN cargo build --release --locked -p dmarc-server
 
 # ==============================================================================
 # Stage 3: Minimal production runtime
 # ==============================================================================
-FROM alpine:3.24 AS runtime
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS runtime
 
 RUN apk add --no-cache ca-certificates libssl3 sqlite-libs tzdata
 

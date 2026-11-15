@@ -1,9 +1,11 @@
-//! Whether a domain's DMARC aggregate reports reach Marcan's mailbox: the
-//! reporting setup's verdict per domain, and the mailbox domain's
-//! authorization of other domains' reports (RFC 7489 §7.1).
+//! Whether a domain's DMARC aggregate reports reach Marcan: the reporting
+//! setup's verdict per domain, and each report address domain's
+//! authorization of other domains' reports (RFC 9990 §4).
 //!
-//! The server does the live lookups (the domain's DMARC record, the
-//! authorization records) and passes what they found; this decides.
+//! The known addresses are every receiving account's address and the
+//! addresses forwarded to it (`forwarded_from`). The server does the live
+//! lookups (the domain's DMARC record, the authorization records) and passes
+//! what they found; this decides.
 
 use crate::dns::AuthState;
 use crate::domain::ReportingState;
@@ -20,17 +22,15 @@ use ts_rs::TS;
 pub enum ReportingStatus {
     /// No DMARC record is published.
     NoRecord,
-    /// The reports go to an address whose domain does not accept this
-    /// domain's reports: the mailbox domain (direct mode), or every
-    /// forwarding address named (forwarded mode).
+    /// The record names known addresses, and the domain of every one of
+    /// them refuses this domain's reports.
     NotAuthorized,
-    /// A record is published but its `rua=` names neither the report address
-    /// nor (forwarded mode) an address that could forward to it.
+    /// A record is published but its `rua=` names no known address.
     AddressMissing,
     /// The DMARC record could not be read: the lookup timed out or failed.
     CheckFailed,
-    /// The record is right, but whether the report address's domain accepts
-    /// the reports could not be looked up.
+    /// The record names known addresses, none is accepted, and whether one
+    /// is could not be looked up.
     AuthorizationCheckFailed,
     /// Set up; no report has arrived yet.
     WaitingForFirstReport,
@@ -56,8 +56,8 @@ impl ReportingStatus {
     }
 
     /// Its colour: missing DMARC or authorization loses every report (fail),
-    /// a record without the address is worth fixing (warn), a failed lookup
-    /// or a wait states nothing (neutral).
+    /// a record without a known address is worth fixing (warn), a failed
+    /// lookup or a wait states nothing (neutral).
     pub fn status(self) -> Status {
         match self {
             Self::NoRecord | Self::NotAuthorized => Status::Fail,
@@ -85,12 +85,14 @@ pub enum DmarcLookup {
 /// What a published record's `rua=` names.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuaFacts {
-    /// It names the report address.
-    pub names_report_address: bool,
-    /// Its other `mailto:` addresses, each with its domain's authorization of
-    /// this domain's reports: `None` when none is needed (the same
-    /// organizational domain).
-    pub other_addresses: Vec<Option<AuthState>>,
+    /// Each known address it names (a receiving account's address or the
+    /// address forwarded to one), with its domain's authorization of this
+    /// domain's reports: `None` when none is needed (the same organizational
+    /// domain).
+    pub known: Vec<Option<AuthState>>,
+    /// How many other `mailto:` addresses it names: Marcan cannot see where
+    /// they go, so they settle nothing.
+    pub other: usize,
 }
 
 /// What one domain's [`ReportingStatus`] is decided from.
@@ -98,25 +100,16 @@ pub struct RuaFacts {
 pub struct ReportingSetupFacts {
     /// Whether its reports arrive (see [`crate::reporting`]).
     pub reporting: ReportingState,
-    /// Direct mode: every domain names the report address. Forwarded: each
-    /// may name an address of its own that forwards to it.
-    pub direct: bool,
     pub dmarc: DmarcLookup,
-    /// Whether the report address's domain accepts this domain's reports
-    /// (its own record or the wildcard): `None` when none is needed (the same
-    /// organizational domain) or not looked up (forwarded mode, a record that
-    /// does not name the report address).
-    pub report_address_auth: Option<AuthState>,
 }
 
 /// One domain's reporting setup. Reports that arrive settle it. Otherwise the
-/// record decides: none, or one that cannot be read; then, in direct mode, the
-/// address in `rua=` (the first thing to change, also while the mailbox
-/// domain refuses the reports: `mailbox_auth_missing` names that beside it)
-/// and a mailbox domain that refuses the reports; in
-/// forwarded mode the report address when named, else the forwarding
-/// addresses, of which at least one must be accepted. A set-up domain waits
-/// for its first report, or for reports again.
+/// record decides: none, or one that cannot be read; then the known addresses
+/// it names. One of them accepted (or on the domain's own organizational
+/// domain) is enough, and the domain waits for its first report, or for
+/// reports again. With none accepted, a failed authorization lookup is not a
+/// refusal. A record that names no known address misses it, whatever else it
+/// names.
 pub fn reporting_status(facts: &ReportingSetupFacts) -> ReportingStatus {
     if facts.reporting == ReportingState::Reporting {
         return ReportingStatus::Reporting;
@@ -126,52 +119,39 @@ pub fn reporting_status(facts: &ReportingSetupFacts) -> ReportingStatus {
         DmarcLookup::NotPublished => return ReportingStatus::NoRecord,
         DmarcLookup::Published(rua) => rua,
     };
-    let waiting = if facts.reporting == ReportingState::NoReports {
-        ReportingStatus::WaitingForFirstReport
-    } else {
-        ReportingStatus::WaitingForReports
-    };
-    let by_report_address = || match facts.report_address_auth {
-        Some(AuthState::NotAuthorized) => ReportingStatus::NotAuthorized,
-        Some(AuthState::CheckFailed) => ReportingStatus::AuthorizationCheckFailed,
-        Some(AuthState::Authorized) | None => waiting,
-    };
-    if facts.direct {
-        if !rua.names_report_address {
-            return ReportingStatus::AddressMissing;
-        }
-        return by_report_address();
-    }
-    if rua.names_report_address {
-        return by_report_address();
-    }
-    if rua.other_addresses.is_empty() {
+    if rua.known.is_empty() {
         return ReportingStatus::AddressMissing;
     }
-    let refused = |auth: &Option<AuthState>| *auth == Some(AuthState::NotAuthorized);
-    if rua.other_addresses.iter().all(refused) {
-        ReportingStatus::NotAuthorized
+    let accepted = |auth: &Option<AuthState>| matches!(auth, None | Some(AuthState::Authorized));
+    if rua.known.iter().any(accepted) {
+        if facts.reporting == ReportingState::NoReports {
+            ReportingStatus::WaitingForFirstReport
+        } else {
+            ReportingStatus::WaitingForReports
+        }
+    } else if rua.known.contains(&Some(AuthState::CheckFailed)) {
+        ReportingStatus::AuthorizationCheckFailed
     } else {
-        waiting
+        ReportingStatus::NotAuthorized
     }
 }
 
-/// Whether the mailbox domain accepts other domains' reports (direct mode).
+/// Whether one report address domain accepts other domains' reports.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
 pub enum MailboxAuthorization {
-    /// Every monitored domain shares the mailbox's organizational domain:
-    /// nothing to publish.
+    /// No listed domain outside its organizational domain sends reports
+    /// there: nothing to publish.
     NotNeeded,
-    /// `*._report._dmarc.<mailbox domain>` is published: every domain may
+    /// `*._report._dmarc.<address domain>` is published: every domain may
     /// send its reports there, also ones added later.
     Wildcard,
-    /// No wildcard, but every domain outside the mailbox's organizational
-    /// domain is accepted by a record of its own (or its reports arrive).
+    /// No wildcard, but every domain that needs it is accepted by a record
+    /// of its own.
     PerDomain,
-    /// No wildcard, and a domain outside it is not accepted yet (or none is
-    /// listed): the per-domain rows say which.
+    /// No wildcard, and a domain that needs it is not accepted yet (or none
+    /// is listed): the per-domain rows say which.
     NoWildcard,
     /// The wildcard lookup timed out or failed.
     CheckFailed,
@@ -187,11 +167,9 @@ impl MailboxAuthorization {
     }
 }
 
-/// The mailbox domain's authorization: `wildcard` is the wildcard lookup,
+/// One address domain's authorization: `wildcard` is the wildcard lookup,
 /// `None` when no listed domain needs one (and at least one is listed);
-/// `external` the authorization of each listed domain outside the mailbox's
-/// organizational domain (a domain whose reports arrive counts as
-/// authorized).
+/// `external` the authorization of each listed domain that needs it.
 pub fn mailbox_authorization(
     wildcard: Option<AuthState>,
     external: &[AuthState],
@@ -213,185 +191,161 @@ pub fn mailbox_authorization(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use AuthState::{Authorized, NotAuthorized};
 
-    fn facts(direct: bool, dmarc: DmarcLookup) -> ReportingSetupFacts {
+    fn facts(dmarc: DmarcLookup) -> ReportingSetupFacts {
         ReportingSetupFacts {
             reporting: ReportingState::NoReports,
-            direct,
             dmarc,
-            report_address_auth: None,
         }
     }
 
-    fn named() -> DmarcLookup {
-        DmarcLookup::Published(RuaFacts {
-            names_report_address: true,
-            other_addresses: vec![],
-        })
+    fn rua(known: Vec<Option<AuthState>>, other: usize) -> DmarcLookup {
+        DmarcLookup::Published(RuaFacts { known, other })
     }
 
-    fn others(auth: Vec<Option<AuthState>>) -> DmarcLookup {
-        DmarcLookup::Published(RuaFacts {
-            names_report_address: false,
-            other_addresses: auth,
-        })
+    fn status(known: Vec<Option<AuthState>>) -> ReportingStatus {
+        reporting_status(&facts(rua(known, 0)))
     }
+
+    const FAILED: Option<AuthState> = Some(AuthState::CheckFailed);
 
     #[test]
     fn arriving_reports_settle_it_whatever_dns_says() {
-        let mut f = facts(true, DmarcLookup::Failed);
-        f.reporting = ReportingState::Reporting;
-        assert_eq!(reporting_status(&f), ReportingStatus::Reporting);
-        f.dmarc = DmarcLookup::NotPublished;
-        f.report_address_auth = Some(AuthState::NotAuthorized);
-        assert_eq!(reporting_status(&f), ReportingStatus::Reporting);
+        for dmarc in [
+            DmarcLookup::Failed,
+            DmarcLookup::NotPublished,
+            rua(vec![], 2),
+            rua(vec![Some(NotAuthorized)], 0),
+        ] {
+            let mut f = facts(dmarc);
+            f.reporting = ReportingState::Reporting;
+            assert_eq!(reporting_status(&f), ReportingStatus::Reporting);
+        }
     }
 
     #[test]
     fn the_record_comes_first() {
-        for direct in [true, false] {
-            assert_eq!(
-                reporting_status(&facts(direct, DmarcLookup::Failed)),
-                ReportingStatus::CheckFailed
-            );
-            assert_eq!(
-                reporting_status(&facts(direct, DmarcLookup::NotPublished)),
-                ReportingStatus::NoRecord
-            );
-        }
+        assert_eq!(
+            reporting_status(&facts(DmarcLookup::Failed)),
+            ReportingStatus::CheckFailed
+        );
+        assert_eq!(
+            reporting_status(&facts(DmarcLookup::NotPublished)),
+            ReportingStatus::NoRecord
+        );
     }
 
     #[test]
-    fn direct_mode_needs_the_address_and_the_mailbox_domains_consent() {
+    fn a_record_naming_no_known_address_misses_it() {
+        assert_eq!(status(vec![]), ReportingStatus::AddressMissing);
+        // Other addresses may forward somewhere; Marcan cannot see where.
         assert_eq!(
-            reporting_status(&facts(true, others(vec![]))),
+            reporting_status(&facts(rua(vec![], 3))),
             ReportingStatus::AddressMissing
         );
+    }
+
+    #[test]
+    fn one_known_address_accepted_or_needing_nothing_is_enough() {
+        assert_eq!(status(vec![None]), ReportingStatus::WaitingForFirstReport);
         assert_eq!(
-            reporting_status(&facts(true, named())),
+            status(vec![Some(Authorized)]),
             ReportingStatus::WaitingForFirstReport
         );
-        let mut f = facts(true, named());
-        f.report_address_auth = Some(AuthState::Authorized);
-        assert_eq!(reporting_status(&f), ReportingStatus::WaitingForFirstReport);
-        f.report_address_auth = Some(AuthState::NotAuthorized);
-        assert_eq!(reporting_status(&f), ReportingStatus::NotAuthorized);
-        f.report_address_auth = Some(AuthState::CheckFailed);
         assert_eq!(
-            reporting_status(&f),
+            status(vec![Some(NotAuthorized), Some(Authorized)]),
+            ReportingStatus::WaitingForFirstReport
+        );
+        assert_eq!(
+            status(vec![FAILED, None]),
+            ReportingStatus::WaitingForFirstReport
+        );
+    }
+
+    #[test]
+    fn with_none_accepted_a_failed_check_is_not_a_refusal() {
+        assert_eq!(
+            status(vec![FAILED]),
             ReportingStatus::AuthorizationCheckFailed
         );
-    }
-
-    #[test]
-    fn the_missing_address_is_named_before_a_refusing_mailbox_domain() {
-        // The record is the first thing to change, so its badge says so; the
-        // authorization follows once the record names the address.
-        let mut f = facts(true, others(vec![None]));
-        f.report_address_auth = Some(AuthState::NotAuthorized);
-        assert_eq!(reporting_status(&f), ReportingStatus::AddressMissing);
-        f.report_address_auth = Some(AuthState::CheckFailed);
-        assert_eq!(reporting_status(&f), ReportingStatus::AddressMissing);
-        f.dmarc = named();
-        f.report_address_auth = Some(AuthState::NotAuthorized);
-        assert_eq!(reporting_status(&f), ReportingStatus::NotAuthorized);
-    }
-
-    #[test]
-    fn direct_mode_ignores_forwarders() {
         assert_eq!(
-            reporting_status(&facts(true, others(vec![None, None]))),
-            ReportingStatus::AddressMissing
-        );
-    }
-
-    #[test]
-    fn forwarded_mode_waits_while_one_forwarder_is_accepted() {
-        assert_eq!(
-            reporting_status(&facts(false, others(vec![]))),
-            ReportingStatus::AddressMissing
+            status(vec![Some(NotAuthorized), FAILED]),
+            ReportingStatus::AuthorizationCheckFailed
         );
         assert_eq!(
-            reporting_status(&facts(false, others(vec![None]))),
-            ReportingStatus::WaitingForFirstReport
-        );
-        assert_eq!(
-            reporting_status(&facts(
-                false,
-                others(vec![
-                    Some(AuthState::NotAuthorized),
-                    Some(AuthState::Authorized)
-                ])
-            )),
-            ReportingStatus::WaitingForFirstReport
-        );
-        assert_eq!(
-            reporting_status(&facts(
-                false,
-                others(vec![
-                    Some(AuthState::NotAuthorized),
-                    Some(AuthState::NotAuthorized)
-                ])
-            )),
+            status(vec![Some(NotAuthorized)]),
             ReportingStatus::NotAuthorized
         );
-        // A failed lookup is not a refusal.
         assert_eq!(
-            reporting_status(&facts(false, others(vec![Some(AuthState::CheckFailed)]))),
-            ReportingStatus::WaitingForFirstReport
+            status(vec![Some(NotAuthorized), Some(NotAuthorized)]),
+            ReportingStatus::NotAuthorized
         );
     }
 
+    /// Two receiving accounts, one with a forwarded-from address: a record
+    /// is judged by the known addresses it names, whatever else it names.
     #[test]
-    fn forwarded_mode_naming_the_report_address_is_judged_like_direct() {
-        let mut f = facts(false, named());
-        assert_eq!(reporting_status(&f), ReportingStatus::WaitingForFirstReport);
-        f.report_address_auth = Some(AuthState::NotAuthorized);
-        assert_eq!(reporting_status(&f), ReportingStatus::NotAuthorized);
-        f.report_address_auth = Some(AuthState::CheckFailed);
+    fn several_accounts_each_count() {
+        // Account 1's address refuses, account 2's (the same organizational
+        // domain as the reporting one) needs nothing.
         assert_eq!(
-            reporting_status(&f),
+            reporting_status(&facts(rua(vec![Some(NotAuthorized), None], 1))),
+            ReportingStatus::WaitingForFirstReport
+        );
+        // Only the forwarded-from address, on a domain that refuses.
+        assert_eq!(
+            reporting_status(&facts(rua(vec![Some(NotAuthorized)], 2))),
+            ReportingStatus::NotAuthorized
+        );
+        // Both accounts' addresses, both lookups failed.
+        assert_eq!(
+            reporting_status(&facts(rua(vec![FAILED, FAILED], 0))),
             ReportingStatus::AuthorizationCheckFailed
         );
     }
 
     #[test]
     fn stopped_reports_wait_for_reports_again() {
-        let mut f = facts(true, named());
+        let mut f = facts(rua(vec![None], 0));
         f.reporting = ReportingState::Stopped;
         assert_eq!(reporting_status(&f), ReportingStatus::WaitingForReports);
     }
 
     #[test]
     fn order_set_up_and_colours() {
-        use ReportingStatus::*;
+        use ReportingStatus as R;
         let all = [
-            NoRecord,
-            NotAuthorized,
-            AddressMissing,
-            CheckFailed,
-            AuthorizationCheckFailed,
-            WaitingForFirstReport,
-            WaitingForReports,
-            Reporting,
+            R::NoRecord,
+            R::NotAuthorized,
+            R::AddressMissing,
+            R::CheckFailed,
+            R::AuthorizationCheckFailed,
+            R::WaitingForFirstReport,
+            R::WaitingForReports,
+            R::Reporting,
         ];
         assert!(all.windows(2).all(|w| w[0].rank() < w[1].rank()));
         let set_up: Vec<_> = all.iter().filter(|s| s.is_set_up()).collect();
         assert_eq!(
             set_up,
-            [&WaitingForFirstReport, &WaitingForReports, &Reporting]
+            [
+                &R::WaitingForFirstReport,
+                &R::WaitingForReports,
+                &R::Reporting
+            ]
         );
-        assert_eq!(NoRecord.status(), Status::Fail);
-        assert_eq!(NotAuthorized.status(), Status::Fail);
-        assert_eq!(AddressMissing.status(), Status::Warn);
-        assert_eq!(CheckFailed.status(), Status::Neutral);
-        assert_eq!(WaitingForFirstReport.status(), Status::Neutral);
-        assert_eq!(Reporting.status(), Status::Pass);
+        assert_eq!(R::NoRecord.status(), Status::Fail);
+        assert_eq!(R::NotAuthorized.status(), Status::Fail);
+        assert_eq!(R::AddressMissing.status(), Status::Warn);
+        assert_eq!(R::CheckFailed.status(), Status::Neutral);
+        assert_eq!(R::WaitingForFirstReport.status(), Status::Neutral);
+        assert_eq!(R::Reporting.status(), Status::Pass);
     }
 
     #[test]
     fn mailbox_authorization_states() {
-        use AuthState::*;
+        use AuthState::CheckFailed;
         assert_eq!(
             mailbox_authorization(None, &[]),
             MailboxAuthorization::NotNeeded

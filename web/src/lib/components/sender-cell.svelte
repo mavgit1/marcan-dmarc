@@ -32,7 +32,8 @@
 		<CopyButton value={ip} label="Copy source IP" />
 	</div>
 	{#if identity !== undefined}
-		<SenderName {identity} class="max-w-[200px] truncate text-xs text-muted-foreground" />
+		<!-- Wraps rather than truncates: a long name ("Outlook (Personal and Microsoft 365)") stays whole. -->
+		<SenderName {identity} class="max-w-72 text-xs whitespace-normal text-muted-foreground" />
 	{/if}
 	{@render children?.()}
 </div>

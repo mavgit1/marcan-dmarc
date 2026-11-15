@@ -1,7 +1,7 @@
 //! The mail a domain's policy readiness is judged from: plain sums over a
 //! window, split by the policy each report's receiver applied.
 
-use crate::outcome::{MailCounts, MAIL_COUNTS_SELECT};
+use crate::outcome::{MailCounts, MAIL_COUNTS_SELECT, NO_ALIGNED_DKIM_MESSAGES_EXPR};
 use crate::queries::Scope;
 use crate::StoreError;
 use sqlx::sqlite::SqlitePool;
@@ -27,6 +27,9 @@ pub struct ReadinessMailRow {
     /// window; `None` when every message was under the given one, or the
     /// rest came from reports that name none.
     pub other_policy: Option<String>,
+    /// Messages of the window, whatever policy was applied, that passed
+    /// DMARC without an aligned DKIM pass ([`NO_ALIGNED_DKIM_MESSAGES_EXPR`]).
+    pub no_aligned_dkim: i64,
 }
 
 /// `LOWER(TRIM(<r>.policy_p))`: a report's applied `p=`, compared like the
@@ -52,6 +55,7 @@ pub async fn readiness_mail(
     );
     let mut qb = QueryBuilder::new(format!(
         "SELECT {MAIL_COUNTS_SELECT}, \
+         {NO_ALIGNED_DKIM_MESSAGES_EXPR} AS no_aligned_dkim, \
          COALESCE(SUM(CASE WHEN {r_p} = "
     ));
     qb.push_bind(policy.clone());

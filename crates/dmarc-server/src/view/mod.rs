@@ -6,6 +6,7 @@
 //! here embeds its store row (`#[serde(flatten)]`) and adds only the verdicts,
 //! so a new column is one edit in the store.
 
+pub mod accounts;
 pub mod alerts;
 pub mod domain;
 pub mod guide;

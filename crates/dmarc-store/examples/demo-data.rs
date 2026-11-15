@@ -21,9 +21,9 @@
 //! import would produce.
 
 use dmarc_store::{
-    create_organization, get_or_create_domain, ingest_report, init, move_domain,
-    rename_organization, save_settings, set_demo_dns_records, set_domain_parked,
-    OnboardingSettings, OnboardingState, OrganizationWrite, ReportingMode, ReportingSettings,
+    create_organization, get_or_create_domain, ingest_report, init, insert_account, move_domain,
+    rename_organization, save_settings, set_demo_dns_records, set_domain_parked, AccountFields,
+    OnboardingSettings, OnboardingState, OrganizationWrite, ReceivingSettings,
 };
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -466,14 +466,15 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    save_settings(
-        &pool,
-        &ReportingSettings {
-            report_address: Some("dmarc@example.com".to_owned()),
-            reporting_mode: Some(ReportingMode::Direct),
-        },
-    )
-    .await?;
+    // The report address is account 1's, with no login yet (as an upgraded
+    // installation with a report address and no mailbox has it).
+    let account = AccountFields {
+        name: "dmarc@example.com".to_owned(),
+        address: "dmarc@example.com".to_owned(),
+        ..AccountFields::default()
+    };
+    insert_account(&pool, Some(1), &account, &[], 0).await?;
+    save_settings(&pool, &ReceivingSettings::default()).await?;
     save_settings(
         &pool,
         &OnboardingSettings {

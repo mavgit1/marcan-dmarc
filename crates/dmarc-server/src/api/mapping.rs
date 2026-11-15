@@ -191,7 +191,7 @@ pub async fn apply_mapping(
     }
     let plan = dmarc_store::apply_domain_mapping(&state.pool, &parsed.entries).await?;
     if !plan.changes.unignore.is_empty() {
-        state.imap.request_reimport();
+        state.mailboxes.request_reimport();
     }
     Ok(Json(summary(plan, Vec::new())))
 }

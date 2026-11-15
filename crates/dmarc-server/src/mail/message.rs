@@ -4,7 +4,7 @@ use dmarc_store::{PixelSize, StoredLogo};
 use lettre::Address;
 use std::fmt;
 
-/// One message to send. `Reply-To` comes from the [`SmtpConfig`](super::SmtpConfig).
+/// One message to send. `Reply-To` comes from the [`SendConfig`](super::SendConfig).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
     pub to: Address,

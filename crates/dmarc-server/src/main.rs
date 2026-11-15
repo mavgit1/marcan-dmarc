@@ -2,7 +2,7 @@
 
 use anyhow::Context;
 use clap::Parser;
-use dmarc_server::{router_with_state, AllowedHosts, AppState, Background};
+use dmarc_server::{router_with_state, AllowedHosts, AppState, Background, SecretKeys};
 use std::path::PathBuf;
 use std::time::Duration;
 use tracing::info;
@@ -15,7 +15,11 @@ const DB_FILE: &str = "marcan.db";
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Parser)]
-#[command(name = "dmarc-server", about = "Marcan REST API + IMAP fetch loop")]
+#[command(
+    name = "dmarc-server",
+    about = "Marcan REST API + mailbox fetch loop",
+    after_help = "Secrets at rest (environment only, never a flag):\n  MARCAN_SECRET_KEY, or MARCAN_SECRET_KEY_FILE naming a file that holds it:\n      encrypts the accounts' credentials (32 bytes in base64 or hex, `openssl rand -base64 32`)\n  MARCAN_SECRET_KEY_PREVIOUS, or MARCAN_SECRET_KEY_PREVIOUS_FILE:\n      the key it replaces; the credentials are encrypted again with the new one at start"
+)]
 struct Config {
     /// Listen address (host:port).
     #[arg(long = "bind", env = "BIND_ADDR", default_value = "127.0.0.1:8080")]
@@ -41,6 +45,11 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cfg = Config::parse();
+    // Before anything else: a key that cannot be used stops the start, and
+    // the error never repeats the value. The keys are read from the
+    // environment or a file only, never from a flag, which every user of
+    // the machine sees in the process list.
+    let secret_keys = SecretKeys::from_env(|name| std::env::var_os(name))?;
     let db_path = cfg.data_dir.join(DB_FILE);
     info!(path = %db_path.display(), "initializing database");
     let pool = dmarc_store::init(&db_path)
@@ -57,7 +66,13 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to read the demo DNS records")?;
     let mut state = AppState::new(pool)
         .with_sender_names(names)
-        .with_allowed_hosts(allowed_hosts);
+        .with_allowed_hosts(allowed_hosts)
+        .with_secret_keys(secret_keys);
+    state
+        .accounts
+        .start()
+        .await
+        .context("failed to encrypt the stored account secrets")?;
     if let Some(resolver) = demo_dns {
         tracing::warn!("demo database: DNS checks answer from its made-up records, not from DNS");
         state = state.with_dns_resolver(resolver);
@@ -121,5 +136,11 @@ mod tests {
             cfg.allowed_hosts,
             ["dmarc.example.com", "marcan.example.net"]
         );
+    }
+
+    /// The key has no flag: it would show in the process list.
+    #[test]
+    fn the_secret_key_is_not_a_flag() {
+        assert!(Config::try_parse_from(["dmarc-server", "--secret-key", "x"]).is_err());
     }
 }

@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { ImapProgressResponse } from '$lib/types/ImapProgressResponse';
+	import type { PassProgressResponse } from '$lib/types/PassProgressResponse';
 	import { formatInt } from '$lib/format';
-	import { progressLabel, progressPercent } from '$lib/imap-progress';
+	import { progressLabel, progressPercent } from '$lib/pass-progress';
 	import { cn } from '$lib/utils.js';
 
 	/** A slim bar with "processed / total" beside it; before importing, the phase in place of the count. */
-	let { progress, class: className }: { progress: ImapProgressResponse; class?: string } = $props();
+	let { progress, class: className }: { progress: PassProgressResponse; class?: string } = $props();
 
 	const pct = $derived(progressPercent(progress));
 	const importing = $derived(progress.phase === 'importing' && pct != null);

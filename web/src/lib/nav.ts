@@ -40,8 +40,8 @@ export const NAV_GROUPS: NavGroup[] = [
 		label: 'Inventory',
 		items: [
 			{ title: 'Domains', href: '/domains', icon: GlobeIcon },
-			{ title: 'Senders', href: '/senders', icon: MailIcon },
-			{ title: 'Organizations', href: '/organizations', icon: Building2Icon }
+			{ title: 'Organizations', href: '/organizations', icon: Building2Icon },
+			{ title: 'Senders', href: '/senders', icon: MailIcon }
 		]
 	},
 	{
@@ -88,25 +88,15 @@ export function titleForPath(pathname: string): string {
 /** One step of the trail; `href` is unresolved (a list, or an organization's page). */
 export type Crumb = { label: string; href?: string };
 
-/**
- * The organization the scope is narrowed to (in the header filter, or by a link from the
- * organization's page, which names it: `?org=`), for the trail of a domain or sender page.
- */
+/** The organization a domain belongs to (from the domain's own data), for its page's trail. */
 export type CrumbOrganization = { id: number; name: string };
 
-/** "Organizations › Acme": the trail's start on a page reached within an organization. */
-function organizationCrumbs(organization: CrumbOrganization): Crumb[] {
-	return [
-		{ label: 'Organizations', href: '/organizations' },
-		{ label: organization.name, href: `/organizations/${organization.id}` }
-	];
-}
-
 /**
- * Breadcrumb trail for the current path. The last item is the current page (no href). With
- * `organization` (the scope is narrowed to one, as by a link from its page), a domain page reads
- * Organizations › organization › domain and a sender page Organizations › organization ›
- * Senders › sender.
+ * Breadcrumb trail for the current path: where the page sits, never the way there or the scope.
+ * The last item is the current page (no href). A domain page always reads Organizations ›
+ * organization › domain, also with one organization; until its `organization` is known the
+ * organization step is left out. A sender (an IP that may send for several organizations) sits
+ * under Senders.
  */
 export function crumbsForPath(
 	pathname: string,
@@ -125,21 +115,26 @@ export function crumbsForPath(
 		return [{ label: 'Reports', href: '/reports' }, { label: entityName || `Report ${params.id}` }];
 	}
 	if (pathname.startsWith('/senders/') && params?.ip) {
-		return [
-			...(organization ? organizationCrumbs(organization) : []),
-			{ label: 'Senders', href: '/senders' },
-			{ label: entityName || decodeURIComponent(params.ip) }
-		];
+		return [{ label: 'Senders', href: '/senders' }, { label: entityName || decodeURIComponent(params.ip) }];
 	}
 	if (pathname.startsWith('/domains/') && params?.id) {
 		return [
-			...(organization ? organizationCrumbs(organization) : [{ label: 'Domains', href: '/domains' }]),
+			{ label: 'Organizations', href: '/organizations' },
+			...(organization ? [{ label: organization.name, href: `/organizations/${organization.id}` }] : []),
 			{ label: entityName || `Domain ${params.id}` }
 		];
 	}
 	if (pathname.startsWith('/organizations/') && params?.id) {
 		return [{ label: 'Organizations', href: '/organizations' }, { label: entityName || `Organization ${params.id}` }];
 	}
+
+	const account = /^\/settings\/accounts\/([^/]+)\/?$/.exec(pathname)?.[1];
+	if (account)
+		return [
+			{ label: 'Settings', href: '/settings' },
+			{ label: 'Accounts', href: '/settings/accounts' },
+			{ label: account === 'new' ? 'New account' : entityName || `Account ${account}` }
+		];
 
 	const settings = pageFromPath(pathname);
 	if (settings) return [{ label: 'Settings', href: '/settings' }, { label: settingsPage(settings)!.title }];

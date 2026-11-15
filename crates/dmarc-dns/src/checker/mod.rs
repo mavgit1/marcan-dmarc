@@ -258,7 +258,7 @@ impl DnsChecker {
         evaluate_dmarc(domain, &lookup, &auth)
     }
 
-    /// RFC 7489 §7.1: does `rua_domain` accept aggregate reports for `domain`?
+    /// RFC 9990 §4: does `rua_domain` accept aggregate reports for `domain`?
     /// Wildcard records (`*._report._dmarc.<rua_domain>`) match through normal DNS.
     pub async fn check_report_authorization(
         &self,

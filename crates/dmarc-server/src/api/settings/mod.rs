@@ -1,14 +1,15 @@
 //! Settings endpoints under `/api/settings`.
 //!
 //! Marcan's own settings are groups: `GET /api/settings` answers all of them
-//! ([`SettingsResponse`]) and `PUT /api/settings/{group}` saves one (mailbox,
-//! reporting, monitoring, retention, dns, sending, alerts, client-reports,
-//! license, branding, onboarding, updates),
+//! ([`SettingsResponse`], the mail accounts with them) and `PUT
+//! /api/settings/{group}` saves one (receiving, monitoring,
+//! retention, dns, sending, alerts, client-reports, license, branding,
+//! onboarding, updates),
 //! plus the branding logo (`GET` / `POST` / `DELETE /api/settings/branding/logo`),
 //! answering all of them again, and the branding preview (`POST
 //! /api/settings/branding/preview`, how the emails would look with a draft,
-//! which stores nothing). The mailbox actions (connect, sync, re-import) live
-//! with the mailbox, the test sends with sending and alerts, the rendered and
+//! which stores nothing). The receiving actions (sync, re-import) live with
+//! receiving, the test sends with sending and alerts, the rendered and
 //! sent client report with the client reports; the DKIM selector list is data
 //! with its own validation, not a group, edited like the other lists
 //! (`crate::view::ListText`).
@@ -17,7 +18,9 @@
 //! several groups), so two forms never overwrite each other's values.
 //!
 //! Values live in the `app_settings` table, one row per group, read and
-//! written through `dmarc_store::AppSettings` and its groups. The groups
+//! written through `dmarc_store::AppSettings` and its groups; the mail
+//! accounts are rows of their own (`crate::api::accounts`), each receiving
+//! account's address the one reports are sent to. The groups
 //! without checks of their own (monitoring, retention, onboarding, updates)
 //! are saved here; each other group has its module.
 
@@ -26,8 +29,7 @@ mod branding;
 mod client_reports;
 mod dns;
 mod license;
-mod mailbox;
-mod reporting;
+mod receiving;
 mod selectors;
 mod sending;
 
@@ -43,8 +45,7 @@ pub use client_reports::{
 };
 pub use dns::put_dns;
 pub use license::put_license;
-pub use mailbox::{connect_imap, put_mailbox, reimport_imap, sync_imap};
-pub use reporting::put_reporting;
+pub use receiving::{put_receiving, reimport_all, sync_all, SyncResponse, SyncSkipReason};
 pub use selectors::{get_dkim_selectors, preview_dkim_selectors, save_dkim_selectors};
 pub use sending::{put_sending, send_test};
 
@@ -61,11 +62,15 @@ use dmarc_store::{
 use std::sync::Arc;
 
 /// Every setting, as stored now, and when the client reports go out.
-async fn settings_response(state: &AppState) -> AppResult<Json<SettingsResponse>> {
+pub(crate) async fn settings_response(state: &AppState) -> AppResult<Json<SettingsResponse>> {
     let settings = AppSettings::load(&state.pool).await?;
-    let schedule = schedule(&state.pool, &settings, unix_now()).await?;
+    let now = unix_now();
+    let snapshot = state.accounts.snapshot().await?;
+    let schedule = schedule(&state.pool, &settings, now).await?;
     let logo = dmarc_store::get_logo_info(&state.pool).await?;
-    Ok(Json(SettingsResponse::new(&settings, &schedule, logo)))
+    Ok(Json(SettingsResponse::new(
+        &settings, &snapshot, &schedule, logo, now,
+    )))
 }
 
 /// `GET /api/settings`.

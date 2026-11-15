@@ -1,4 +1,4 @@
-//! The background work and its supervisor: the IMAP polling loop, the DNS
+//! The background work and its supervisor: the mailbox polling loop, the DNS
 //! snapshot warm loop, the reverse-DNS identity warm loop, the alert job, the
 //! monthly client reports, the version check and the daily report
 //! retention clean-up. One
@@ -61,13 +61,13 @@ impl Background {
         let token = CancellationToken::new();
         let mut tasks = JoinSet::new();
 
-        // Always running: the worker re-reads the IMAP settings on every pass,
+        // Always running: the worker re-reads the accounts on every pass,
         // so a mailbox configured in the UI starts polling without a restart.
         tasks.spawn(
             state
-                .imap
+                .mailboxes
                 .clone()
-                .run(state.imap_backend(), token.child_token()),
+                .run(state.mailbox_backend(), token.child_token()),
         );
 
         // The DNS warm loop says when each pass starts and ends; the alert job
@@ -312,7 +312,7 @@ fn panic_message(panic: &(dyn Any + Send)) -> &str {
 
 /// Rows retention deletes per write transaction (reports with what cascades
 /// from them, or alert events). A year of reports cleared at once would hold
-/// the write lock past the IMAP batches' and API writes' busy timeout.
+/// the write lock past the mailbox batches' and API writes' busy timeout.
 const RETENTION_CHUNK: i64 = 1_000;
 
 /// Pause between two retention chunks, so a writer waiting on the lock gets

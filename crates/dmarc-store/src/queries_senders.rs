@@ -64,12 +64,15 @@ impl SenderSort {
 }
 
 /// Scope, order and page of [`list_senders`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SenderListQuery {
     pub scope: Scope,
     /// Only the senders with mail that failed DMARC and was not forwarded
     /// (`failed_messages > 0`).
     pub failing: bool,
+    /// Only these source IPs (a search the server matched against the
+    /// senders' names, which the store does not know); `None`: every one.
+    pub only_ips: Option<Vec<String>>,
     pub sort: Sort<SenderSort>,
     pub limit: i64,
     pub offset: i64,
@@ -115,6 +118,13 @@ pub async fn list_senders(
         "#
     ));
     q.scope.push_reports(&mut qb, "r");
+    if let Some(ips) = &q.only_ips {
+        // One bind however many: a JSON array read by `json_each`.
+        let ips = serde_json::to_string(ips).expect("a list of strings serializes");
+        qb.push(" AND rec.source_ip IN (SELECT value FROM json_each(")
+            .push_bind(ips)
+            .push("))");
+    }
     qb.push(" GROUP BY rec.source_ip");
     if q.failing {
         qb.push(format!(" HAVING {FAILED_MESSAGES_EXPR} > 0"));
@@ -131,6 +141,40 @@ pub async fn list_senders(
         .await?;
     let total = rows.first().map_or(0, |r| r.total);
     Ok((rows, total))
+}
+
+/// Every source IP with records in `scope`, once each: what a sender search
+/// is matched against.
+pub async fn source_ips_in_scope(
+    pool: &SqlitePool,
+    scope: Scope,
+) -> Result<Vec<String>, StoreError> {
+    let mut qb = QueryBuilder::new(
+        "SELECT DISTINCT rec.source_ip FROM records rec \
+         INNER JOIN reports r ON r.id = rec.report_id WHERE 1=1",
+    );
+    scope.push_reports(&mut qb, "r");
+    Ok(qb.build_query_scalar::<String>().fetch_all(pool).await?)
+}
+
+/// Every source IP of domain `domain_id` in reports that began before
+/// `before`, once each: what "sent as the domain before" the window is
+/// compared with (by network, in `dmarc_assess::new_senders_by_network`).
+pub async fn source_ips_before(
+    pool: &SqlitePool,
+    domain_id: i64,
+    before: i64,
+) -> Result<Vec<String>, StoreError> {
+    let ips = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT rec.source_ip \
+         FROM records rec INNER JOIN reports r ON r.id = rec.report_id \
+         WHERE r.domain_id = ?1 AND r.date_begin < ?2",
+    )
+    .bind(domain_id)
+    .bind(before)
+    .fetch_all(pool)
+    .await?;
+    Ok(ips)
 }
 
 /// A sender new to a domain: a source IP with no records for the domain in

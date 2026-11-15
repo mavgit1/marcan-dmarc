@@ -21,6 +21,7 @@ pub enum AlertGroup {
     Parked,
     Senders,
     Updates,
+    Accounts,
 }
 
 /// One kind of alert as the user can choose it: an [`AlertKind`], split by
@@ -38,6 +39,8 @@ pub enum CatalogueKind {
     ParkedChanged { parked: bool },
     NewFailingSender,
     UpdateAvailable,
+    AccountCredentialExpiring,
+    AccountNotRead,
 }
 
 impl CatalogueKind {
@@ -53,6 +56,8 @@ impl CatalogueKind {
             AlertKind::ParkedChanged { parked } => Self::ParkedChanged { parked: *parked },
             AlertKind::NewFailingSender { .. } => Self::NewFailingSender,
             AlertKind::UpdateAvailable { .. } => Self::UpdateAvailable,
+            AlertKind::AccountCredentialExpiring { .. } => Self::AccountCredentialExpiring,
+            AlertKind::AccountNotRead { .. } => Self::AccountNotRead,
         }
     }
 
@@ -80,6 +85,8 @@ impl CatalogueKind {
             Self::ParkedChanged { parked: false } => "parked_changed.unparked",
             Self::NewFailingSender => "new_failing_sender",
             Self::UpdateAvailable => "update_available",
+            Self::AccountCredentialExpiring => "account_credential_expiring",
+            Self::AccountNotRead => "account_not_read",
         }
     }
 
@@ -94,6 +101,7 @@ impl CatalogueKind {
             Self::ParkedChanged { .. } => AlertGroup::Parked,
             Self::NewFailingSender => AlertGroup::Senders,
             Self::UpdateAvailable => AlertGroup::Updates,
+            Self::AccountCredentialExpiring | Self::AccountNotRead => AlertGroup::Accounts,
         }
     }
 }
@@ -101,7 +109,7 @@ impl CatalogueKind {
 /// Every alert kind [`alert_events`](super::alert_events) raises, in the order the settings and
 /// the docs list them. A test checks that every raised kind maps to exactly
 /// one entry ([`catalogue_id`]) and no entry is unreachable.
-pub static ALERT_CATALOGUE: [CatalogueKind; 17] = {
+pub static ALERT_CATALOGUE: [CatalogueKind; 19] = {
     use CatalogueKind::*;
     [
         IssueOpened(AlertedIssue::DeliveredFailures),
@@ -121,6 +129,8 @@ pub static ALERT_CATALOGUE: [CatalogueKind; 17] = {
         ParkedChanged { parked: false },
         NewFailingSender,
         UpdateAvailable,
+        AccountCredentialExpiring,
+        AccountNotRead,
     ]
 };
 

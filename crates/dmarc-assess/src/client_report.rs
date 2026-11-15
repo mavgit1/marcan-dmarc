@@ -244,6 +244,7 @@ mod tests {
                 policy_messages: mail.total,
                 policy_first_report_at: Some(NOW - 60 * DAY),
                 other_policy: None,
+                no_aligned_dkim: 0,
             },
             NOW,
         );

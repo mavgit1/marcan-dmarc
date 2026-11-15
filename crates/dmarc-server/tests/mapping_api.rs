@@ -182,7 +182,7 @@ async fn preview_has_no_side_effects() {
 #[tokio::test]
 async fn apply_moves_adds_creates_and_unignores_leaving_unlisted_alone() {
     let t = TestApp::new().await;
-    let (_pool, app, imap) = (t.pool.clone(), t.app.clone(), t.state.imap.clone());
+    let (_pool, app, imap) = (t.pool.clone(), t.app.clone(), t.state.mailboxes.clone());
     seed(&app).await;
     let text = "organization,domain\n# bulk\n Beta, A.com. \nBeta,c.com\nNew Org,new.com\nNew Org,gone.com\n";
     let (status, body) = apply(&app, text).await;
@@ -212,7 +212,7 @@ async fn apply_moves_adds_creates_and_unignores_leaving_unlisted_alone() {
 #[tokio::test]
 async fn ignored_deletes_reports_and_drops_the_parked_flag() {
     let t = TestApp::new().await;
-    let (pool, app, imap) = (t.pool.clone(), t.app.clone(), t.state.imap.clone());
+    let (pool, app, imap) = (t.pool.clone(), t.app.clone(), t.state.mailboxes.clone());
     seed(&app).await;
     add_reports(&pool, "a.com", 3).await;
     apply(&app, "Acme,b.com,parked\n").await;

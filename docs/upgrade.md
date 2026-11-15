@@ -10,14 +10,14 @@ The stacks run the `latest` image, so a pull is an upgrade, database migrations 
 
 ## If something goes wrong
 
-You can always start over. Marcan only reads the mailbox, so while the reports stay there, the database can be rebuilt:
+You can always start over. Marcan only reads the mailboxes, so while the reports stay there, the database can be rebuilt:
 
 1. Start Marcan with an empty data directory.
-2. Enter the mailbox.
+2. Connect the mailboxes again (under **Settings → Accounts**).
 3. Paste the [four lists](./backup#keep-the-reports-and-the-lists) back.
-4. Press **Re-import mailbox** (**Settings → Data**).
+4. Press **Re-import all accounts** (**Settings → Data**).
 
-This loses the alert history, the record of client reports sent, and reports no longer in the mailbox. For most installations that is fine. The details are in [Backup](./backup#starting-over).
+This loses the alert history, the record of client reports sent, and reports no longer in the mailboxes. For most installations that is fine. The details are in [Backup](./backup#starting-over).
 
 ## Going back to an older version
 
@@ -26,11 +26,11 @@ Migrations run on start and cannot be undone, so an older version refuses a data
 The simple way back needs no backup: start over on the old version.
 
 1. Edit the `image:` line in `docker-compose.yml` to the old version, such as `ghcr.io/mavgit1/marcan:0.3.0`.
-2. Start it on an empty data directory (see [Starting over](./backup#starting-over)) and enter the mailbox.
+2. Start it on an empty data directory (see [Starting over](./backup#starting-over)) and connect the mailboxes again.
 3. Paste the [four lists](./backup#keep-the-reports-and-the-lists) back.
-4. Press **Re-import mailbox** (**Settings → Data**).
+4. Press **Re-import all accounts** (**Settings → Data**).
 
-To keep the alert history, the client reports sent and the reports no longer in the mailbox, go back with a [database backup](./backup#the-database-file) taken before the upgrade instead:
+To keep the alert history, the client reports sent and the reports no longer in the mailboxes, go back with a [database backup](./backup#the-database-file) taken before the upgrade instead:
 
 1. Edit the `image:` line in `docker-compose.yml` to the old version.
 2. Stop Marcan and copy the backup over `marcan.db`, steps 1 and 2 of [Restore](./backup#restore).
@@ -46,4 +46,4 @@ Marcan checks for new versions itself. While **Check for new versions daily** is
 
 ## Reprocessing old reports
 
-Marcan keeps each report's original XML in the database for as long as it keeps the report, so a later release can process old reports again, even ones the mailbox no longer holds. There is no command for it yet; when a release needs it, its notes will say so.
+Marcan keeps each report's original XML in the database for as long as it keeps the report, so a later release can process old reports again, even ones the mailboxes no longer hold. There is no command for it yet; when a release needs it, its notes will say so.

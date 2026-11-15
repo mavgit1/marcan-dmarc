@@ -54,6 +54,8 @@ cp config/users.yml.example config/users.yml
 
 Compose refuses to start while one of them is missing. Changing the encryption key later makes the stored 2FA registrations unreadable.
 
+Optional: `MARCAN_SECRET_KEY` encrypts the mail accounts' passwords and keys in the database. Generate it with `openssl rand -base64 32`, uncomment the line, and keep the key apart from your backups: a database restored without it has its accounts locked until their credentials are entered again. `docker inspect` shows the container's environment, key included, to anyone who may use Docker on the host; to keep it out, pass the key as a Docker secret instead: put it in a file `marcan_secret_key` next to `docker-compose.yml` (`openssl rand -base64 32 > marcan_secret_key && sudo chown 10001:10001 marcan_secret_key && sudo chmod 400 marcan_secret_key`), leave `MARCAN_SECRET_KEY` out of `.env`, and uncomment the `MARCAN_SECRET_KEY_FILE` line and the two `secrets:` blocks in `docker-compose.yml`. See [Secrets at rest](./security#secrets-at-rest), which also covers changing the key.
+
 `config/configuration.yml` reads the host names from the environment, so there is normally nothing to edit in it.
 
 ## 3. Create the logins

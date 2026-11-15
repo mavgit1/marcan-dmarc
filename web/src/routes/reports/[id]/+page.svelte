@@ -16,7 +16,6 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import PolicyBadge from '$lib/components/policy-badge.svelte';
 	import Skeleton from '$lib/components/skeleton.svelte';
-	import StatCard from '$lib/components/stat-card.svelte';
 	import SenderCell from '$lib/components/sender-cell.svelte';
 	import StatusBadge from '$lib/components/status-badge.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -24,9 +23,7 @@
 	import { pageMeta } from '$lib/state/page-meta.svelte';
 	import { refresh } from '$lib/state/refresh.svelte';
 	import { resource } from '$lib/state/resource.svelte';
-	import { formatRate } from '$lib/health';
 	import { statusRow } from '$lib/tokens';
-	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import { isAuthFailure, sortRecordsForensics } from '../record-utils';
 
 	type Row = ReportRecord;
@@ -105,9 +102,6 @@
 	<PageHeader title="Report" />
 	<div class="space-y-4">
 		<HealthSummary loading mail={null} outcomes={{ mail: null, total: REPORT_TOTAL }} />
-		<div class="grid gap-3 sm:grid-cols-3">
-			<StatCard label="Delivered compliance" loading />
-		</div>
 		<Skeleton variant="block" class="h-48" />
 	</div>
 {/snippet}
@@ -143,16 +137,7 @@
 		{report.email} · <span class="font-mono">{report.report_id}</span>
 	</p>
 
-	<HealthSummary class="mb-3" mail={report} outcomes={{ mail: report, total: REPORT_TOTAL }} />
-
-	<div class="mb-6 grid gap-3 sm:grid-cols-3">
-		<StatCard
-			label="Delivered compliance"
-			value={formatRate(report.delivered_compliance)}
-			hint={`${formatInt(report.compliant_messages)} of ${formatInt(report.delivered_messages)} delivered messages passed DMARC`}
-			icon={ShieldCheckIcon}
-		/>
-	</div>
+	<HealthSummary class="mb-6" mail={report} outcomes={{ mail: report, total: REPORT_TOTAL }} />
 
 	<section class="space-y-3">
 		<div class="flex flex-wrap items-center justify-between gap-3">
@@ -190,9 +175,18 @@
 						identity={row.identity}
 						href={resolve(`/senders/${encodeURIComponent(row.source_ip)}`)}
 					>
-						{#if row.header_from && row.header_from.toLowerCase() !== report.domain.toLowerCase()}
+						{@const from = (row.header_from || report.domain).toLowerCase()}
+						{#if from !== report.domain.toLowerCase()}
 							<span class="text-muted-foreground text-xs" title="Header From domain of these messages">
 								From <span class="font-mono">{row.header_from}</span>
+							</span>
+						{/if}
+						{#if row.envelope_from && row.envelope_from.toLowerCase() !== from}
+							<span
+								class="text-muted-foreground text-xs"
+								title="Envelope sender (MAIL FROM) domain the receiver reported for these messages"
+							>
+								Envelope from <span class="font-mono">{row.envelope_from}</span>
 							</span>
 						{/if}
 					</SenderCell>

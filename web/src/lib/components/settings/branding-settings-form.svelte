@@ -61,7 +61,7 @@
 				<Input
 					id="branding-name"
 					bind:value={m.draft.operator_name}
-					placeholder="Acme IT"
+					placeholder="Company or team name"
 					maxlength={meta.current?.operator_name_max_chars}
 					aria-label="Operator name"
 					class="max-w-md min-w-0 text-sm"

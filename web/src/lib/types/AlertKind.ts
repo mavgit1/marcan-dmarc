@@ -4,6 +4,7 @@ import type { CheckKind } from "./CheckKind";
 import type { DeliveredFigures } from "./DeliveredFigures";
 import type { DmarcRecordFacts } from "./DmarcRecordFacts";
 import type { HealthState } from "./HealthState";
+import type { LockReason } from "./LockReason";
 import type { NewSender } from "./NewSender";
 import type { PolicyStep } from "./PolicyStep";
 import type { ReadinessEvidence } from "./ReadinessEvidence";
@@ -43,4 +44,27 @@ export type AlertKind =
   }
   | { "kind": "parked_changed"; parked: boolean }
   | { "kind": "new_failing_sender"; sender: NewSender; window_days: number }
-  | { "kind": "update_available"; version: string; url: string };
+  | { "kind": "update_available"; version: string; url: string }
+  | {
+    "kind": "account_credential_expiring";
+    account_id: number;
+    /**
+     * The account's name when it was raised.
+     */
+    account: string;
+    expires_at: number;
+    expired: boolean;
+  }
+  | {
+    "kind": "account_not_read";
+    account_id: number;
+    /**
+     * The account's name when it was raised.
+     */
+    account: string;
+    last_read_at?: number;
+    unread_since: number;
+    days: number;
+    locked?: LockReason;
+    error?: string;
+  };

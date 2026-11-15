@@ -11,4 +11,5 @@ export type AlertGroup =
   | "readiness"
   | "parked"
   | "senders"
-  | "updates";
+  | "updates"
+  | "accounts";

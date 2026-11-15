@@ -2,11 +2,11 @@
 
 /**
  * Why a domain is not ready for its next step: one reason, the most
- * fundamental first (volume, then history, then the policy share, then
- * compliance).
+ * fundamental first (history, then the policy share, then compliance, then
+ * the mail that relies on SPF alone).
  */
 export type ReadinessReason =
-  | { "kind": "too_little_mail" }
   | { "kind": "not_enough_history"; window_full_at: number }
   | { "kind": "old_policy_applied" }
-  | { "kind": "below_threshold" };
+  | { "kind": "below_threshold" }
+  | { "kind": "relies_on_spf" };

@@ -15,11 +15,10 @@
 	import StatusBadge from '$lib/components/status-badge.svelte';
 	import { formatDateTime, formatInt, formatTimeOfDay, plural } from '$lib/format';
 	import { crumbsForPath, titleForPath, type CrumbOrganization } from '$lib/nav';
-	import { filters } from '$lib/state/filters.svelte';
 	import { meta } from '$lib/state/meta.svelte';
 	import { scopeOptions } from '$lib/state/scope.svelte';
 	import { pageMeta } from '$lib/state/page-meta.svelte';
-	import { progressPercent } from '$lib/imap-progress';
+	import { progressPercent } from '$lib/pass-progress';
 	import { pipelineStatus } from '$lib/pipeline';
 	import { refresh } from '$lib/state/refresh.svelte';
 	import { systemHealth } from '$lib/state/system-health.svelte';
@@ -29,20 +28,16 @@
 	const pathname = $derived(page.url.pathname);
 	const title = $derived(titleForPath(pathname));
 	/**
-	 * The organization the scope is narrowed to (in the scope filter, or by a link from its page): a
-	 * domain or sender page's trail starts there. A domain page names the domain's own
-	 * organization, like the scope filter beside it.
+	 * A domain page's organization, the trail's middle step: the domain's own, never the scope's.
+	 * From the page once it loads; before, from the shared scope list when that is in.
 	 */
 	const crumbOrganization = $derived.by((): CrumbOrganization | null => {
-		if (filters.organizationId === null) return null;
+		if (!pathname.startsWith('/domains/')) return null;
+		if (pageMeta.organization) return pageMeta.organization;
 		const scope = scopeOptions.current;
-		let id = filters.organizationId;
-		if (pathname.startsWith('/domains/')) {
-			const domain = scope?.domains.find((d) => String(d.id) === page.params.id);
-			if (domain) id = domain.organization_id;
-		}
+		const id = scope?.domains.find((d) => String(d.id) === page.params.id)?.organization_id;
 		const name = scope?.organizations.find((o) => o.id === id)?.name;
-		return { id, name: name ?? `Organization ${id}` };
+		return id !== undefined && name !== undefined ? { id, name } : null;
 	});
 	const crumbs = $derived(crumbsForPath(pathname, page.params, pageMeta.entityName, crumbOrganization));
 	const updatedLabel = $derived(refresh.lastUpdatedAt == null ? null : formatTimeOfDay(refresh.lastUpdatedAt));
@@ -56,7 +51,7 @@
 	});
 
 	const health = $derived(systemHealth.current);
-	const importing = $derived(health?.imap_progress ?? null);
+	const importing = $derived(health?.pass_progress ?? null);
 	/** Same verdicts as Settings: one definition in `$lib/pipeline`. */
 	const status = $derived(health ? pipelineStatus(health) : null);
 	const importPct = $derived(importing ? progressPercent(importing) : null);
@@ -274,16 +269,16 @@
 									class={cn('size-1.5 shrink-0 rounded-full', statusDot[status?.mailbox.tone ?? 'neutral'])}
 									aria-hidden="true"
 								></span>
-								Mailbox check
+								Account check
 							</span>
 							<span class="text-foreground text-right font-medium tabular-nums">
 								{status?.mailbox.label}{status?.mailbox.when && !importing ? ` · ${status.mailbox.when}` : ''}
 							</span>
 							{#if importing}
 								<ImportProgress progress={importing} class="col-span-2" />
-							{:else if health.imap_last_error}
+							{:else if health.receive_last_error}
 								<p class="text-status-fail-fg col-span-2 break-words text-[11px]">
-									{health.imap_last_error}
+									{health.receive_last_error}
 								</p>
 							{/if}
 
@@ -310,10 +305,10 @@
 						</div>
 						<div class="flex items-center justify-between gap-2 border-t pt-2.5">
 							<a
-								href={resolve('/settings/mailbox')}
+								href={resolve('/settings/accounts')}
 								class="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
 							>
-								Mailbox settings
+								Account settings
 							</a>
 							<MailboxSync {health} variant="button" />
 						</div>

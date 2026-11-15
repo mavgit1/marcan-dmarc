@@ -1,5 +1,6 @@
 //! Is the ingestion pipeline working: is the mailbox polled, do reports arrive?
 
+use crate::receiving::{stalest_unread, AccountReading};
 use crate::status::Status;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -11,9 +12,13 @@ pub struct PipelineFacts {
     pub syncing: bool,
     /// The running pass is downloading reports (not still connecting or scanning).
     pub importing: bool,
-    pub imap_configured: bool,
+    /// An import is unfinished (the mailbox worker's `import_unfinished`): a
+    /// pass runs, or a long import waits between its passes (it gave way to
+    /// another mailbox and resumes), or a re-import waits for its pass.
+    pub import_unfinished: bool,
+    pub receive_configured: bool,
     /// The last pass ended with an error.
-    pub imap_error: bool,
+    pub receive_error: bool,
     pub seconds_since_check: Option<i64>,
     pub poll_interval_secs: u64,
     pub hours_since_ingest: Option<f64>,
@@ -41,6 +46,9 @@ pub enum MailboxState {
 #[serde(rename_all = "snake_case")]
 pub enum ReportsState {
     NoReports,
+    /// An import is unfinished: the reports stored so far are not all there
+    /// are, however recent the last one.
+    Importing,
     /// Within the freshness threshold.
     UpToDate,
     /// Up to twice the threshold.
@@ -62,19 +70,21 @@ pub struct Pipeline {
 }
 
 /// Which line the header's one label names: a failing mailbox, else failing
-/// reports, else whichever warns (the mailbox first), else the mailbox while
-/// neither is judged yet (not configured, awaiting the first poll); both
-/// well: neither.
+/// reports, else whichever warns (the mailbox first), else an unfinished
+/// import, else the mailbox while neither is judged yet (not configured,
+/// awaiting the first poll); both well: neither.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
 pub enum PipelineHeadline {
     Mailbox,
     Reports,
+    /// An import is unfinished and nothing fails or warns: not all well yet.
+    Importing,
     AllWell,
 }
 
-fn headline(mailbox: Status, reports: Status) -> PipelineHeadline {
+fn headline(mailbox: Status, reports: Status, importing: bool) -> PipelineHeadline {
     let status = mailbox.worst(reports);
     if mailbox == Status::Fail {
         PipelineHeadline::Mailbox
@@ -86,11 +96,20 @@ fn headline(mailbox: Status, reports: Status) -> PipelineHeadline {
         } else {
             PipelineHeadline::Reports
         }
+    } else if importing {
+        PipelineHeadline::Importing
     } else if status == Status::Neutral {
         PipelineHeadline::Mailbox
     } else {
         PipelineHeadline::AllWell
     }
+}
+
+/// An import is under way: a pass downloads reports, or a long import waits
+/// between its passes. A running pass still connecting or scanning is not
+/// one by itself: every routine poll does that.
+fn importing(f: &PipelineFacts) -> bool {
+    f.importing || (f.import_unfinished && !f.syncing)
 }
 
 pub fn pipeline_status(f: &PipelineFacts) -> Pipeline {
@@ -102,7 +121,7 @@ pub fn pipeline_status(f: &PipelineFacts) -> Pipeline {
         reports,
         reports_status,
         status: mailbox_status.worst(reports_status),
-        headline: headline(mailbox_status, reports_status),
+        headline: headline(mailbox_status, reports_status, importing(f)),
     }
 }
 
@@ -116,11 +135,15 @@ fn mailbox(f: &PipelineFacts) -> (MailboxState, Status) {
         };
         return (state, Status::Pass);
     }
-    if !f.imap_configured {
+    if !f.receive_configured {
         return (MailboxState::NotConfigured, Status::Neutral);
     }
-    if f.imap_error {
+    if f.receive_error {
         return (MailboxState::Error, Status::Fail);
+    }
+    // Between the passes of a long import: no pass runs, and it is not done.
+    if importing(f) {
+        return (MailboxState::Importing, Status::Pass);
     }
     let Some(since) = f.seconds_since_check else {
         return (MailboxState::AwaitingFirstPoll, Status::Neutral);
@@ -136,6 +159,11 @@ fn mailbox(f: &PipelineFacts) -> (MailboxState, Status) {
 }
 
 fn reports(f: &PipelineFacts) -> (ReportsState, Status) {
+    // Fresh reports say nothing while more wait in the mailbox, and an old
+    // last report is not late while the import still brings them in.
+    if importing(f) {
+        return (ReportsState::Importing, Status::Pass);
+    }
     let Some(hours) = f.hours_since_ingest else {
         return (ReportsState::NoReports, Status::Neutral);
     };
@@ -178,27 +206,43 @@ pub fn last_poll(syncing: bool, last_check_at: Option<i64>, error_at: Option<i64
     LastPoll { at, failed }
 }
 
-/// The monthly client reports wait while the mailbox has not been read
-/// successfully for this many days: with the import broken, every report
-/// would read "No reports" for a client's domains.
-pub const CLIENT_REPORT_HOLD_AFTER_DAYS: i64 = 3;
-
 /// Why the client reports are held.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ClientReportHold {
-    /// No mailbox pass finished without error within
-    /// [`CLIENT_REPORT_HOLD_AFTER_DAYS`]. `last_read_at`: when one last did
-    /// (unix seconds); `null`: never.
-    MailboxNotRead { last_read_at: Option<i64> },
+    /// A receiving account was not read without error within
+    /// [`ACCOUNT_NOT_READ_DAYS`](crate::ACCOUNT_NOT_READ_DAYS): `account`
+    /// (its name) is the one unread longest, `last_read_at` its last
+    /// successful read (`null`: none since it reads this mailbox) and
+    /// `receiving_since` when it started reading this mailbox (unix
+    /// seconds). All `null`: no account receives reports.
+    MailboxNotRead {
+        account: Option<String>,
+        last_read_at: Option<i64>,
+        #[serde(default)]
+        receiving_since: Option<i64>,
+    },
 }
 
-/// Whether client reports going out at `now` are held, from when a
-/// mailbox pass last finished without error (`last_read_at`).
-pub fn client_report_hold(last_read_at: Option<i64>, now: i64) -> Option<ClientReportHold> {
-    let fresh = last_read_at.is_some_and(|at| now - at <= CLIENT_REPORT_HOLD_AFTER_DAYS * 86_400);
-    (!fresh).then_some(ClientReportHold::MailboxNotRead { last_read_at })
+/// Whether client reports going out at `now` are held: while any of the
+/// receiving `accounts` is not read ([`AccountReading::not_read`], the rule
+/// of the "Account not read" alert), naming the one unread longest; an
+/// account never read counts from when it started reading its mailbox.
+/// With no receiving account, they are held too: no report could arrive.
+pub fn client_report_hold(accounts: &[AccountReading], now: i64) -> Option<ClientReportHold> {
+    if accounts.is_empty() {
+        return Some(ClientReportHold::MailboxNotRead {
+            account: None,
+            last_read_at: None,
+            receiving_since: None,
+        });
+    }
+    stalest_unread(accounts, now).map(|a| ClientReportHold::MailboxNotRead {
+        account: Some(a.account.clone()),
+        last_read_at: a.last_read_at,
+        receiving_since: Some(a.receiving_since),
+    })
 }
 
 /// A client report that did not reach a recipient for a passing reason
@@ -267,11 +311,66 @@ mod tests {
         ];
         for ((mailbox, reports), expected) in cases {
             assert_eq!(
-                headline(mailbox, reports),
+                headline(mailbox, reports, false),
                 expected,
                 "{mailbox:?} {reports:?}"
             );
         }
+        // An unfinished import is named unless something fails or warns.
+        assert_eq!(headline(Pass, Pass, true), PipelineHeadline::Importing);
+        assert_eq!(headline(Pass, Neutral, true), PipelineHeadline::Importing);
+        assert_eq!(headline(Fail, Pass, true), PipelineHeadline::Mailbox);
+        assert_eq!(headline(Pass, Warn, true), PipelineHeadline::Reports);
+    }
+
+    /// While an import is unfinished nothing reads "all well": not between
+    /// its passes (no pass runs) nor while a pass downloads, whatever the
+    /// last report's age. A routine poll that only scans says nothing of it.
+    #[test]
+    fn an_unfinished_import_is_not_all_well() {
+        let between = PipelineFacts {
+            import_unfinished: true,
+            ..polled(10)
+        };
+        let p = pipeline_status(&between);
+        assert_eq!(p.mailbox, MailboxState::Importing);
+        assert_eq!(p.reports, ReportsState::Importing);
+        assert_eq!(p.headline, PipelineHeadline::Importing);
+        assert_eq!(p.status, Status::Pass);
+
+        let downloading = PipelineFacts {
+            syncing: true,
+            importing: true,
+            import_unfinished: true,
+            hours_since_ingest: Some(500.0),
+            ..polled(10)
+        };
+        let p = pipeline_status(&downloading);
+        assert_eq!(p.reports, ReportsState::Importing);
+        assert_eq!(p.headline, PipelineHeadline::Importing);
+
+        let scanning = PipelineFacts {
+            syncing: true,
+            import_unfinished: true,
+            ..polled(10)
+        };
+        let p = pipeline_status(&scanning);
+        assert_eq!(p.mailbox, MailboxState::Syncing);
+        assert_eq!(p.reports, ReportsState::UpToDate);
+        assert_eq!(p.headline, PipelineHeadline::AllWell);
+
+        // A failing account is named first, even part-way through.
+        let failed = PipelineFacts {
+            receive_error: true,
+            ..between
+        };
+        let p = pipeline_status(&failed);
+        assert_eq!(p.mailbox, MailboxState::Error);
+        assert_eq!(p.headline, PipelineHeadline::Mailbox);
+
+        let done = pipeline_status(&polled(10));
+        assert_eq!(done.reports, ReportsState::UpToDate);
+        assert_eq!(done.headline, PipelineHeadline::AllWell);
     }
 
     #[test]
@@ -306,25 +405,52 @@ mod tests {
     }
 
     #[test]
-    fn client_reports_are_held_without_a_recent_read() {
+    fn client_reports_are_held_while_an_account_is_not_read() {
         let now = 1_790_838_000;
         let day = 86_400;
-        assert_eq!(client_report_hold(Some(now - 3 * day), now), None);
-        assert_eq!(
-            client_report_hold(Some(now - 3 * day - 1), now),
+        let reading = |id: i64, last_read_at: Option<i64>, since: i64| AccountReading {
+            account_id: id,
+            account: format!("Account {id}"),
+            last_read_at,
+            receiving_since: since,
+            locked: None,
+            last_error: None,
+        };
+        let read = reading(1, Some(now - 3 * day), 0);
+        assert_eq!(client_report_hold(std::slice::from_ref(&read), now), None);
+        let behind = reading(2, Some(now - 3 * day - 1), 0);
+        let held = |a: &AccountReading| {
             Some(ClientReportHold::MailboxNotRead {
-                last_read_at: Some(now - 3 * day - 1)
+                account: Some(a.account.clone()),
+                last_read_at: a.last_read_at,
+                receiving_since: Some(a.receiving_since),
             })
+        };
+        assert_eq!(
+            client_report_hold(&[read.clone(), behind.clone()], now),
+            held(&behind)
+        );
+        // Never read: from when it was set up; a new one holds nothing yet.
+        let new = reading(3, None, now - 2 * day);
+        assert_eq!(client_report_hold(&[read.clone(), new.clone()], now), None);
+        let stuck = reading(4, None, now - 4 * day);
+        assert_eq!(
+            client_report_hold(&[read, new, stuck.clone(), behind], now),
+            held(&stuck)
         );
         assert_eq!(
-            client_report_hold(None, now),
-            Some(ClientReportHold::MailboxNotRead { last_read_at: None })
+            client_report_hold(&[], now),
+            Some(ClientReportHold::MailboxNotRead {
+                account: None,
+                last_read_at: None,
+                receiving_since: None,
+            })
         );
     }
 
     fn polled(since: i64) -> PipelineFacts {
         PipelineFacts {
-            imap_configured: true,
+            receive_configured: true,
             seconds_since_check: Some(since),
             poll_interval_secs: 300,
             hours_since_ingest: Some(1.0),
@@ -346,7 +472,7 @@ mod tests {
             MailboxState::Stalled
         );
         let error = PipelineFacts {
-            imap_error: true,
+            receive_error: true,
             ..polled(10)
         };
         assert_eq!(pipeline_status(&error).mailbox, MailboxState::Error);

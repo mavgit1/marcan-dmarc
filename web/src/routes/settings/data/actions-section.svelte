@@ -25,10 +25,10 @@
 </script>
 
 <SettingsSection title="Actions">
-	<SettingRow title="Re-import" hint="Reads every message again and adds missing reports.">
+	<SettingRow title="Re-import" hint="Reads every receiving account's folder again and adds missing reports.">
 		<ReimportButton />
 	</SettingRow>
-	<SettingRow title="Setup" hint="Opens the setup steps again.">
+	<SettingRow title="Setup">
 		<div class="space-y-2">
 			<BusyButton
 				type="button"

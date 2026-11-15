@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	adoptScope,
 	DEFAULT_SCOPE,
+	isEntityPath,
 	readScope,
 	scopedHref,
 	scopeParamsFor,
@@ -22,12 +23,19 @@ describe('scopeParamsFor', () => {
 		}
 	});
 
-	it('leaves out what a page pins or does not read', () => {
+	it('leaves out what a list does not read', () => {
 		expect(scopeParamsFor('/domains')).toEqual(['org', 'since']);
-		expect(scopeParamsFor('/senders/203.0.113.9')).toEqual(['org', 'since']);
-		expect(scopeParamsFor('/domains/12')).toEqual(['org', 'since']);
 		expect(scopeParamsFor('/organizations')).toEqual(['since']);
-		expect(scopeParamsFor('/organizations/3')).toEqual(['since']);
+	});
+
+	it('carries only the time range on a page about one organization, domain or sender', () => {
+		for (const path of ['/organizations/3', '/domains/12', '/domains/12/', '/senders/203.0.113.9']) {
+			expect(isEntityPath(path)).toBe(true);
+			expect(scopeParamsFor(path)).toEqual(['since']);
+		}
+		for (const path of ['/', '/domains', '/senders', '/organizations', '/reports/5']) {
+			expect(isEntityPath(path)).toBe(false);
+		}
 	});
 
 	it('carries nothing where the scope does not apply', () => {
@@ -72,30 +80,46 @@ describe('adoptScope', () => {
 		expect(adoptScope(current, q('org=5'), ['since'], 'reset')).toEqual({ ...current, since: '30d' });
 	});
 
-	it('never narrows the scope for opening an organization page', () => {
-		const all = scope();
-		for (const mode of ['reset', 'carry'] as const) {
-			expect(adoptScope(all, q('org=4'), scopeParamsFor('/organizations/4'), mode)).toEqual(all);
+	it('never changes the scope for opening an organization, domain or sender page', () => {
+		const opened = (href: string, current: Scope, mode: 'reset' | 'carry') => {
+			const url = new URL(href, 'http://marcan.test');
+			return adoptScope(current, url.searchParams, scopeParamsFor(url.pathname), mode);
+		};
+		for (const current of [scope(), scope({ organizationId: 3, domainId: 12 })]) {
+			for (const mode of ['reset', 'carry'] as const) {
+				for (const path of ['/organizations/4', '/domains/9', '/senders/192.0.2.1']) {
+					expect(opened(path, current, 'carry')).toEqual(current);
+					// A stale scope in an old link or bookmark is not adopted.
+					expect(opened(`${path}?org=4&domain=9`, current, mode)).toEqual(current);
+				}
+			}
 		}
 	});
 
-	it('narrows to the organization a link from its page names', () => {
-		const url = new URL(scopedHref('/domains/9', { organizationId: 4 }), 'http://marcan.test');
+	it('narrows to what a link to a list names, as picking it in the header does', () => {
+		const url = new URL(scopedHref('/alerts', { organizationId: 4, domainId: 9 }), 'http://marcan.test');
 		expect(adoptScope(scope(), url.searchParams, scopeParamsFor(url.pathname), 'carry')).toEqual(
-			scope({ organizationId: 4 })
+			scope({ organizationId: 4, domainId: 9 })
 		);
 	});
 });
 
 describe('scopedHref', () => {
 	it('names the parts of the scope it is given', () => {
-		expect(scopedHref('/domains/9', { organizationId: 4 })).toBe('/domains/9?org=4');
+		expect(scopedHref('/domains', { organizationId: 4 })).toBe('/domains?org=4');
 		expect(scopedHref('/alerts', { organizationId: 4, domainId: 9 })).toBe('/alerts?org=4&domain=9');
 	});
 
 	it('is the bare path without them', () => {
-		expect(scopedHref('/domains/9', { organizationId: null })).toBe('/domains/9');
-		expect(scopedHref('/domains/9', {})).toBe('/domains/9');
+		expect(scopedHref('/alerts', { organizationId: null })).toBe('/alerts');
+		expect(scopedHref('/senders', {})).toBe('/senders');
+	});
+
+	it('takes lists only: a link to an organization, domain or sender carries no scope', () => {
+		// @ts-expect-error an entity page is not a scoped list
+		expect(scopedHref('/domains/9', { organizationId: 4 })).toBe('/domains/9?org=4');
+		// @ts-expect-error an entity page is not a scoped list
+		expect(scopedHref('/organizations/4', { organizationId: 4 })).toBe('/organizations/4?org=4');
 	});
 });
 
@@ -113,7 +137,12 @@ describe('writeScope', () => {
 	it('writes only what the page carries and keeps other parameters', () => {
 		const s = scope({ organizationId: 3, domainId: 12, since: '7d' });
 		expect(writeScope(q('tab=senders'), s, ['since']).toString()).toBe('tab=senders&since=7d');
-		expect(writeScope(q('domain=example.com'), s, []).toString()).toBe('domain=example.com');
+	});
+
+	it('drops a scope parameter the page does not read, so a domain URL keeps no stale org', () => {
+		const s = scope({ organizationId: 3, domainId: 12 });
+		expect(writeScope(q('org=18&tab=senders'), s, scopeParamsFor('/domains/9')).toString()).toBe('tab=senders');
+		expect(writeScope(q('org=18&domain=9&since=7d'), s, scopeParamsFor('/domains')).toString()).toBe('org=3');
 	});
 
 	it('round-trips through readScope', () => {

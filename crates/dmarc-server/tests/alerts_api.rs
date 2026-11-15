@@ -71,10 +71,15 @@ async fn ingest(t: &TestApp, id: &str, days_ago: i64, p: &str) {
 }
 
 async fn evaluate(t: &TestApp, now: i64) -> usize {
-    evaluate_all(&t.pool, now, &CancellationToken::new())
-        .await
-        .expect("evaluate")
-        .events
+    evaluate_all(
+        &t.pool,
+        t.state.accounts.key(),
+        now,
+        &CancellationToken::new(),
+    )
+    .await
+    .expect("evaluate")
+    .events
 }
 
 /// The events of the list, oldest first, as `kind` plus what they carry.
@@ -175,7 +180,7 @@ async fn one_domain_that_fails_does_not_stop_the_others() {
     let run = |now: i64| {
         let pool = t.pool.clone();
         async move {
-            evaluate_all(&pool, now, &CancellationToken::new())
+            evaluate_all(&pool, None, now, &CancellationToken::new())
                 .await
                 .expect("the run itself succeeds")
         }
@@ -316,10 +321,12 @@ async fn the_first_evaluation_after_an_import_rebaselines_its_domains() {
         // An evaluation that stops before storing anything.
         let stopped = CancellationToken::new();
         stopped.cancel();
-        evaluate_all(&t.pool, base + 600, &stopped).await.unwrap();
+        evaluate_all(&t.pool, None, base + 600, &stopped)
+            .await
+            .unwrap();
         assert_eq!(events(&t, "").await, Vec::<Value>::new());
 
-        let summary = evaluate_all(&t.pool, base + 900, &CancellationToken::new())
+        let summary = evaluate_all(&t.pool, None, base + 900, &CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(summary.rebaselined, usize::from(held));
@@ -377,7 +384,7 @@ async fn reports_stop_after_the_domain_warning_and_say_how_long() {
     );
     // The list sends the alert email's sentence and the colour's word with it.
     let item = &get_ok(&t.app, "/api/alerts").await["items"][0];
-    assert_eq!(item["text"], "No reports for 3 days. (Threshold 3 days.)");
+    assert_eq!(item["text"], "No reports for 3 days (threshold 3 days).");
     assert_eq!(item["severity_label"], "Warning");
     // The domain shows the threshold it was judged by, and meta serves it.
     let domains = get_ok(&t.app, "/api/domains").await;
@@ -503,7 +510,7 @@ async fn alerts_settings_are_off_by_default_and_validated() {
             "id": "issue_opened.delivered_failures",
             "group": "issues",
             "title": "New issue: delivered failures",
-            "trigger": "An issue opened: mail that failed DMARC is delivered at a warning or failing rate.",
+            "trigger": "More than 1% of the domain's delivered mail fails DMARC.",
         })
     );
     // Each group once, with its heading, in the catalogue's order.
@@ -511,7 +518,7 @@ async fn alerts_settings_are_off_by_default_and_validated() {
         meta["alert_groups"][0],
         json!({ "group": "issues", "title": "Issues" })
     );
-    assert_eq!(meta["alert_groups"].as_array().unwrap().len(), 8);
+    assert_eq!(meta["alert_groups"].as_array().unwrap().len(), 9);
     let mut bad = body.clone();
     bad["muted_kinds"] = json!(["policy"]);
     let (status, err) = put_json(&t.app, "/api/settings/alerts", bad).await;
@@ -594,7 +601,9 @@ async fn a_new_failing_sender_is_alerted_once() {
         "r2",
         1,
         vec![
-            failing("203.0.113.5", 12, false),
+            failing("2001:db8::5", 12, false),
+            // New, but its /24 already failed at the baseline: one sender.
+            failing("203.0.113.8", 15, false),
             // Mostly forwarded: 9 failures count, below the threshold.
             failing("203.0.113.6", 50, true),
             failing("203.0.113.6", 9, false),
@@ -612,7 +621,7 @@ async fn a_new_failing_sender_is_alerted_once() {
         json!({
             "kind": "new_failing_sender",
             "sender": {
-                "source_ip": "203.0.113.5",
+                "source_ip": "2001:db8::5",
                 "name": null,
                 "failed": 12,
                 "delivered_failures": 12
@@ -622,13 +631,13 @@ async fn a_new_failing_sender_is_alerted_once() {
         })
     );
     assert_eq!(item["catalogue_id"], "new_failing_sender");
-    assert_eq!(item["sender_ip"], "203.0.113.5");
+    assert_eq!(item["sender_ip"], "2001:db8::5");
     assert!(item["text"].as_str().unwrap().starts_with(
-        "New sender 203.0.113.5 failed DMARC with 12 messages in the last 30 days (all delivered)"
+        "New sender 2001:db8::5 failed DMARC with 12 messages in the last 30 days (all delivered)"
     ));
 
     // It keeps failing: no second alert.
-    ingest_records(&t, "r3", 0, vec![failing("203.0.113.5", 40, false)]).await;
+    ingest_records(&t, "r3", 0, vec![failing("2001:db8::5", 40, false)]).await;
     assert_eq!(evaluate(&t, NOW + 1800).await, 0);
 }
 
@@ -709,4 +718,144 @@ async fn a_newer_release_is_one_event_per_version() {
     assert_eq!(evaluate(&t, NOW + 900).await, 0);
     plant_update_check(&t, "0.0.1").await;
     assert_eq!(evaluate(&t, NOW + 1800).await, 0);
+}
+
+/// A Microsoft login's certificate expiring within 30 days is one event
+/// without a domain, once when it starts expiring (info) and once when it
+/// has expired (warn), per account and expiry date: a renewed certificate
+/// with a new date raises again when its time comes; a password login or a
+/// Microsoft login without a certificate never does.
+#[tokio::test]
+async fn an_expiring_microsoft_certificate_is_alerted_when_expiring_and_expired() {
+    use dmarc_store::{AccountFields, LoginKind, MicrosoftLogin};
+    let t = TestApp::new().await;
+    let microsoft = |expires_at: Option<i64>| AccountFields {
+        name: "Reports".into(),
+        address: "dmarc@example.com".into(),
+        login_kind: LoginKind::Microsoft,
+        microsoft: MicrosoftLogin {
+            cert_der: expires_at.map(|_| vec![0x30]),
+            cert_expires_at: expires_at,
+            ..MicrosoftLogin::default()
+        },
+        ..AccountFields::default()
+    };
+    let id = dmarc_store::insert_account(&t.pool, None, &microsoft(Some(NOW + 40 * DAY)), &[], 0)
+        .await
+        .unwrap();
+    let undated = AccountFields {
+        address: "other@example.com".into(),
+        ..microsoft(None)
+    };
+    dmarc_store::insert_account(&t.pool, None, &undated, &[], 0)
+        .await
+        .unwrap();
+    let password = AccountFields {
+        name: "Other".into(),
+        ..AccountFields::default()
+    };
+    dmarc_store::insert_account(&t.pool, None, &password, &[], 0)
+        .await
+        .unwrap();
+    assert_eq!(evaluate(&t, NOW).await, 0, "40 days before: nothing yet");
+    assert_eq!(evaluate(&t, NOW + 10 * DAY).await, 1);
+    let page = get_ok(&t.app, "/api/alerts").await;
+    let item = &page["items"][0];
+    assert_eq!(item["event"]["kind"], "account_credential_expiring");
+    assert_eq!(item["event"]["severity"], "info");
+    assert_eq!(item["catalogue_id"], "account_credential_expiring");
+    assert_eq!(
+        item["text"],
+        "The Microsoft certificate of account “Reports” expires on 26 April 2030."
+    );
+    assert_eq!(item["domain_id"], Value::Null);
+    assert_eq!(evaluate(&t, NOW + 11 * DAY).await, 0, "once per date");
+    assert_eq!(evaluate(&t, NOW + 41 * DAY).await, 1, "expired: once more");
+    let page = get_ok(&t.app, "/api/alerts").await;
+    let item = &page["items"][0];
+    assert_eq!(item["event"]["severity"], "warn");
+    assert_eq!(
+        item["text"],
+        "The Microsoft certificate of account “Reports” expired on 26 April 2030."
+    );
+    assert_eq!(evaluate(&t, NOW + 42 * DAY).await, 0, "once per stage");
+
+    // A new certificate with a new date raises again 30 days before it.
+    dmarc_store::update_account(&t.pool, id, &microsoft(Some(NOW + 400 * DAY)), &[])
+        .await
+        .unwrap();
+    assert_eq!(evaluate(&t, NOW + 43 * DAY).await, 0);
+    assert_eq!(evaluate(&t, NOW + 371 * DAY).await, 1);
+}
+
+/// A receiving account not read for three days is one event without a
+/// domain, naming why (its last error); not again while it stays unread,
+/// and again after it was read and fell behind once more. An account never
+/// read counts from when it was added.
+#[tokio::test]
+async fn an_account_not_read_for_three_days_is_one_event_per_outage() {
+    use dmarc_store::{AccountFields, ReceivePassRow, SecretKind, SecretRow};
+    let t = TestApp::new().await;
+    let fields = AccountFields {
+        name: "Reports".into(),
+        username: "reports@example.com".into(),
+        imap_host: "imap.example.com".into(),
+        ..AccountFields::default()
+    };
+    let password = SecretRow::plain(SecretKind::Password, "p");
+    let id = dmarc_store::insert_account(&t.pool, None, &fields, &[password], NOW)
+        .await
+        .unwrap();
+    // A sending-only account is never alerted.
+    let sending = AccountFields {
+        name: "Sending".into(),
+        smtp_host: "smtp.example.com".into(),
+        receive_enabled: false,
+        ..fields.clone()
+    };
+    dmarc_store::insert_account(&t.pool, None, &sending, &[], NOW)
+        .await
+        .unwrap();
+    let pass = |at: i64, error: Option<&str>| ReceivePassRow {
+        account_id: id,
+        finished_at: at,
+        checked_at: Some(at),
+        error: error.map(str::to_owned),
+        error_detail: None,
+        yielded: false,
+    };
+    assert_eq!(evaluate(&t, NOW + 3 * DAY).await, 0, "added three days ago");
+    dmarc_store::record_receive_pass(&t.pool, &pass(NOW + DAY, None), None)
+        .await
+        .unwrap();
+    dmarc_store::record_receive_pass(
+        &t.pool,
+        &pass(NOW + 2 * DAY, Some("connection refused")),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(evaluate(&t, NOW + 4 * DAY).await, 0, "read three days ago");
+    assert_eq!(evaluate(&t, NOW + 4 * DAY + 1).await, 1);
+    let page = get_ok(&t.app, "/api/alerts").await;
+    let item = &page["items"][0];
+    assert_eq!(item["event"]["kind"], "account_not_read");
+    assert_eq!(item["event"]["severity"], "warn");
+    assert_eq!(item["event"]["last_read_at"], NOW + DAY);
+    assert_eq!(item["catalogue_id"], "account_not_read");
+    assert_eq!(item["domain_id"], Value::Null);
+    let text = item["text"].as_str().unwrap();
+    assert!(
+        text.starts_with("Account “Reports” has not been read since ")
+            && text.ends_with(". The last attempt failed: connection refused."),
+        "{text}"
+    );
+    assert_eq!(evaluate(&t, NOW + 5 * DAY).await, 0, "once per outage");
+
+    // Read again: armed; three days later, alerted again.
+    dmarc_store::record_receive_pass(&t.pool, &pass(NOW + 6 * DAY, None), None)
+        .await
+        .unwrap();
+    assert_eq!(evaluate(&t, NOW + 6 * DAY).await, 0);
+    assert_eq!(evaluate(&t, NOW + 9 * DAY + 1).await, 1);
 }

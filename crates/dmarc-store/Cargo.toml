@@ -20,6 +20,7 @@ ts-rs = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+ts-rs = { workspace = true, features = ["format"] }
 tokio = { workspace = true }
 tempfile = { workspace = true }
 anyhow = { workspace = true }

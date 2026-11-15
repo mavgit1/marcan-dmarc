@@ -5,26 +5,28 @@
 	import Loaded from '$lib/components/loaded.svelte';
 	import Skeleton from '$lib/components/skeleton.svelte';
 	import { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
+	import { reportAddressKey } from '$lib/report-address';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { resource, type Resource } from '$lib/state/resource.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { systemHealth } from '$lib/state/system-health.svelte';
 	import type { Snippet } from 'svelte';
-	import { firstOpenStep, SETUP_STEPS, type SetupData } from './setup-steps';
-	import StepDelivery from './step-delivery.svelte';
+	import { firstOpenStep, linkedStep as linkedIndex, SETUP_STEPS, type SetupData } from './setup-steps';
+	import StepAccounts from './step-accounts.svelte';
+	import StepAddresses from './step-addresses.svelte';
 	import StepDmarc from './step-dmarc.svelte';
 	import StepDomains from './step-domains.svelte';
 	import StepDone from './step-done.svelte';
 	import StepImport from './step-import.svelte';
 	import StepList from './step-list.svelte';
-	import StepMailbox from './step-mailbox.svelte';
 	import StepOrganization from './step-organization.svelte';
 
 	/**
 	 * The setup, one step at a time in a fixed order, with Back and Continue. Each step is done
 	 * by what the server stored and answers (`SETUP_STEPS`); it opens on the first step that is
-	 * not, or on the one a link names (`?step=dmarc`, from the guide). A step can be opened from
-	 * the list once reached.
+	 * not, or on the one a link names (`?step=dmarc`, from the guide; the ids before 0.4,
+	 * `mailbox` and `delivery`, open their successors). A step can be opened from the list once
+	 * reached.
 	 */
 	let {
 		finishing = false,
@@ -62,14 +64,13 @@
 	});
 
 	/**
-	 * Each domain's reporting status, decided by the server from live DNS lookups: asked when
-	 * the setup opens, when the DMARC step is entered and on Re-check (and when an import ends,
-	 * with every page), never on the import's ticks.
+	 * The report addresses and each domain's reporting status, decided by the server from live
+	 * DNS lookups: asked when the setup opens, when the accounts' addresses change, when the
+	 * Report addresses or DMARC step is entered and on Re-check (and when an import ends, with
+	 * every page), never on the import's ticks.
 	 */
-	const reporting = new ReportingSetupState({
-		enabled: () => !!settings.current?.reporting.report_address,
-		reloadOn: () => [settings.current?.reporting.report_address, settings.current?.reporting.reporting_mode]
-	});
+	const addressKey = $derived(reportAddressKey(settings.current));
+	const reporting = new ReportingSetupState({ reloadOn: () => addressKey });
 
 	/** What the card loads: the organization, unless the domain list failed with nothing shown. */
 	const loadSource = $derived<Resource<unknown>>(domainList.error && !domainList.data ? domainList : setup);
@@ -95,11 +96,9 @@
 	let current = $state<number | null>(null);
 	let reached = $state(0);
 	/** The first reporting setup answer is still out: the DMARC step's state is not known yet. */
-	const reportingPending = $derived(
-		!!settings.current?.reporting.report_address && reporting.data === null && !reporting.source.error
-	);
+	const reportingPending = $derived(reporting.data === null && !reporting.source.error);
 	/** The step a link names (`?step=`); -1 for none. */
-	const linkedStep = SETUP_STEPS.findIndex((s) => s.id === page.url.searchParams.get('step'));
+	const linkedStep = linkedIndex(page.url.searchParams.get('step'));
 	$effect(() => {
 		if (data && current === null && !reportingPending) {
 			const open = firstOpenStep(data);
@@ -110,8 +109,8 @@
 
 	function go(index: number) {
 		const to = Math.max(0, Math.min(SETUP_STEPS.length - 1, index));
-		// Entering the DMARC step looks its domains up again (once, not on every import tick).
-		if (to !== current && SETUP_STEPS[to].id === 'dmarc') reporting.source.reload();
+		// Entering a step that shows DNS looks it up again (once, not on every import tick).
+		if (to !== current && ['addresses', 'dmarc'].includes(SETUP_STEPS[to].id)) reporting.source.reload();
 		current = to;
 		reached = Math.max(reached, current);
 		if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
@@ -126,7 +125,7 @@
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div class="space-y-1">
 				<Card.Title class="text-lg font-semibold">Set up Marcan</Card.Title>
-				<Card.Description>From the report mailbox to your first DMARC report, one step at a time.</Card.Description>
+				<Card.Description>Connect a mailbox and see your first DMARC report, one step at a time.</Card.Description>
 			</div>
 			{@render header?.()}
 		</div>
@@ -166,14 +165,14 @@
 							next();
 						}}
 					/>
-				{:else if step.id === 'mailbox'}
-					<StepMailbox {data} done={done[current]} onBack={back} onNext={next} />
+				{:else if step.id === 'accounts'}
+					<StepAccounts {data} done={done[current]} onBack={back} onNext={next} />
 				{:else if step.id === 'import'}
 					<StepImport {data} onBack={back} onNext={next} />
 				{:else if step.id === 'domains'}
 					<StepDomains {data} onChanged={() => domainList.reload()} onBack={back} onNext={next} />
-				{:else if step.id === 'delivery'}
-					<StepDelivery {data} onBack={back} onNext={next} />
+				{:else if step.id === 'addresses'}
+					<StepAddresses {reporting} onBack={back} onNext={next} />
 				{:else if step.id === 'dmarc'}
 					<StepDmarc {data} {reporting} onBack={back} onNext={next} />
 				{:else}

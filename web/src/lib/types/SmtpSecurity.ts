@@ -4,7 +4,7 @@
  * How the SMTP submission connection is encrypted: TLS from the start
  * (port 465) or `STARTTLS` on a plain connection (port 587). Never
  * plaintext, and never port 25: Marcan submits mail, it does not relay it.
- * The same two choices as [`ImapSecurity`], kept apart so neither protocol's
- * ports leak into the other's wording.
+ * The same two choices as [`ImapSecurity`](super::ImapSecurity), kept apart
+ * so neither protocol's ports leak into the other's wording.
  */
 export type SmtpSecurity = "tls" | "starttls";

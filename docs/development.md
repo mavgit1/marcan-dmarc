@@ -8,12 +8,12 @@ Marcan is a Rust workspace with a SvelteKit UI that is built into the binary.
 | :--- | :--- |
 | `crates/dmarc-server` | The binary: the axum API under `/api`, background jobs, the embedded UI |
 | `crates/dmarc-store` | SQLite storage (sqlx), queries by area returning plain rows |
-| `crates/dmarc-parser` | Aggregate report XML (plain, gzip, zip) and RFC 7489 alignment |
-| `crates/dmarc-imap` | The IMAP fetch pass and polling loop. Knows no database: it talks to a `Backend` trait the server implements over the store; `MemoryBackend` and `fake_server.rs` for tests |
+| `crates/dmarc-parser` | Aggregate report XML (plain, gzip, zip) and RFC 9989 alignment |
+| `crates/dmarc-mailbox` | The mailbox fetch pass and polling loop. The pass reads a folder through a `Source` (IMAP under `src/imap/`, Microsoft Graph under `src/graph/`) and keeps the rest the same for every source. It also sends a message as a Microsoft 365 mailbox (`send_mime`, Graph's `sendMail`) over the same Graph requests. Knows no database: it talks to a `Backend` trait the server implements over the store; `MemoryBackend`, `imap/fake_server.rs` and `graph/fake_server.rs` for tests |
 | `crates/dmarc-dns` | SPF, DMARC, DKIM, MTA-STS, TLS-RPT and BIMI lookups and record parsers; reports findings in `dmarc-assess`'s vocabulary |
 | `crates/dmarc-assess` | Every verdict and threshold the UI shows, the per-record facts and the DNS score included. Pure: no I/O, no clock |
 | `crates/dmarc-identity` | Sender identity from reverse DNS and SPF evidence, the bundled name map |
-| `crates/dmarc-domain` | The one place for hostname normalization, the organizational domain (Public Suffix List) and the RFC 7489 §7.1 authorization rules |
+| `crates/dmarc-domain` | The one place for hostname normalization, the organizational domain (Public Suffix List) and the RFC 9990 §4 authorization rules |
 | `migrations/` | sqlx migrations, embedded into the binary |
 | `web/` | The UI: SvelteKit static SPA, Svelte 5, Tailwind 4 |
 | `docs/` | This site (VitePress) |
@@ -60,7 +60,7 @@ cargo run -p dmarc-store --example realistic-demo -- <dir> [--baseline <copy.db>
 cargo run -p dmarc-server -- --data-dir <dir> --bind 127.0.0.1:8091
 ```
 
-Sending is off and the mailbox has no password, so the server sends nothing and connects nowhere.
+Sending is off and the accounts have no password, so the server sends nothing and connects nowhere.
 
 ## Build a release binary
 

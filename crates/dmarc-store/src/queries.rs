@@ -10,7 +10,7 @@ use sqlx::{QueryBuilder, Sqlite, Transaction};
 /// `BEGIN IMMEDIATE` takes the write lock up front (waiting out the busy
 /// timeout). A plain deferred `BEGIN` starts as a reader, and under WAL its
 /// first write fails at once with `SQLITE_BUSY_SNAPSHOT` when another
-/// connection (the IMAP import, say) committed since its read: no retry helps.
+/// connection (the mailbox import, say) committed since its read: no retry helps.
 pub(crate) async fn begin_write(
     pool: &SqlitePool,
 ) -> Result<Transaction<'static, Sqlite>, StoreError> {

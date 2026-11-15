@@ -6,10 +6,11 @@
 //! /api/statistics` computes it) and the month's changes. Nothing is read
 //! for all domains and filtered here.
 
+use crate::accounts::Accounts;
 use crate::error::AppResult;
 use crate::mail::client_report::{self, ClientReportInput, ReportDomain, ReportMonth};
 use crate::mail::Content;
-use crate::mail::{parse_address, Letterhead, SendError, SmtpConfig};
+use crate::mail::{parse_address, Letterhead, SendConfig, SendError};
 use crate::view::alerts::AlertItem;
 use crate::view::domain::{domain_summaries, summary_readiness, Judging};
 use crate::view::stats::{statistics, Statistics};
@@ -84,8 +85,11 @@ async fn month_mail(pool: &SqlitePool, scope: Scope, month: &ReportMonth) -> App
 
 /// The sending account for client reports: the stored one, with the client
 /// reports' own Reply-To when one is set.
-pub fn report_config(settings: &AppSettings) -> Result<SmtpConfig, SendError> {
-    let mut config = SmtpConfig::from_settings(settings)?;
+pub async fn report_config(
+    accounts: &Accounts,
+    settings: &AppSettings,
+) -> Result<SendConfig, SendError> {
+    let mut config = accounts.send_config(settings).await?;
     if let Some(raw) = Some(&settings.client_reports.reply_to).filter(|r| !r.is_empty()) {
         config.reply_to = Some(parse_address(raw).ok_or_else(|| {
             SendError::Incomplete(format!(

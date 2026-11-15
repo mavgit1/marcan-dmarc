@@ -22,7 +22,7 @@ import type { StatusTone } from '$lib/tokens';
 export const HEALTH_LABEL = {
 	no_data: 'No data',
 	all_blocked: 'All blocked',
-	protected: 'Protected',
+	protected: 'Healthy',
 	warning: 'Warning',
 	critical: 'Critical'
 } as const satisfies Record<HealthState, string>;

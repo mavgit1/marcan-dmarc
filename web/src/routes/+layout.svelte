@@ -21,11 +21,11 @@
 	onNavigate(({ to, type }) => {
 		if (to) adoptScopeUrl(to.url, type === 'popstate' ? 'reset' : 'carry');
 	});
-	afterNavigate(() => syncScopeUrl());
+	afterNavigate(() => void syncScopeUrl());
 
 	// The 5-minute auto-refresh of every page: a timer of its own, so it keeps going when the
 	// health poll fails; paused while an import runs (its progress and end refresh instead).
-	$effect(() => refresh.startAutoRefresh(() => systemHealth.current?.imap_progress != null));
+	$effect(() => refresh.startAutoRefresh(() => systemHealth.current?.pass_progress != null));
 </script>
 
 <svelte:head>

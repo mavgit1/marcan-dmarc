@@ -1,17 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { CONNECTED, settingsFixture, type SettingsOverrides } from '$lib/test/settings-fixture';
+import type { AccountHealth } from '$lib/types/AccountHealth';
+import type { AddressAuthorization } from '$lib/types/AddressAuthorization';
 import type { ReportingDomain } from '$lib/types/ReportingDomain';
 import type { ReportingSetupResponse } from '$lib/types/ReportingSetupResponse';
 import type { ScopeDomain } from '$lib/types/ScopeDomain';
 import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
-import { firstOpenStep, SETUP_STEPS, type SetupData, type StepId } from './setup-steps';
+import { firstOpenStep, linkedStep, SETUP_STEPS, type SetupData, type StepId } from './setup-steps';
+
+const account = (over: Partial<AccountHealth> = {}) =>
+	({ id: 1, last_success_at: 5, last_error: null, ...over }) as AccountHealth;
+
+const health = (running: boolean, accounts: AccountHealth[] = []) =>
+	({ pass_progress: running ? { account_id: 1 } : null, accounts }) as SystemHealthResponse;
 
 function data(over: Partial<SetupData> = {}, ...settings: SettingsOverrides[]): SetupData {
 	return {
 		organization: { id: 1, name: 'Default' } as SetupData['organization'],
 		domains: [],
 		settings: settingsFixture({ onboarding: { state: null } }, ...settings),
-		health: { imap_progress: null, last_poll: { at: null, failed: false } } as SystemHealthResponse,
+		health: health(false),
 		reporting: null,
 		organizationConfirmed: false,
 		...over
@@ -21,26 +29,68 @@ function data(over: Partial<SetupData> = {}, ...settings: SettingsOverrides[]): 
 const done = (d: SetupData): StepId[] => SETUP_STEPS.filter((s) => s.done(d)).map((s) => s.id);
 const domain: ScopeDomain = { id: 1, domain: 'example.com', organization_id: 1, has_reports: true };
 const row = (set_up: boolean) => ({ id: 1, set_up }) as ReportingDomain;
-const reporting = (rows: ReportingDomain[]) => ({ domains: rows }) as ReportingSetupResponse;
+const auth = (state: AddressAuthorization['state'], status: AddressAuthorization['status'] = 'neutral') =>
+	({ domain: 'example.com', state, status }) as AddressAuthorization;
+const reporting = (rows: ReportingDomain[], authorizations: AddressAuthorization[] = [auth('not_needed')]) =>
+	({
+		addresses: [{ account_id: 1, name: 'Reports', address: 'dmarc@example.com', forwarded_from: [] }],
+		default_address: 'dmarc@example.com',
+		authorizations,
+		domains: rows
+	}) as ReportingSetupResponse;
 
 describe('setup steps', () => {
+	it('come in their one order', () => {
+		expect(SETUP_STEPS.map((s) => s.id)).toEqual([
+			'organization',
+			'accounts',
+			'import',
+			'domains',
+			'addresses',
+			'dmarc',
+			'done'
+		]);
+	});
+
 	it('a fresh installation opens on the organization', () => {
 		expect(done(data())).toEqual([]);
 		expect(firstOpenStep(data())).toBe(0);
 	});
 
-	it('a confirmed organization opens the mailbox', () => {
-		expect(SETUP_STEPS[firstOpenStep(data({ organizationConfirmed: true }))].id).toBe('mailbox');
+	it('a confirmed organization opens the accounts', () => {
+		expect(SETUP_STEPS[firstOpenStep(data({ organizationConfirmed: true }))].id).toBe('accounts');
 	});
 
-	it('the import is done once the last pass succeeded and none runs', () => {
-		const health = (running: boolean, at: number | null, failed = false) =>
-			({ imap_progress: running ? {} : null, last_poll: { at, failed } }) as SystemHealthResponse;
-		const connected = { reporting: { report_address: 'dmarc@example.net' } };
-		expect(done(data({ health: health(true, 5) }, CONNECTED, connected))).not.toContain('import');
-		expect(done(data({ health: health(false, null) }, CONNECTED, connected))).not.toContain('import');
-		expect(done(data({ health: health(false, 5, true) }, CONNECTED, connected))).not.toContain('import');
-		expect(done(data({ health: health(false, 5) }, CONNECTED, connected))).toContain('import');
+	it('a link names a step, the ids before 0.4 their successors', () => {
+		const id = (param: string | null) => SETUP_STEPS[linkedStep(param)]?.id ?? null;
+		expect(id('dmarc')).toBe('dmarc');
+		expect(id('mailbox')).toBe('accounts');
+		expect(id('delivery')).toBe('addresses');
+		expect(linkedStep('nonsense')).toBe(-1);
+		expect(linkedStep(null)).toBe(-1);
+	});
+
+	it('the import is done once every account read without error and none runs', () => {
+		expect(done(data({ health: health(true, [account()]) }, CONNECTED))).not.toContain('import');
+		expect(done(data({ health: health(false, []) }, CONNECTED))).not.toContain('import');
+		expect(done(data({ health: health(false, [account({ last_success_at: null })]) }, CONNECTED))).not.toContain(
+			'import'
+		);
+		expect(
+			done(data({ health: health(false, [account(), account({ id: 2, last_error: 'Login failed' })]) }, CONNECTED))
+		).not.toContain('import');
+		expect(done(data({ health: health(false, [account(), account({ id: 2 })]) }, CONNECTED))).toContain('import');
+	});
+
+	it('the report addresses are done once every address domain is authorized or needs nothing', () => {
+		expect(done(data({ reporting: reporting([]) }))).toContain('addresses');
+		expect(done(data({ reporting: reporting([], [auth('wildcard', 'pass'), auth('not_needed')]) }))).toContain(
+			'addresses'
+		);
+		expect(done(data({ reporting: reporting([], [auth('no_wildcard')]) }))).not.toContain('addresses');
+		expect(done(data({ reporting: reporting([], [auth('check_failed')]) }))).not.toContain('addresses');
+		// No receiving account: no address yet.
+		expect(done(data({ reporting: { ...reporting([]), addresses: [] } }))).not.toContain('addresses');
 	});
 
 	it('the DMARC records are done when the server says every domain is set up', () => {
@@ -51,15 +101,10 @@ describe('setup steps', () => {
 
 	it('everything done but the finish opens the last step', () => {
 		const d = data(
-			{
-				domains: [domain],
-				reporting: reporting([row(true)]),
-				health: { imap_progress: null, last_poll: { at: 5, failed: false } } as SystemHealthResponse
-			},
-			CONNECTED,
-			{ reporting: { report_address: 'dmarc@example.net', reporting_mode_saved: true } }
+			{ domains: [domain], reporting: reporting([row(true)]), health: health(false, [account()]) },
+			CONNECTED
 		);
-		expect(done(d)).toEqual(['organization', 'mailbox', 'import', 'domains', 'delivery', 'dmarc']);
+		expect(done(d)).toEqual(['organization', 'accounts', 'import', 'domains', 'addresses', 'dmarc']);
 		expect(SETUP_STEPS[firstOpenStep(d)].id).toBe('done');
 	});
 
@@ -67,13 +112,8 @@ describe('setup steps', () => {
 		const finished = { onboarding: { state: 'completed' as const } };
 		expect(done(data({}, finished))).not.toContain('done');
 		const d = data(
-			{
-				domains: [domain],
-				reporting: reporting([row(true)]),
-				health: { imap_progress: null, last_poll: { at: 5, failed: false } } as SystemHealthResponse
-			},
+			{ domains: [domain], reporting: reporting([row(true)]), health: health(false, [account()]) },
 			CONNECTED,
-			{ reporting: { report_address: 'dmarc@example.net', reporting_mode_saved: true } },
 			finished
 		);
 		expect(done(d)).toContain('done');

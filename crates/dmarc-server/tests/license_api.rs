@@ -8,10 +8,7 @@ use axum::body::Body;
 use axum::http::{header, HeaderMap, Request, StatusCode};
 use dmarc_server::mail::MemorySender;
 use dmarc_server::{router_with_state, AppState};
-use dmarc_store::{
-    init, save_settings, AlertSettings, DigestFrequency, LicenseSettings, SendingGroup,
-    SendingSettings, Weekday,
-};
+use dmarc_store::{init, save_settings, AlertSettings, DigestFrequency, LicenseSettings, Weekday};
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -37,23 +34,7 @@ async fn app() -> App {
     let sender = Arc::new(MemorySender::default());
     let state = AppState::new(pool.clone()).with_mail_sender(sender.clone());
     // Sending through a made-up account (never contacted: the sender is stubbed).
-    save_settings(
-        &pool,
-        &SendingSettings {
-            group: SendingGroup {
-                enabled: true,
-                host: "smtp.example.com".into(),
-                port: Some(465),
-                same_login_as_mailbox: false,
-                username: "alerts@example.com".into(),
-                sender: "dmarc@example.com".into(),
-                ..SendingGroup::default()
-            },
-            password: "secret".into(),
-        },
-    )
-    .await
-    .unwrap();
+    common::enable_sending(&pool, "alerts@example.com", "dmarc@example.com").await;
     save_settings(
         &pool,
         &AlertSettings {

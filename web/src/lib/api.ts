@@ -16,8 +16,10 @@ import type { DnsSettings } from '$lib/types/DnsSettings';
 import type { UpdateSettings } from '$lib/types/UpdateSettings';
 import type { AlertItem } from '$lib/types/AlertItem';
 import type { BimiCheckResult } from '$lib/types/BimiCheckResult';
-import type { ConnectImapRequest } from '$lib/types/ConnectImapRequest';
-import type { ConnectImapResponse } from '$lib/types/ConnectImapResponse';
+import type { AccountTestRequest } from '$lib/types/AccountTestRequest';
+import type { AccountTestResponse } from '$lib/types/AccountTestResponse';
+import type { CertificateDraft } from '$lib/types/CertificateDraft';
+import type { GenerateCertificateRequest } from '$lib/types/GenerateCertificateRequest';
 import type { ClientReportEmail } from '$lib/types/ClientReportEmail';
 import type { BrandingPreviewRequest } from '$lib/types/BrandingPreviewRequest';
 import type { CreateDomainBody } from '$lib/types/CreateDomainBody';
@@ -47,9 +49,9 @@ import type { ReportSummary } from '$lib/types/ReportSummary';
 import type { RetentionSettings } from '$lib/types/RetentionSettings';
 import type { ReportingSetupResponse } from '$lib/types/ReportingSetupResponse';
 import type { SaveLicenseRequest } from '$lib/types/SaveLicenseRequest';
-import type { SaveMailboxRequest } from '$lib/types/SaveMailboxRequest';
-import type { SaveReportingRequest } from '$lib/types/SaveReportingRequest';
-import type { SaveSendingRequest } from '$lib/types/SaveSendingRequest';
+import type { ReceivingSettings } from '$lib/types/ReceivingSettings';
+import type { SaveAccountRequest } from '$lib/types/SaveAccountRequest';
+import type { SendingSettings } from '$lib/types/SendingSettings';
 import type { ScopeOptions } from '$lib/types/ScopeOptions';
 import type { SendTestAlertRequest } from '$lib/types/SendTestAlertRequest';
 import type { SendTestRequest } from '$lib/types/SendTestRequest';
@@ -59,7 +61,7 @@ import type { SenderSummary } from '$lib/types/SenderSummary';
 import type { SettingsResponse } from '$lib/types/SettingsResponse';
 import type { SpfCheckResult } from '$lib/types/SpfCheckResult';
 import type { Statistics } from '$lib/types/Statistics';
-import type { SyncImapResponse } from '$lib/types/SyncImapResponse';
+import type { SyncResponse } from '$lib/types/SyncResponse';
 import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
 import type { UpcomingClientReport } from '$lib/types/UpcomingClientReport';
 import type { TimeseriesPoint } from '$lib/types/TimeseriesPoint';
@@ -85,7 +87,8 @@ export type PageParams = {
 };
 
 /** `failing`: only senders with mail that failed DMARC and was not forwarded. */
-export type SendersParams = ScopeParams & PageParams & { failing?: boolean };
+/** `q` searches the source IP and the sender's name on the server. */
+export type SendersParams = ScopeParams & PageParams & { failing?: boolean; q?: string | null };
 
 /** The alert list: scope (`since` is over when a change was found) and paging, newest first. */
 export type AlertsParams = ScopeParams & Omit<PageParams, 'sort'>;
@@ -333,7 +336,7 @@ export type ExportDataset = 'domains' | 'senders' | 'auth-issues' | 'dns-finding
 /** Scope of an export. Each dataset reads only the parameters it supports. */
 export type ExportScope = ScopeParams & Omit<DomainFailureFilters, 'since'>;
 
-/** The parameters each dataset takes; scope fields outside it are ignored by the export. */
+/** The parameters each dataset takes; the server refuses any other (a 400), so only these are sent. */
 export const EXPORT_PARAMS: Record<ExportDataset, readonly (keyof ExportScope)[]> = {
 	domains: ['organization_id', 'since'],
 	senders: ['organization_id', 'domain_id', 'since'],
@@ -356,7 +359,7 @@ export function getSystemHealth(): Promise<SystemHealthResponse> {
 }
 
 /**
- * Every setting by group (the password only as `mailbox.has_password`). Read it through the
+ * Every setting by group, with the accounts (a password only as `has_password`). Read it through the
  * shared `settings` state (`$lib/state/settings.svelte`), which loads it once; each save below
  * answers the whole of it again, for `settings.save()`.
  */
@@ -364,14 +367,58 @@ export function getSettings(): Promise<SettingsResponse> {
 	return api.get('settings').json();
 }
 
-/** The whole mailbox; an absent or blank password keeps the stored one (for the same mailbox only). */
-export function saveMailbox(body: SaveMailboxRequest): Promise<SettingsResponse> {
-	return api.put('settings/mailbox', { json: body }).json();
+/**
+ * Add an account. The server checks it (a 422 or 409 says what is wrong) and answers every
+ * setting, the new account last in `accounts`.
+ */
+export function createAccount(body: SaveAccountRequest): Promise<SettingsResponse> {
+	return api.post('accounts', { json: body }).json();
 }
 
-/** The report address and mode; an absent field keeps the stored value, an empty address clears it. */
-export function saveReporting(body: SaveReportingRequest): Promise<SettingsResponse> {
-	return api.put('settings/reporting', { json: body }).json();
+/**
+ * Replace account `id`; an absent or blank password keeps the stored one, which is only allowed for
+ * the servers and username it was saved for (a 409 otherwise), and no draft certificate keeps the
+ * stored certificate.
+ */
+export function updateAccount(id: number, body: SaveAccountRequest): Promise<SettingsResponse> {
+	return api.put(`accounts/${id}`, { json: body }).json();
+}
+
+/** Remove account `id` (its reports stay); a 409 while sending goes through it. */
+export function deleteAccount(id: number): Promise<SettingsResponse> {
+	return api.delete(`accounts/${id}`).json();
+}
+
+/**
+ * Test the account on screen: the token (Microsoft), the mailbox with its folders (IMAP, or Graph
+ * for Microsoft), SMTP (no message sent). Nothing is stored; each step answers its own line.
+ */
+export function testAccount(body: AccountTestRequest): Promise<AccountTestResponse> {
+	// The mailbox step may take 30 seconds, the SMTP login 60.
+	return api.post('accounts/test', { json: body, timeout: 100_000 }).json();
+}
+
+/**
+ * A key pair and certificate for a Microsoft login named `subject`, held by the server until the
+ * account is saved with its `draft_id`, which stores them; the private key never leaves it.
+ */
+export function generateCertificate(body: GenerateCertificateRequest): Promise<CertificateDraft> {
+	return api.post('accounts/certificate', { json: body, timeout: 60_000 }).json();
+}
+
+/** Where an unsaved form's certificate downloads (`.cer`): to renew without a gap, uploaded before the save. */
+export function draftCertificateUrl(draftId: string): string {
+	return `/api/accounts/certificate/${encodeURIComponent(draftId)}`;
+}
+
+/** Where a saved account's certificate downloads (`.cer`). */
+export function accountCertificateUrl(id: number): string {
+	return `/api/accounts/${id}/certificate.cer`;
+}
+
+/** How often every receiving account is read, stored clamped to its range. */
+export function saveReceiving(body: ReceivingSettings): Promise<SettingsResponse> {
+	return api.put('settings/receiving', { json: body }).json();
 }
 
 /** The arrival (freshness) warning, stored clamped to its range. */
@@ -394,17 +441,14 @@ export function saveDns(nameservers: string[]): Promise<SettingsResponse> {
 	return api.put('settings/dns', { json: { nameservers } satisfies DnsSettings }).json();
 }
 
-/**
- * The SMTP account mail is sent through. An enabled group must be ready to send; an absent
- * or blank password keeps the stored one (for the same server and username only).
- */
-export function saveSending(body: SaveSendingRequest): Promise<SettingsResponse> {
+/** The sending group: on or off, the account it goes through and its addresses; an enabled group must be ready to send. */
+export function saveSending(body: SendingSettings): Promise<SettingsResponse> {
 	return api.put('settings/sending', { json: body }).json();
 }
 
 /**
- * Send the fixed test message to `to` (default: the sender) with the account on screen
- * (`sending`; an absent password is the stored one, for its own account only). A failure is an
+ * Send the fixed test message to the test recipient (default: the sender) with the group on
+ * screen (`sending`, its account's stored login), else the stored group. A failure is an
  * error answer whose message says which step failed (`apiErrorMessage`).
  */
 export function sendTestMail(body: SendTestRequest): Promise<SendTestResponse> {
@@ -493,23 +537,14 @@ export function saveOnboarding(state: OnboardingState | null): Promise<SettingsR
 	return api.put('settings/onboarding', { json: { state } satisfies OnboardingSettings }).json();
 }
 
-/**
- * Log in, list folders and count the messages in `folder` (default INBOX). Omitted
- * fields fall back to the stored settings; the stored password is only reused for
- * an unchanged host, port and username.
- */
-export function connectImap(body: ConnectImapRequest): Promise<ConnectImapResponse> {
-	return api.post('settings/imap/connect', { json: body, timeout: 45_000 }).json();
-}
-
-export function syncImap(): Promise<SyncImapResponse> {
+export function syncAll(): Promise<SyncResponse> {
 	// Every POST is JSON (the server refuses others, against cross-site requests).
-	return api.post('settings/imap/sync', { json: {} }).json();
+	return api.post('settings/receiving/sync', { json: {} }).json();
 }
 
 /** Read the whole mailbox again and add the reports that are missing. */
-export function reimportMailbox(): Promise<SyncImapResponse> {
-	return api.post('settings/imap/reimport', { json: {} }).json();
+export function reimportMailbox(): Promise<SyncResponse> {
+	return api.post('settings/receiving/reimport', { json: {} }).json();
 }
 
 // The lists edited as text, one protocol each (`ListText`): GET the list, POST `…/preview` a draft

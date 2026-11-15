@@ -2,8 +2,8 @@
 
 /**
  * Which line the header's one label names: a failing mailbox, else failing
- * reports, else whichever warns (the mailbox first), else the mailbox while
- * neither is judged yet (not configured, awaiting the first poll); both
- * well: neither.
+ * reports, else whichever warns (the mailbox first), else an unfinished
+ * import, else the mailbox while neither is judged yet (not configured,
+ * awaiting the first poll); both well: neither.
  */
-export type PipelineHeadline = "mailbox" | "reports" | "all_well";
+export type PipelineHeadline = "mailbox" | "reports" | "importing" | "all_well";

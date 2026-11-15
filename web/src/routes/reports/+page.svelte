@@ -127,7 +127,7 @@
 		dense
 		server={list.table(scopeKey, page)}
 		emptyHeadline="No matching reports"
-		emptyDescription="No report in this scope matches the search."
+		emptyDescription="No report matches your search."
 	>
 		{#snippet cell({ column, row })}
 			{#if column.id === 'domain'}

@@ -5,5 +5,7 @@
  */
 export type ClientReportHold = {
   "kind": "mailbox_not_read";
+  account: string | null;
   last_read_at: number | null;
+  receiving_since: number | null;
 };

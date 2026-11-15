@@ -70,4 +70,14 @@ export type ReadinessWindow = {
    * not count against it.
    */
   delivered_compliance: Rate;
+  /**
+   * Passed DMARC without an aligned DKIM pass (SPF alone carried it):
+   * unsigned and signed by another domain alike. Part of `compliant`.
+   */
+  no_aligned_dkim: number;
+  /**
+   * `no_aligned_dkim` as a share of `compliant`; `None` when nothing
+   * passed DMARC.
+   */
+  spf_only_pct: number | null;
 };

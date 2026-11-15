@@ -2,7 +2,6 @@
 	import InlineCode from '$lib/components/inline-code.svelte';
 	import { apiErrorMessage } from '$lib/http';
 	import type { ReportingDomain } from '$lib/types/ReportingDomain';
-	import type { ReportingMode } from '$lib/types/ReportingMode';
 	import CopyButton from '$lib/components/copy-button.svelte';
 	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
 	import PolicyBadge from '$lib/components/policy-badge.svelte';
@@ -11,7 +10,8 @@
 	import StatusBadge from '$lib/components/status-badge.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { relativeTime } from '$lib/format';
-	import { FIRST_REPORT_ETA, REPORTING_STATUS_LABEL } from '$lib/report-address';
+	import { emailDomain, FIRST_REPORT_ETA, REPORTING_STATUS_LABEL } from '$lib/report-address';
+	import { joinAnd, unique } from '$lib/text';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { ReportingSetupState } from './reporting-setup-state.svelte';
 
@@ -23,14 +23,19 @@
 	let {
 		row,
 		setup,
-		mode,
-		mailboxDomain
+		defaultAddress,
+		recheck = true
 	}: {
 		row: ReportingDomain;
 		/** Looks the row up again (Re-check, Show record). */
 		setup: ReportingSetupState;
-		mode: ReportingMode;
-		mailboxDomain: string;
+		/** The address a record to publish names (the first receiving account's). */
+		defaultAddress: string;
+		/**
+		 * Whether the row has its own Re-check. False on the domain page, whose one re-check is
+		 * the DNS scorecard's: it stores the check this row reads.
+		 */
+		recheck?: boolean;
 	} = $props();
 
 	const reporting = $derived(row.state === 'reporting');
@@ -47,26 +52,27 @@
 	const check = $derived(row.dmarc);
 	const hasRecord = $derived(!!check && check.record_count > 0 && !!check.parsed);
 	const current = $derived(hasRecord && check ? check.records[0] : '');
-	const wildcard = $derived(`*._report._dmarc.${mailboxDomain}`);
+	/** The domains of the known addresses the record names. */
+	const namedDomains = $derived(unique(row.named_addresses.map((a) => emailDomain(a) ?? a)));
 </script>
 
 {#snippet mailboxAuthNote(also = true)}
-	{#if row.mailbox_auth_missing}
+	{#each row.missing_authorizations as domain (domain)}
 		<p class="text-status-fail-fg text-xs">
-			{also ? 'Also publish' : 'Publish'} this on <InlineCode>{mailboxDomain}</InlineCode> so it accepts reports for {row.domain},
-			or the wildcard <InlineCode>{wildcard}</InlineCode> for every domain:
+			{also ? 'Also publish' : 'Publish'} this on <InlineCode>{domain}</InlineCode> so it accepts reports for {row.domain},
+			or the wildcard <InlineCode>{`*._report._dmarc.${domain}`}</InlineCode> for every domain:
 		</p>
 		<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,8rem)]">
-			<DnsRawRecord value={`${row.domain}._report._dmarc.${mailboxDomain}`} label="Host (TXT)" />
+			<DnsRawRecord value={`${row.domain}._report._dmarc.${domain}`} label="Host (TXT)" />
 			<DnsRawRecord value="v=DMARC1" label="Value" />
 		</div>
-	{/if}
+	{/each}
 {/snippet}
 
 {#snippet addressMissing()}
 	<p class="text-muted-foreground text-xs">
-		Add this mailbox's address to rua: replace the record with this value. The policy and every other tag stay as they
-		are.
+		The record names no address that reaches Marcan. Add <InlineCode>{defaultAddress}</InlineCode> to rua: replace the record
+		with this value. The policy and every other tag stay as they are.
 	</p>
 	{#if row.record_to_publish}
 		<DnsRawRecord value={row.record_to_publish} label={`New TXT value for _dmarc.${row.domain}`} />
@@ -98,7 +104,7 @@
 				<Button variant="ghost" size="sm" onclick={() => (expanded = !expanded)}>
 					{expanded ? 'Hide record' : 'Show record'}
 				</Button>
-			{:else}
+			{:else if recheck}
 				<BusyButton
 					variant="ghost"
 					size="sm"
@@ -134,9 +140,6 @@
 	{:else if row.state === 'no_record'}
 		<p class="text-muted-foreground text-xs">
 			Publish this TXT record; <InlineCode>{'p=none'}</InlineCode> only monitors and does not affect delivery.
-			{#if mode === 'forwarded'}
-				The rua address may be any address that forwards to this mailbox; this one is an example.
-			{/if}
 		</p>
 		<div class="flex items-center gap-1 text-xs">
 			<span class="text-muted-foreground">Host</span>
@@ -153,12 +156,12 @@
 			{@render mailboxAuthNote(false)}
 		{:else if row.state === 'authorization_check_failed'}
 			<p class="text-muted-foreground text-xs">
-				Could not check whether <InlineCode>{mailboxDomain}</InlineCode> accepts reports for {row.domain}. Re-check in a
-				moment.
+				Could not check whether {joinAnd(namedDomains)}
+				{namedDomains.length > 1 ? 'accept' : 'accepts'} reports for {row.domain}. Re-check in a moment.
 			</p>
 		{:else if row.state === 'address_missing'}
 			{@render addressMissing()}
-		{:else if row.names_report_address}
+		{:else}
 			<p class="text-muted-foreground text-xs">
 				{#if row.last_report_at != null}
 					Last report {relativeTime(row.last_report_at)}. The record is correct; reports resume when this domain sends
@@ -167,13 +170,6 @@
 					Reports usually arrive within {FIRST_REPORT_ETA}.
 				{/if}
 			</p>
-		{:else}
-			<p class="text-muted-foreground text-xs">Make sure one of these addresses forwards to this mailbox:</p>
-			<ul class="space-y-1 text-xs">
-				{#each row.other_addresses as addr (addr)}
-					<li><InlineCode>{addr}</InlineCode></li>
-				{/each}
-			</ul>
 		{/if}
 		{#if check && check.record_count > 1}
 			<p class="text-status-fail-fg text-xs">

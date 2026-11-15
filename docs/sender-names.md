@@ -11,10 +11,10 @@ Names are captions only. They never change a verdict.
 To rename an operator, or to name your own servers, edit **Settings → Sender names**:
 
 ```csv
-crm.example.com, Our CRM
+crm.acme.example, Our CRM
 192.0.2.10, Office printer
 192.0.2.0/24, Office
-hostpoint.ch,
+mailer.example,
 ```
 
 One `target, name` per line. The target is one of:
@@ -22,7 +22,7 @@ One `target, name` per line. The target is one of:
 - an **IP address**,
 - an **IP range** in CIDR notation,
 - an **operator domain**: the registrable domain of the reverse-DNS name, or of the SPF domain,
-- a **host name** under an operator domain: `crm.example.com` names that host and the hosts below it.
+- a **host name** under an operator domain: `crm.acme.example` names that host and the hosts below it.
 
 The most specific match wins: an IP, then the narrowest range, then the longest matching host name, then the operator domain. That way servers without reverse DNS can be named too.
 

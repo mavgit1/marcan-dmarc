@@ -121,7 +121,7 @@ export const DKIM_SELECTOR_LIST: ListSpec<DkimSelectorsSummary> = {
 	preview: previewDkimSelectors,
 	save: saveDkimSelectors,
 	same: (a, b) => listTokens(a).join() === listTokens(b).join(),
-	placeholder: 'selector1'
+	placeholder: 'selector'
 };
 
 /** "2 recipients start, 1 recipient stops"; empty when nothing changes. */

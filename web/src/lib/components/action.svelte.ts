@@ -1,6 +1,7 @@
-import { apiErrorMessage } from '$lib/http';
+import { apiErrorMessage, errorBody } from '$lib/http';
 
-export type Feedback = { ok: boolean; message: string };
+/** `docs`: a failure's docs section on the fix, as the server's error answer names it (`ErrorBody.docs`). */
+export type Feedback = { ok: boolean; message: string; docs?: string | null };
 
 /** Busy flag and pass/fail feedback for one async settings action. */
 export class Action {
@@ -15,7 +16,7 @@ export class Action {
 			const result = await fn();
 			if (result) this.feedback = result;
 		} catch (err) {
-			this.feedback = { ok: false, message: apiErrorMessage(err) };
+			this.feedback = { ok: false, message: apiErrorMessage(err), docs: errorBody(err)?.docs ?? null };
 		} finally {
 			this.busy = false;
 		}

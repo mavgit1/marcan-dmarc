@@ -1,4 +1,5 @@
-//! DKIM selector TXT parsing and key-strength evaluation (RFC 6376).
+//! DKIM selector TXT parsing and key-strength evaluation (RFC 6376; key sizes
+//! from RFC 8301, Ed25519 keys from RFC 8463).
 
 use crate::lookup::{parse_tag_list, LookupStatus, TxtLookup};
 use base64::engine::general_purpose::STANDARD;
@@ -361,13 +362,13 @@ pub fn evaluate_dkim_selector(
                     KeyStrength::Weak => findings.push(Finding::critical(
                         CheckKind::Dkim,
                         "dkim_key_weak",
-                        format!("DKIM selector `{selector}` uses a {bits}-bit RSA key, below 1024 bits. Receivers may reject the signature."),
+                        format!("DKIM selector `{selector}` uses a {bits}-bit RSA key, below the 1024 bits RFC 8301 §3.2 requires, so receivers treat its signatures as invalid."),
                         "Generate a new 2048-bit RSA key (or Ed25519) and rotate the selector.",
                     )),
                     KeyStrength::Dated => findings.push(Finding::warning(
                         CheckKind::Dkim,
                         "dkim_key_dated",
-                        format!("DKIM selector `{selector}` uses a {bits}-bit RSA key. 1024-bit RSA is acceptable on some receivers but dated; 2048-bit is the current baseline."),
+                        format!("DKIM selector `{selector}` uses a {bits}-bit RSA key, under the 2048 bits RFC 8301 §3.2 asks signers for (1024 is its minimum)."),
                         "Rotate to a 2048-bit RSA or Ed25519 key.",
                     )),
                     KeyStrength::Good => findings.push(Finding::ok(

@@ -10,7 +10,7 @@
 
 <SettingsPage
 	page="alerts"
-	hint="Emails about changes to your domains and a regular digest; the Alerts page lists every change either way."
+	hint="Emails about changes to your domains, and a regular digest."
 	docs="alerts#alert-emails"
 	tag="Experimental"
 	feature={m.feature}

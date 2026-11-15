@@ -76,9 +76,12 @@ export const SEVERITY_LABEL = {
 	ok: 'OK'
 } as const satisfies Record<Severity, string>;
 
-/** Score points as shown everywhere: "−28", or "0" when nothing was charged. */
-export function formatPoints(points: number): string {
-	return points > 0 ? `\u2212${points}` : '0';
+/**
+ * Score points lost as shown everywhere: "−28 points", "−1 point"; `null` when nothing was
+ * charged, so the place shows nothing rather than a bare "0".
+ */
+export function formatPoints(points: number): string | null {
+	return points > 0 ? `\u2212${plural(points, 'point')}` : null;
 }
 
 /**
@@ -124,9 +127,9 @@ export function spfSubtreeLookups(node: IncludeNode): number {
 /** Plain-language explanation of why an SPF include branch has no complete record. */
 export const INCLUDE_ERROR_EXPLANATION: Record<IncludeError['kind'], (error: IncludeError) => string> = {
 	void: () =>
-		'This include did not resolve to an SPF record (NXDOMAIN or empty). RFC 7208 counts that as a void lookup.',
+		'This include did not resolve to an SPF record (NXDOMAIN or empty). RFC 7208 counts that as a void lookup (§4.6.4), and an include without an SPF record returns permerror once evaluation reaches it (§5.2).',
 	no_spf_record: () =>
-		'A TXT answer existed but none of the strings was a v=spf1 record. RFC 7208 counts that as a void lookup.',
+		'A TXT answer existed but none of the strings was a v=spf1 record. Marcan counts that as a void lookup (RFC 7208 §4.6.4 counts only empty answers), and an include without an SPF record returns permerror once evaluation reaches it (§5.2).',
 	timeout: () => 'The DNS query for this include timed out. The walk could not read a record here.',
 	servfail: (e) =>
 		`The nameserver returned SERVFAIL for this include (${e.kind === 'servfail' ? e.detail : ''}). The walk could not read a record here.`,
@@ -301,14 +304,14 @@ export function selectorVerdict(verdict: SelectorVerdict): Verdict {
 	return { label: SELECTOR_LABEL[verdict.state], tone: verdict.status };
 }
 
-/** RFC 7489 §7.1 authorization of an external report destination, as a word. */
+/** RFC 9990 §4 authorization of an external report destination, as a word. */
 export const AUTH_LABEL = {
 	authorized: 'Authorized',
 	not_authorized: 'Not authorized',
 	check_failed: 'Check failed'
 } as const satisfies Record<AuthState, string>;
 
-/** RFC 7489 §7.1 verdict for one external rua destination (or all of them), worded. */
+/** RFC 9990 §4 verdict for one external rua destination (or all of them), worded. */
 export function authVerdict(verdict: AuthVerdict): Verdict {
 	return { label: AUTH_LABEL[verdict.state], tone: verdict.status };
 }
@@ -388,7 +391,7 @@ export function dmarcPolicyVerdict(dns: DnsCheckResponse | null): Verdict {
 	return { label: enforcementLabel(dmarc.enforcement, dmarc.parsed?.p), tone: dmarc.enforcement.status, mono: true };
 }
 
-/** The SPF card's verdict ("Trailing all"): {@link spfAll} of a complete check. */
+/** The SPF card's verdict ("SPF ending"): {@link spfAll} of a complete check. */
 export function spfAllVerdict(dns: DnsCheckResponse | null): Verdict {
 	if (!dns || dns.status === 'failed' || !dns.spf) return CHECK_FAILED;
 	return spfAll(dns.spf);
@@ -552,7 +555,7 @@ export function pillarModels(dns: DnsCheckResponse | null, overview: DomainOverv
 
 	return {
 		dmarc: dnsPillar(findingsFor(dns?.findings, 'dmarc'), dmarcVerdict, 'Policy', dmarcRows),
-		spf: dnsPillar(findingsFor(dns?.findings, 'spf'), spfAllVerdict(dns), 'Trailing all', spfRows),
+		spf: dnsPillar(findingsFor(dns?.findings, 'spf'), spfAllVerdict(dns), 'SPF ending', spfRows),
 		dkim: dnsPillar(findingsFor(dns?.findings, 'dkim'), dkimVerdict, 'Keys', dkimRows),
 		transport: dnsPillar(findingsFor(dns?.findings, 'mta_sts', 'tls_rpt', 'bimi'), mtaSts, 'MTA-STS', transportRows),
 		telemetry: {

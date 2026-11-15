@@ -37,7 +37,7 @@
 		<Card.Content class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4">
 			<p class="text-sm">
 				{#if shown.held}
-					The client report due on {formatDay(shown.next_send_at)} is held until the mailbox is read.
+					The client report due on {formatDay(shown.next_send_at)} is held until the receiving accounts are read again.
 				{:else}
 					Client report goes out on {formatDay(shown.next_send_at)} to {plural(shown.recipients, 'recipient')}.
 				{/if}

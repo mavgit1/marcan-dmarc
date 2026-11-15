@@ -20,8 +20,8 @@
 	 * Stat cards plus the shared domain table for one scope: every organization
 	 * (`organizationId` null) or a single one. Both follow the global time range, and both
 	 * come from the same scope, so the rows add up to the cards. The cards count the whole
-	 * scope; the table pages and filters on its own, and while its filter narrows it a line under
-	 * the cards says they cover all domains (the statistics take no filter).
+	 * scope; the table pages and searches on its own, and while a search narrows it the table's
+	 * search row says the cards cover all domains (the statistics take no search).
 	 */
 	let {
 		organizationId,
@@ -55,13 +55,10 @@
 		reloadOn: () => [systemHealth.importTick, systemHealth.dnsTick],
 		markUpdated: true
 	});
-
-	/** The table's filter box narrows the list; the cards stay on the whole scope. */
-	let filtered = $state(false);
 </script>
 
 {#snippet figures(data: Statistics)}
-	<div class={['grid grid-cols-1 gap-4 sm:grid-cols-3', filtered ? 'mb-2' : 'mb-6']}>
+	<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
 		<StatCard label="Messages" value={formatInt(data.total_messages)} hint={outcomeCountLine(data)} icon={MailsIcon} />
 		<StatCard
 			label="Delivered compliance"
@@ -76,11 +73,6 @@
 			icon={GlobeIcon}
 		/>
 	</div>
-	{#if filtered}
-		<p class="text-muted-foreground mb-6 text-xs">
-			These figures cover all domains; the filter narrows the list below.
-		</p>
-	{/if}
 {/snippet}
 
 {#snippet loading()}
@@ -99,5 +91,5 @@
 {#if stats.data?.domain_count === 0}
 	<EmptyState icon={GlobeIcon} headline={emptyHeadline} description={emptyDescription} />
 {:else}
-	<DomainsTable {organizationId} {showOrganization} {attention} {onClearAttention} bind:filtered />
+	<DomainsTable {organizationId} {showOrganization} {attention} {onClearAttention} />
 {/if}

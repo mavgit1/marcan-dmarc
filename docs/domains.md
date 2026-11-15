@@ -24,14 +24,14 @@ The Domains page and each organization's page list 50 domains at a time, with **
 | `parked` | Sends no mail of its own. It is expected to publish `p=reject`, and any mail that passes DMARC for it is flagged: something is sending as it. |
 | `ignored` | Not yours. Its reports are deleted and new ones are dropped when they arrive. Ignored domains are listed last. |
 
-Taking `ignored` off a domain monitors it again and re-imports the mailbox, which brings its history back as far as the mailbox still holds the reports. Adding an ignored domain again does the same.
+Taking `ignored` off a domain monitors it again and re-imports the accounts' folders, which brings its history back as far as they still hold the reports. Adding an ignored domain again does the same.
 
 ## The domain menu
 
 The **⋯** button at the top right of a domain's page changes that one domain:
 
 - **Move to organization** opens a picker beside the button: choose the organization and **Confirm**. The domain's reports move with it, and its next [client report](./client-reports) goes to the new organization's recipients.
-- **Mark as parked** marks the domain `parked`; on a parked domain the item reads **Unpark**. Either way it is one alert, "Marked as parked" or "No longer parked" (see [Alerts](./alerts#what-is-alerted)), and its [policy readiness](./readiness#parked-domains) switches layout. The **Enforcement** tab offers the same **Mark as parked** beside a "too little mail" verdict.
+- **Mark as parked** marks the domain `parked`; on a parked domain the item reads **Unpark**. Either way it is one alert, "Marked as parked" or "No longer parked" (see [Alerts](./alerts#what-is-alerted)), and its [policy readiness](./readiness#parked-domains) switches layout. The **Enforcement** tab offers the same **Mark as parked** beside a "not ready" verdict on a domain without any mail in the last 30 days.
 - **Ignore domain** asks first, then deletes the domain's reports, drops new ones and opens its organization's page. To undo it, take `ignored` off its line under **Settings → Domains** (see above).
 
 To do the same for many domains at once, edit the list below.
@@ -41,14 +41,14 @@ To do the same for many domains at once, edit the list below.
 **Settings → Domains** holds every domain as one CSV list. Use it to move, add, park or ignore many domains at once. The editor shows what saving will change before you save.
 
 ```csv
-Acme,acme.com
-Acme,acme-old.com,parked
-Acme,acme-spoof.com,ignored
-Beta,beta.ch
+Acme,acme.example
+Acme,acme-old.example,parked
+Acme,acme-spoof.example,ignored
+Globex,globex.example
 ```
 
-- One `organization,domain` per line. The optional third column is the status: `parked` or `ignored`.
-- Quote names that contain a comma: `"Acme, Inc",acme.com`.
+- One `organization,domain` per line. The optional third column is the [status](#domain-status): `parked` or `ignored`. **Saving `ignored` deletes the domain's reports**; taking it off again re-imports them.
+- Quote names that contain a comma: `"Acme, Inc",acme.example`.
 - An optional `organization,domain,status` header line is skipped, and `#` starts a comment.
 - Saving creates organizations it does not know yet.
 - Domains that are not listed stay as they are. Removing a line does not remove a domain.

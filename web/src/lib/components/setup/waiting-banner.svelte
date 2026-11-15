@@ -10,7 +10,7 @@
 	/** Slim dashboard notice while domains exist but no report has arrived yet. */
 	let { health, mailboxConfigured }: { health: SystemHealthResponse; mailboxConfigured: boolean } = $props();
 
-	const progress = $derived(systemHealth.current?.imap_progress ?? health.imap_progress);
+	const progress = $derived(systemHealth.current?.pass_progress ?? health.pass_progress);
 </script>
 
 <div class="bg-status-info-bg/50 flex items-start gap-x-4 gap-y-2 rounded-lg border px-3 py-2 text-xs" role="status">
@@ -18,7 +18,7 @@
 	<div class="min-w-0 flex-1">
 		<p class="font-medium">
 			{#if !mailboxConfigured}
-				Report mailbox not set up
+				No account receives reports yet
 			{:else if progress}
 				{progress.phase === 'importing' ? 'Importing reports from the mailbox' : 'Checking the mailbox'}
 			{:else}
@@ -31,11 +31,11 @@
 			variant="inline"
 			note={mailboxConfigured
 				? `Usually within ${FIRST_REPORT_ETA}.`
-				: 'Connect the mailbox your DMARC records send reports to.'}
+				: 'Add the account your DMARC records send reports to.'}
 		>
 			{#snippet actions()}
 				<Button variant={mailboxConfigured ? 'ghost' : 'default'} size="sm" href={resolve('/setup')}>
-					{mailboxConfigured ? 'Open setup' : 'Connect mailbox'}
+					{mailboxConfigured ? 'Open setup' : 'Add an account'}
 				</Button>
 			{/snippet}
 		</MailboxSync>

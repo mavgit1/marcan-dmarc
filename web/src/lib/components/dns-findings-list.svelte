@@ -2,6 +2,7 @@
 	import { formatPoints, SEVERITY_LABEL, type ListedFinding } from '$lib/dns';
 	import { SEVERITY_TONE, statusRow, type StatusTone } from '$lib/tokens';
 	import StatusBadge from '$lib/components/status-badge.svelte';
+	import CodeText from '$lib/components/code-text.svelte';
 	import { cn } from '$lib/utils.js';
 
 	/**
@@ -37,15 +38,15 @@
 							{SEVERITY_LABEL[finding.severity]}
 						</StatusBadge>
 					</span>
-					{#if showDeductions}
+					{#if showDeductions && finding.points > 0}
 						<span class="text-muted-foreground text-xs font-semibold tabular-nums" title="Score points lost">
 							{formatPoints(finding.points)}
 						</span>
 					{/if}
 				</div>
-				<p class="text-sm">{finding.message}</p>
+				<p class="text-sm"><CodeText text={finding.message} /></p>
 				{#if finding.suggestion}
-					<p class="text-muted-foreground mt-1 text-xs">{finding.suggestion}</p>
+					<p class="text-muted-foreground mt-1 text-xs"><CodeText text={finding.suggestion} /></p>
 				{/if}
 			</li>
 		{/each}

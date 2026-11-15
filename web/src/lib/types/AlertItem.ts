@@ -27,6 +27,11 @@ export type AlertItem = {
    */
   sender_ip: string | null;
   /**
+   * The words at the end of `text` that link to the sender page ("its
+   * sender page"); `null` without a `sender_ip`.
+   */
+  sender_link_words: string | null;
+  /**
    * The release notes the line links to (a newer release: the `url` of
    * the version check's `latest.json`); `null` for the others.
    */

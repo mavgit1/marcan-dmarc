@@ -88,7 +88,7 @@
 					stored={m.hasKey && !m.draft.remove}
 					storedLabel={m.keyHint}
 					clean={!m.dirty}
-					placeholder="you@company.example.AbC…"
+					placeholder="name@domain.signature"
 					autocomplete="off"
 					onRemove={() => m.removeKey()}
 					class="w-full max-w-md"

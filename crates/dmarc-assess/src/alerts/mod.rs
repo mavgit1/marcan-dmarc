@@ -24,7 +24,8 @@
 //! DNS still compare.
 //!
 //! Only changes a person acts on are events: a DNS record or the DMARC
-//! policy changed, health changed, delivered failures opened or cleared,
+//! policy changed, health changed, delivered failures opened or cleared
+//! (unless health changed with them: one event, not two),
 //! reports stopped or resumed ([`AlertedIssue`]), the next policy
 //! step came within reach, the domain was parked or unparked. The other
 //! issues (DKIM coverage, `p=none`, the parked ones, the DNS grade) stay on
@@ -32,19 +33,33 @@
 //! (health and the record changes cover it): [`AlertKind`] has no variant
 //! for them.
 //!
-//! One kind is about the installation instead of a domain: a newer Marcan
+//! Two kinds are about the installation instead of a domain: a newer Marcan
 //! release ([`AlertKind::UpdateAvailable`], [`update_events`]), once per
-//! version, from the daily version check's answer.
+//! version, from the daily version check's answer; and an account's
+//! Microsoft credential about to expire
+//! ([`AlertKind::AccountCredentialExpiring`], [`credential_events`]), once
+//! per account and expiry date; and a receiving account not read for days
+//! ([`AlertKind::AccountNotRead`], [`unread_events`]), once until it is read
+//! again.
 
 mod catalogue;
+mod credential;
 mod events;
+mod network;
 mod state;
+mod unread;
 mod update;
+
+pub use credential::{
+    credential_events, AlertedCredential, CredentialAlertState, CredentialStage, ExpiringCredential,
+};
+pub use unread::{unread_events, UnreadAlertState};
 
 pub use catalogue::{
     catalogue_entry, catalogue_id, worst_first, AlertGroup, CatalogueKind, ALERT_CATALOGUE,
 };
 pub use events::{alert_events, AlertEvent, AlertKind, AlertedIssue};
+pub use network::new_senders_by_network;
 pub use state::{
     alert_state, AlertFigures, AlertState, BimiRecordFacts, DeliveredFigures, DkimKeyFacts,
     DkimSelectorFacts, DmarcRecordFacts, DnsRecords, DnsState, MtaStsPolicyFacts,
@@ -116,7 +131,26 @@ mod tests {
             version: "0.3.2".into(),
             url: "https://marcan.kaitiaki.tech/releases".into(),
         });
+        kinds.push(AlertKind::AccountCredentialExpiring {
+            account_id: 1,
+            account: "Reports".into(),
+            expires_at: 1_793_145_600,
+            expired: false,
+        });
+        kinds.push(account_not_read());
         kinds
+    }
+
+    fn account_not_read() -> AlertKind {
+        AlertKind::AccountNotRead {
+            account_id: 1,
+            account: "Reports".into(),
+            last_read_at: None,
+            unread_since: 1_793_145_600,
+            days: 3,
+            locked: None,
+            error: Some("connection refused".into()),
+        }
     }
 
     #[test]
@@ -212,7 +246,7 @@ mod tests {
         assert!(alert_events(Some(&base()), &below, &[]).is_empty());
 
         let at = with_new_senders(vec![
-            sender("192.0.2.2", NEW_SENDER_MIN_FAILURES, 0),
+            sender("198.51.100.2", NEW_SENDER_MIN_FAILURES, 0),
             sender("192.0.2.1", 25, 3),
         ]);
         let events = alert_events(Some(&below), &at, &[]);
@@ -228,7 +262,7 @@ mod tests {
                 ),
                 AlertEvent::new(
                     AlertKind::NewFailingSender {
-                        sender: sender("192.0.2.2", 10, 0),
+                        sender: sender("198.51.100.2", 10, 0),
                         window_days: 30,
                     },
                     Status::Warn
@@ -265,7 +299,7 @@ mod tests {
     fn new_senders_start_from_a_baseline() {
         let failing = with_new_senders(vec![
             sender("192.0.2.1", 50, 50),
-            sender("192.0.2.2", 30, 0),
+            sender("198.51.100.2", 30, 0),
         ]);
         assert!(alert_events(None, &failing, &[]).is_empty());
         let empty = AlertState {
@@ -290,11 +324,118 @@ mod tests {
         // From the baseline on, a sender joining is new.
         let joined = with_new_senders(vec![
             sender("192.0.2.1", 50, 50),
-            sender("192.0.2.2", 30, 0),
-            sender("192.0.2.3", 10, 1),
+            sender("198.51.100.2", 30, 0),
+            sender("203.0.113.3", 10, 1),
         ]);
         let events = alert_events(Some(&failing), &joined, &[]);
         assert_eq!(kinds(&events), ["new_failing_sender"]);
+    }
+
+    fn sender_ips(events: &[AlertEvent]) -> Vec<&str> {
+        events
+            .iter()
+            .filter_map(|e| match &e.kind {
+                AlertKind::NewFailingSender { sender, .. } => Some(sender.source_ip.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Seven new addresses of one IPv6 /48 (written compressed or not) are
+    /// one sender: the address with the most failures stands for them, and
+    /// another of them later is no new one.
+    #[test]
+    fn new_addresses_of_one_network_are_one_event() {
+        let google = with_new_senders(vec![
+            sender("2a00:1450:4864:20::545", 12, 0),
+            sender("2a00:1450:4864:20::546", 30, 2),
+            sender("2a00:1450:4864:20::547", 11, 0),
+            sender("2a00:1450:4864:20::548", 14, 0),
+            sender("2a00:1450:4864:20::445", 10, 0),
+            sender("2a00:1450:4864:20::446", 25, 0),
+            sender("2a00:1450:4864:0021:0000:0000:0000:0001", 18, 0),
+        ]);
+        let events = alert_events(Some(&base()), &google, &[]);
+        assert_eq!(sender_ips(&events), ["2a00:1450:4864:20::546"]);
+        assert_eq!(events[0].severity, Status::Fail);
+        // Known by its network from then on, whichever address fails.
+        let next = with_new_senders(vec![sender("2a00:1450:4864:ff::1", 40, 40)]);
+        assert!(alert_events(Some(&google), &next, &[]).is_empty());
+    }
+
+    /// Two networks are two senders; IPv4 is grouped by /24, and an
+    /// IPv4-mapped IPv6 address is its IPv4 address.
+    #[test]
+    fn new_senders_of_two_networks_are_two_events() {
+        let now = with_new_senders(vec![
+            sender("192.0.2.1", 20, 0),
+            sender("192.0.2.200", 50, 0),
+            sender("::ffff:192.0.2.9", 60, 0),
+            sender("198.51.100.7", 11, 0),
+            sender("2a00:1450:4864:20::545", 12, 0),
+            sender("2a00:1450:4865:20::545", 13, 0),
+        ]);
+        assert_eq!(
+            sender_ips(&alert_events(Some(&base()), &now, &[])),
+            [
+                "198.51.100.7",
+                "2a00:1450:4864:20::545",
+                "2a00:1450:4865:20::545",
+                "::ffff:192.0.2.9",
+            ]
+        );
+        // An address of a /24 alerted before is known.
+        let known = with_new_senders(vec![sender("192.0.2.77", 10, 0)]);
+        let later = with_new_senders(vec![
+            sender("192.0.2.78", 90, 90),
+            sender("192.0.3.1", 10, 0),
+        ]);
+        assert_eq!(
+            sender_ips(&alert_events(Some(&known), &later, &[])),
+            ["192.0.3.1"]
+        );
+    }
+
+    /// An address new to the domain is no new sender when another address
+    /// of its network sent as the domain before the window.
+    #[test]
+    fn an_address_of_a_network_that_sent_before_is_not_new() {
+        let candidates = vec![
+            sender("2a00:1450:4864:20::545", 30, 0),
+            sender("192.0.2.9", 20, 0),
+            sender("198.51.100.7", 15, 0),
+        ];
+        let before = ["2a00:1450:4864:21::1", "192.0.2.1", "203.0.113.4"];
+        let new = new_senders_by_network(candidates, before);
+        assert_eq!(new, [sender("198.51.100.7", 15, 0)]);
+        let events = alert_events(Some(&base()), &with_new_senders(new), &[]);
+        assert_eq!(sender_ips(&events), ["198.51.100.7"]);
+    }
+
+    /// A string that is no address is its own network: compared exactly, as
+    /// before networks counted.
+    #[test]
+    fn an_unparsable_address_compares_exactly() {
+        let candidates = vec![
+            sender("not-an-ip", 30, 0),
+            sender("not-an-ip-2", 20, 0),
+            sender("192.0.2", 20, 0),
+        ];
+        let new = new_senders_by_network(candidates, ["not-an-ip", "192.0.2.1"]);
+        assert_eq!(
+            new,
+            [sender("not-an-ip-2", 20, 0), sender("192.0.2", 20, 0)]
+        );
+        let now = with_new_senders(new);
+        assert_eq!(
+            sender_ips(&alert_events(Some(&base()), &now, &[])),
+            ["192.0.2", "not-an-ip-2"]
+        );
+        let known = with_new_senders(vec![sender("not-an-ip-2", 10, 0)]);
+        assert_eq!(
+            sender_ips(&alert_events(Some(&known), &now, &[])),
+            ["192.0.2"]
+        );
     }
 
     fn issue(kind: IssueKind, status: Status) -> OpenIssue {
@@ -427,6 +568,93 @@ mod tests {
         };
         assert!(alert_events(Some(&before), &quiet, &[]).is_empty());
         assert!(alert_events(Some(&quiet), &before, &[]).is_empty());
+    }
+
+    /// Delivered failures open and clear on the compliance health is
+    /// judged on: with health changing, its event is the one event, both
+    /// ways, and it carries the same figures.
+    #[test]
+    fn delivered_failures_moving_with_health_is_one_event() {
+        let protected = AlertState {
+            figures: Some(figures(1000, 2, None)),
+            ..base()
+        };
+        let critical = AlertState {
+            health: HealthState::Critical,
+            issues: vec![issue(IssueKind::DeliveredFailures, Status::Fail)],
+            figures: Some(figures(200, 12, None)),
+            ..base()
+        };
+        let down = alert_events(Some(&protected), &critical, &[]);
+        assert_eq!(kinds(&down), ["health_changed"]);
+        assert_eq!(
+            down[0].kind,
+            AlertKind::HealthChanged {
+                from: HealthState::Protected,
+                to: HealthState::Critical,
+                mail: Some(figures(200, 12, None).delivered(Status::Fail)),
+            }
+        );
+        let up = alert_events(Some(&critical), &protected, &[]);
+        assert_eq!(kinds(&up), ["health_changed"]);
+        assert_eq!(up[0].severity, Status::Pass);
+        // Reports stopping at the same time is still its own event.
+        let stopped = AlertState {
+            issues: vec![
+                issue(IssueKind::DeliveredFailures, Status::Fail),
+                issue(IssueKind::ReportsStopped, Status::Warn),
+            ],
+            ..critical.clone()
+        };
+        assert_eq!(
+            kinds(&alert_events(Some(&protected), &stopped, &[])),
+            ["issue_opened", "health_changed"]
+        );
+    }
+
+    /// Warning and Critical both have the issue open: health moving between
+    /// them is its own event, and the issue changing colour is none.
+    #[test]
+    fn warning_and_critical_still_alert_as_health() {
+        let warning = AlertState {
+            health: HealthState::Warning,
+            issues: vec![issue(IssueKind::DeliveredFailures, Status::Warn)],
+            ..base()
+        };
+        let critical = AlertState {
+            health: HealthState::Critical,
+            issues: vec![issue(IssueKind::DeliveredFailures, Status::Fail)],
+            ..base()
+        };
+        let worse = alert_events(Some(&warning), &critical, &[]);
+        assert_eq!(kinds(&worse), ["health_changed"]);
+        assert_eq!(worse[0].severity, Status::Fail);
+        let better = alert_events(Some(&critical), &warning, &[]);
+        assert_eq!(kinds(&better), ["health_changed"]);
+        assert_eq!(better[0].severity, Status::Warn);
+    }
+
+    /// Health to or from no data is no event: then the issue opening or
+    /// clearing is the only one, so its kinds still fire.
+    #[test]
+    fn delivered_failures_alone_when_health_had_no_data() {
+        let quiet = AlertState {
+            health: HealthState::NoData,
+            ..base()
+        };
+        let warning = AlertState {
+            health: HealthState::Warning,
+            issues: vec![issue(IssueKind::DeliveredFailures, Status::Warn)],
+            ..base()
+        };
+        assert_eq!(
+            kinds(&alert_events(Some(&quiet), &warning, &[])),
+            ["issue_opened"]
+        );
+        assert_eq!(
+            kinds(&alert_events(Some(&warning), &quiet, &[])),
+            ["issue_resolved"]
+        );
     }
 
     #[test]
@@ -784,11 +1012,6 @@ mod tests {
         assert_eq!(
             events.iter().map(|e| e.kind.clone()).collect::<Vec<_>>(),
             [
-                AlertKind::IssueOpened {
-                    issue: AlertedIssue::DeliveredFailures,
-                    mail: Some(failing),
-                    stopped: None,
-                },
                 AlertKind::IssueResolved {
                     issue: AlertedIssue::ReportsStopped,
                     mail: None,
@@ -880,6 +1103,13 @@ mod tests {
                 version: "0.3.2".into(),
                 url: "https://marcan.kaitiaki.tech/releases".into(),
             },
+            AlertKind::AccountCredentialExpiring {
+                account_id: 1,
+                account: "Reports".into(),
+                expires_at: 1_793_145_600,
+                expired: false,
+            },
+            account_not_read(),
         ];
         let names: Vec<&str> = samples.iter().map(AlertKind::name).collect();
         assert_eq!(names, AlertKind::NAMES);

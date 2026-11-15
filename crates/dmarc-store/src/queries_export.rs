@@ -246,6 +246,9 @@ pub struct AuthIssueExportRow {
     pub reporter_dkim_verdict: Option<String>,
     /// `reason_type: comment` per override reason.
     pub policy_overrides: Vec<String>,
+    /// The recipient domain (`identifiers/envelope_to`); many reporters
+    /// leave it out.
+    pub envelope_to: Option<String>,
 }
 
 #[derive(Debug, FromRow)]
@@ -274,6 +277,7 @@ struct AuthIssueExportSql {
     reporter_spf_verdict: Option<String>,
     reporter_dkim_verdict: Option<String>,
     policy_overrides: Option<String>,
+    envelope_to: Option<String>,
 }
 
 impl From<AuthIssueExportSql> for AuthIssueExportRow {
@@ -302,6 +306,7 @@ impl From<AuthIssueExportSql> for AuthIssueExportRow {
             reporter_spf_verdict: r.reporter_spf_verdict,
             reporter_dkim_verdict: r.reporter_dkim_verdict,
             policy_overrides: ordered_list(r.policy_overrides.as_deref()),
+            envelope_to: r.envelope_to,
         }
     }
 }
@@ -352,7 +357,8 @@ where
                         CASE WHEN o.comment IS NOT NULL AND o.comment != ''
                              THEN ': ' || o.comment ELSE '' END)
              FROM record_overrides o
-             WHERE o.record_id = rec.id) AS policy_overrides
+             WHERE o.record_id = rec.id) AS policy_overrides,
+            rec.envelope_to AS envelope_to
         FROM records rec
         INNER JOIN reports r ON r.id = rec.report_id
         INNER JOIN domains d ON d.id = r.domain_id

@@ -474,7 +474,7 @@ pub fn evaluate_spf(
             CheckKind::Spf,
             "spf_multiple_records",
             format!(
-                "Found {} SPF TXT records at {domain}. RFC 7208 allows only one; receivers must return permerror, so SPF fails for all mail.",
+                "Found {} SPF TXT records at {domain}. RFC 7208 §4.5 allows only one; receivers must return permerror, so SPF fails for all mail.",
                 records.len()
             ),
             "Delete extra v=spf1 TXT records and keep a single SPF record.",
@@ -804,7 +804,7 @@ fn emit_policy_findings(
             CheckKind::Spf,
             "spf_lookup_high",
             format!(
-                "SPF for {domain} uses {} of the {SPF_LOOKUP_LIMIT} DNS lookups RFC 7208 allows, leaving {spare} spare. Adding one include can cost more than one lookup, because the mechanisms inside the included record count toward your total; once evaluation passes {SPF_LOOKUP_LIMIT}, receivers return permerror and SPF fails for every message.",
+                "SPF for {domain} uses {} of the {SPF_LOOKUP_LIMIT} DNS lookups RFC 7208 §4.6.4 allows, leaving {spare} spare. Adding one include can cost more than one lookup, because the mechanisms inside the included record count toward your total; once evaluation passes {SPF_LOOKUP_LIMIT}, receivers return permerror and SPF fails for any mail not matched before then.",
                 state.lookup_count
             ),
             "Check which include contributes the most lookups and flatten it to ip4/ip6 ranges, or drop senders you no longer use.",

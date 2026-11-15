@@ -1,21 +1,21 @@
-//! `app_settings`: one row per group of Marcan's settings (mailbox, reporting,
+//! `app_settings`: one row per group of Marcan's settings (receiving,
 //! monitoring, retention, DNS, sending, alerts, client reports, license,
 //! branding, onboarding, updates), keyed by the group's name and holding the
 //! group as JSON, read together as one typed [`AppSettings`] and written a
 //! group at a time with [`save_settings`]. A field missing from a stored group reads as
 //! its default. The same table keeps a few job records as plain text by key
 //! ([`get_setting`], [`set_setting`]); the logo (`branding_logo`) and the extra
-//! DKIM selectors (`dkim_selectors`) have tables of their own.
+//! DKIM selectors (`dkim_selectors`) have tables of their own, and so do the
+//! mail accounts (`accounts`, `crate::queries_accounts`).
 
 mod alerts;
 mod branding;
 mod client_reports;
 mod dns;
 mod license;
-mod mailbox;
 mod monitoring;
 mod onboarding;
-mod reporting;
+mod receiving;
 mod retention;
 mod sending;
 mod updates;
@@ -36,18 +36,20 @@ pub use dns::{
     set_demo_dns_records, DnsSettings,
 };
 pub use license::LicenseSettings;
-pub use mailbox::{ImapSecurity, MailboxSettings};
 pub use monitoring::{
     MonitoringSettings, DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS,
     DEFAULT_REPORT_FRESHNESS_WARNING_HOURS, DOMAIN_REPORTS_STOPPED_DAYS_RANGE,
     REPORT_FRESHNESS_WARNING_HOURS_RANGE,
 };
 pub use onboarding::{OnboardingSettings, OnboardingState};
-pub use reporting::{ReportingMode, ReportingSettings};
+pub use receiving::{
+    ImapSecurity, ReceivingSettings, DEFAULT_POLL_INTERVAL_SECS, MAX_POLL_INTERVAL_SECS,
+    MIN_POLL_INTERVAL_SECS,
+};
 pub use retention::{
     RetentionSettings, DEFAULT_REPORT_RETENTION_MONTHS, REPORT_RETENTION_MONTHS_RANGE,
 };
-pub use sending::{SendingGroup, SendingLogin, SendingSettings, SmtpSecurity};
+pub use sending::{SendingSettings, SmtpSecurity};
 pub use updates::{
     clear_update_check, get_update_check, set_update_check, SeenVersion, UpdateCheck,
     UpdateSettings,
@@ -133,8 +135,7 @@ async fn set_time(pool: &SqlitePool, key: &str, at: i64) -> Result<(), StoreErro
 /// Marcan's own settings, by group.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AppSettings {
-    pub mailbox: MailboxSettings,
-    pub reporting: ReportingSettings,
+    pub receiving: ReceivingSettings,
     pub monitoring: MonitoringSettings,
     pub retention: RetentionSettings,
     pub dns: DnsSettings,
@@ -167,8 +168,7 @@ impl AppSettings {
             })
         }
         Ok(Self {
-            mailbox: group(&rows),
-            reporting: group(&rows),
+            receiving: group(&rows),
             monitoring: group(&rows),
             retention: group(&rows),
             dns: group(&rows),
@@ -201,18 +201,8 @@ mod tests {
 
     #[test]
     fn every_group_reads_back_what_it_wrote() {
-        round_trip(&MailboxSettings {
-            host: "imap.example.com".into(),
-            port: Some(143),
-            security: Some(ImapSecurity::StartTls),
-            username: "reports@example.com".into(),
-            password: "  spaced secret  ".into(),
-            folder: Some("DMARC".into()),
-            poll_interval_secs: Some(120),
-        });
-        round_trip(&ReportingSettings {
-            report_address: Some("dmarc@example.com".into()),
-            reporting_mode: Some(ReportingMode::Forwarded),
+        round_trip(&ReceivingSettings {
+            poll_interval_secs: 120,
         });
         round_trip(&MonitoringSettings {
             report_freshness_warning_hours: 48,
@@ -225,18 +215,10 @@ mod tests {
             nameservers: vec!["9.9.9.9".into(), "2001:db8::1".into()],
         });
         round_trip(&SendingSettings {
-            group: SendingGroup {
-                enabled: true,
-                host: "smtp.example.com".into(),
-                port: Some(587),
-                security: SmtpSecurity::StartTls,
-                same_login_as_mailbox: false,
-                username: "alerts@example.com".into(),
-                sender: "dmarc@example.com".into(),
-                reply_to: "help@example.com".into(),
-                test_recipient: "me@example.com".into(),
-            },
-            password: "  spaced secret  ".into(),
+            enabled: true,
+            account_id: Some(2),
+            reply_to: "help@example.com".into(),
+            test_recipient: "me@example.com".into(),
         });
         round_trip(&AlertSettings {
             enabled: true,
@@ -271,9 +253,12 @@ mod tests {
             read::<SendingSettings>(&json!({})),
             SendingSettings::default()
         );
-        let sending: SendingSettings = read(&json!({ "enabled": true, "password": "p" }));
-        assert!(sending.group.enabled && sending.group.same_login_as_mailbox);
-        assert_eq!(sending.password, "p");
+        let sending: SendingSettings = read(&json!({ "enabled": true }));
+        assert!(sending.enabled && sending.account_id.is_none());
+        assert_eq!(
+            read::<ReceivingSettings>(&json!({})).poll_interval_secs,
+            DEFAULT_POLL_INTERVAL_SECS
+        );
         let monitoring: MonitoringSettings = read(&json!({ "report_freshness_warning_hours": 48 }));
         assert_eq!(
             monitoring.domain_reports_stopped_days,
@@ -293,49 +278,5 @@ mod tests {
         // A value of the wrong type does not read.
         let wrong = json!({ "report_retention_months": "twenty" }).to_string();
         assert!(read_group::<RetentionSettings>(&wrong).is_err());
-    }
-
-    #[test]
-    fn sending_login_follows_the_same_login_switch() {
-        let mut s = AppSettings::default();
-        s.mailbox.username = "reports@example.com".into();
-        s.mailbox.password = "mailbox secret".into();
-        s.sending.group.username = "alerts@example.net".into();
-        s.sending.password = "smtp secret".into();
-
-        // Same login (the default): the mailbox's, sent from the mailbox address.
-        let login = s.sending_login();
-        assert_eq!(login.username, "reports@example.com");
-        assert_eq!(login.password, "mailbox secret");
-        assert_eq!(login.sender, "reports@example.com");
-        assert!(!format!("{login:?}").contains("secret"));
-
-        // A stored sender wins.
-        s.sending.group.sender = "dmarc@example.com".into();
-        assert_eq!(s.sending_login().sender, "dmarc@example.com");
-
-        // A login that is no address gives no sender.
-        s.sending.group.sender.clear();
-        s.mailbox.username = "reports".into();
-        assert_eq!(s.sending_login().sender, "");
-
-        // Its own login: never the mailbox's, and no sender from it.
-        s.sending.group.same_login_as_mailbox = false;
-        let login = s.sending_login();
-        assert_eq!(login.username, "alerts@example.net");
-        assert_eq!(login.password, "smtp secret");
-        assert_eq!(login.sender, "");
-    }
-
-    #[test]
-    fn the_test_recipient_defaults_to_the_sender() {
-        let mut s = AppSettings::default();
-        assert_eq!(s.test_recipient(), "");
-        s.mailbox.username = "reports@example.com".into();
-        assert_eq!(s.test_recipient(), "reports@example.com");
-        s.sending.group.sender = "dmarc@example.com".into();
-        assert_eq!(s.test_recipient(), "dmarc@example.com");
-        s.sending.group.test_recipient = "me@example.org".into();
-        assert_eq!(s.test_recipient(), "me@example.org");
     }
 }

@@ -2,8 +2,9 @@
 //! return plain rows. Verdicts are `dmarc-assess`'s; a row the API sends as-is
 //! derives serde/ts-rs here, the server's `view/` adds the verdicts.
 //!
-//! - [`init`] opens the database (WAL, foreign keys, owner-only file) and runs
-//!   the embedded `migrations/`.
+//! - [`init`] opens the database (WAL, foreign keys, `secure_delete`,
+//!   owner-only file) and runs the embedded `migrations/`; [`compact`]
+//!   rewrites it so nothing deleted is left in it.
 //! - `ingest`: idempotent report ingestion; the per-record facts
 //!   (`dmarc_assess::RecordFacts`) become columns on `records`.
 //! - `outcome`: the four-way outcome and the DMARC verdict as SQL
@@ -11,12 +12,15 @@
 //!   also [`MailCounts`].
 //! - `queries`: the shared helpers and [`Scope`], which narrows every list and
 //!   total. `sort`: server-side sort keys mapped to fixed columns.
+//! - `queries_accounts`: the mail accounts and their secrets (plain or
+//!   sealed; the server seals them).
 //! - `queries_*`: one module per area (alerts, analytics, client reports, DKIM
-//!   selectors, DNS and identity snapshots, domains, export, IMAP state,
+//!   selectors, DNS and identity snapshots, domains, export, receive state,
 //!   mapping, organizations, reports, senders, system).
 //!   `queries_domain_stats/` is split by what it answers: the domain list, the
 //!   overview, the policy source rule, the readiness sums, the failures.
-//!   `queries_imap`: the IMAP worker's cursor, quarantine, attempts and passes.
+//!   `queries_receive`: the mailbox worker's cursor, quarantine, attempts and
+//!   passes, per account.
 //! - `record_checks`: a record's SPF and DKIM checks and override reasons as
 //!   JSON, for the report view, the failures and the auth-issues export.
 //! - `settings/`: typed [`AppSettings`], one module per group on the
@@ -27,6 +31,7 @@
 mod ingest;
 mod outcome;
 mod queries;
+mod queries_accounts;
 mod queries_alerts;
 mod queries_analytics;
 mod queries_client_reports;
@@ -36,9 +41,9 @@ mod queries_domain_stats;
 mod queries_domains;
 mod queries_export;
 mod queries_identity;
-mod queries_imap;
 mod queries_mapping;
 mod queries_organizations;
+mod queries_receive;
 mod queries_reports;
 mod queries_senders;
 mod queries_system;
@@ -49,11 +54,18 @@ mod sort;
 pub use ingest::{ingest_report, ingest_reports, BatchIngestError, IngestResult};
 pub use outcome::MailCounts;
 pub use queries::Scope;
+pub use queries_accounts::{
+    account_with_address, create_account, delete_account, get_account, get_account_secret,
+    insert_account, list_account_secrets, list_accounts, reseal_secrets, set_account_address,
+    update_account, update_account_receiving, AccountFields, AccountProvider, AccountRow,
+    LoginKind, MicrosoftLogin, ReceiveChange, SecretKind, SecretRow, SecretWrite,
+};
 pub use queries_alerts::{
     alert_events_in, count_alert_events, delete_alert_events_older_than,
-    domains_with_reports_stored_since_evaluated, get_alert_states, get_update_alert_state,
-    list_alert_events, mark_alert_events_notified, save_alert_evaluations, unnotified_alert_events,
-    AlertEvaluation, AlertEventRow, UpdateEvaluation,
+    domains_with_reports_stored_since_evaluated, get_alert_states, get_credential_alert_state,
+    get_unread_alert_state, get_update_alert_state, list_alert_events, mark_alert_events_notified,
+    save_alert_evaluations, unnotified_alert_events, AlertEvaluation, AlertEventRow,
+    CredentialEvaluation, InstallationEvaluation, UnreadEvaluation, UpdateEvaluation,
 };
 pub use queries_analytics::{
     get_sender_by_ip, list_timeseries, report_span, resolve_source_ip, scope_stats,
@@ -95,11 +107,6 @@ pub use queries_identity::{
     list_sender_ips_by_volume, list_sender_names, replace_sender_names, spf_pass_domains,
     upsert_identity_snapshot, IdentitySnapshot,
 };
-pub use queries_imap::{
-    clear_imap_attempts, count_imap_quarantine, get_cursor, get_imap_attempts, imap_pass_status,
-    quarantine_imap_message, record_imap_attempt, record_imap_pass, reset_cursor, set_cursor,
-    ImapAttemptKey, ImapPassRow, ImapPassStatus, IMAP_PASSES_KEPT,
-};
 pub use queries_mapping::{
     apply_domain_mapping, domain_mapping_rows, preview_domain_mapping, DomainStatus,
     MappingChanges, MappingEntry, MappingIgnore, MappingMove, MappingPlacement, MappingPlan,
@@ -110,12 +117,19 @@ pub use queries_organizations::{
     DeleteOrganization, Organization, OrganizationSummary, OrganizationWrite, ScopeDomain,
     ScopeOrganization,
 };
+pub use queries_receive::{
+    clear_receive_attempts, count_receive_quarantine, get_cursor, get_receive_attempts,
+    quarantine_receive_message, receive_pass_status, record_receive_attempt, record_receive_pass,
+    reset_cursor, set_cursor, ReceiveAttemptKey, ReceivePassRow, ReceivePassStatus,
+    RECEIVE_PASSES_KEPT,
+};
 pub use queries_reports::{
     find_report_by_report_id, get_report_summary, list_records_for_report, list_reports, RecordRow,
     ReportListQuery, ReportSort, ReportSummaryRow, StoredReport,
 };
 pub use queries_senders::{
-    list_senders, new_failing_senders, NewSenderRow, SenderListQuery, SenderSort, SenderSummaryRow,
+    list_senders, new_failing_senders, source_ips_before, source_ips_in_scope, NewSenderRow,
+    SenderListQuery, SenderSort, SenderSummaryRow,
 };
 pub use queries_system::{
     database_size_bytes, delete_reports_older_than, last_ingest_at, report_totals,
@@ -129,14 +143,13 @@ pub use settings::{
     set_custom_dkim_selectors, set_demo_dns_records, set_last_digest_at, set_logo, set_setting,
     set_update_check, AlertSettings, AppSettings, BrandingSettings, ClientReportSettings,
     DigestFrequency, DnsSettings, ImapSecurity, LicenseSettings, LogoInfo, LogoType,
-    MailboxSettings, MonitoringSettings, OnboardingSettings, OnboardingState, PixelSize,
-    ReportingMode, ReportingSettings, RetentionSettings, SeenVersion, SendingGroup, SendingLogin,
-    SendingSettings, SettingsGroup, SmtpSecurity, StoredLogo, UpdateCheck, UpdateSettings, Weekday,
-    CLIENT_REPORT_DAY_RANGE, DEFAULT_CLIENT_REPORT_DAY, DEFAULT_CLIENT_REPORT_HOUR,
-    DEFAULT_DIGEST_HOUR, DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS,
-    DEFAULT_REPORT_FRESHNESS_WARNING_HOURS, DEFAULT_REPORT_RETENTION_MONTHS,
-    DOMAIN_REPORTS_STOPPED_DAYS_RANGE, REPORT_FRESHNESS_WARNING_HOURS_RANGE,
-    REPORT_RETENTION_MONTHS_RANGE,
+    MonitoringSettings, OnboardingSettings, OnboardingState, PixelSize, ReceivingSettings,
+    RetentionSettings, SeenVersion, SendingSettings, SettingsGroup, SmtpSecurity, StoredLogo,
+    UpdateCheck, UpdateSettings, Weekday, CLIENT_REPORT_DAY_RANGE, DEFAULT_CLIENT_REPORT_DAY,
+    DEFAULT_CLIENT_REPORT_HOUR, DEFAULT_DIGEST_HOUR, DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS,
+    DEFAULT_POLL_INTERVAL_SECS, DEFAULT_REPORT_FRESHNESS_WARNING_HOURS,
+    DEFAULT_REPORT_RETENTION_MONTHS, DOMAIN_REPORTS_STOPPED_DAYS_RANGE, MAX_POLL_INTERVAL_SECS,
+    MIN_POLL_INTERVAL_SECS, REPORT_FRESHNESS_WARNING_HOURS_RANGE, REPORT_RETENTION_MONTHS_RANGE,
 };
 pub use sort::{Sort, SortDir, SortKey};
 
@@ -186,12 +199,15 @@ pub async fn init(path: &Path) -> Result<SqlitePool, StoreError> {
         .synchronous(SqliteSynchronous::Normal)
         // Negative = KiB. sqlx's default pool is 10 connections, so this caps
         // page cache at ~160 MB worst case while keeping a working set hot.
-        .pragma("cache_size", "-16384");
+        .pragma("cache_size", "-16384")
+        // What a write frees (a replaced password, a deleted row) is
+        // overwritten with zeros, not left readable in a free page.
+        .pragma("secure_delete", "on");
 
     let pool = SqlitePool::connect_with(options).await?;
 
     // Path is relative to this crate: crates/dmarc-store → ../../migrations
-    let (before, _) = applied_migrations(&pool).await?;
+    let (before, before_version) = applied_migrations(&pool).await?;
     sqlx::migrate!("../../migrations").run(&pool).await?;
     let (after, version) = applied_migrations(&pool).await?;
     let version = version.unwrap_or(0);
@@ -199,7 +215,55 @@ pub async fn init(path: &Path) -> Result<SqlitePool, StoreError> {
         0 => tracing::info!("database schema at migration {version} (none applied now)"),
         n => tracing::info!("database schema at migration {version} ({n} applied now)"),
     }
+    if before > 0
+        && before_version.unwrap_or(0) < ACCOUNTS_MIGRATION
+        && version >= ACCOUNTS_MIGRATION
+    {
+        // The accounts migration moved the 0.3 passwords out of
+        // `app_settings`; the pages they leave behind, and every page a
+        // password changed in 0.3 left behind, still hold them.
+        tracing::info!("rewriting the database once so no old password is left in it");
+        compact_or_warn(&pool).await;
+    }
     Ok(pool)
+}
+
+/// The migration that moved the 0.3 mailbox and sending passwords from
+/// `app_settings` into `account_secrets`.
+const ACCOUNTS_MIGRATION: i64 = 4;
+
+/// Rewrite the whole database (`VACUUM`) and empty the WAL into it
+/// (`wal_checkpoint(TRUNCATE)`), so that nothing deleted or replaced before
+/// is left in a free page or an old WAL frame: run after the secrets were
+/// encrypted. `VACUUM` cannot run inside a transaction and needs as much
+/// free disk as the database takes. Returns whether the checkpoint emptied
+/// the WAL (`false`: a reader held it, and the old frames go with the next
+/// checkpoint).
+///
+/// [`compact_or_warn`] logs the outcome instead.
+pub async fn compact(pool: &SqlitePool) -> Result<bool, StoreError> {
+    let mut conn = pool.acquire().await?;
+    sqlx::query("VACUUM").execute(&mut *conn).await?;
+    let (busy, _, _): (i64, i64, i64) = sqlx::query_as("PRAGMA wal_checkpoint(TRUNCATE)")
+        .fetch_one(&mut *conn)
+        .await?;
+    Ok(busy == 0)
+}
+
+/// [`compact`], with its outcome logged; a failure (such as a disk too full
+/// for the copy `VACUUM` makes) does not stop the start, which has nothing
+/// to undo, but says how to finish by hand.
+pub async fn compact_or_warn(pool: &SqlitePool) {
+    match compact(pool).await {
+        Ok(true) => tracing::info!("database rewritten: nothing deleted or replaced is left in it"),
+        Ok(false) => tracing::warn!(
+            "database rewritten, but its write-ahead log was busy: what was deleted or replaced leaves it at the next checkpoint"
+        ),
+        Err(e) => tracing::warn!(
+            error = %e,
+            "the database could not be rewritten, so deleted or replaced values (such as old passwords) may still be readable in marcan.db: free disk space, stop Marcan and run `sqlite3 marcan.db VACUUM`"
+        ),
+    }
 }
 
 /// How many migrations the database has applied, and the newest one's
@@ -219,7 +283,7 @@ async fn applied_migrations(pool: &SqlitePool) -> Result<(i64, Option<i64>), sql
 }
 
 /// Pre-create the database file as owner-only (0600). The database holds the
-/// IMAP password, and SQLite gives the `-wal` / `-shm` files the same mode.
+/// accounts' secrets, and SQLite gives the `-wal` / `-shm` files the same mode.
 #[cfg(unix)]
 fn create_private_file(path: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::OpenOptionsExt;

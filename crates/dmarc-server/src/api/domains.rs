@@ -153,7 +153,7 @@ pub async fn create_domain(
             ))
         }
         CreateDomainResult::Unignored(unignored) => {
-            state.imap.request_reimport();
+            state.mailboxes.request_reimport();
             state.dns.wake();
             Ok((
                 StatusCode::OK,

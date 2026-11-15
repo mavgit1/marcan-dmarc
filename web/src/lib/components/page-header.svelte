@@ -19,7 +19,7 @@
 		description?: string;
 		/** Small tag rendered inline after the title (e.g. "Default"). */
 		titleAddon?: Snippet;
-		/** A line under the description that belongs to the title (e.g. a domain's policy readiness). */
+		/** A line under the description that belongs to the title (e.g. a domain's enforcement). */
 		below?: Snippet;
 		actions?: Snippet;
 		class?: string;

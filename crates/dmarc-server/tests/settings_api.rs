@@ -3,11 +3,45 @@
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use dmarc_dns::TableResolver;
-use dmarc_store::init;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 mod common;
 use common::{get, get_ok, post_bytes, post_json, put_json, rec, report, send, TestApp};
+
+/// Answered when a stored password would go to another server or username.
+const PASSWORD_AGAIN: &str = "Enter the password again: the stored one is only used for the servers and username it was saved for.";
+
+/// A receiving account on `host:port` (TLS) logging in as `username`, with
+/// no SMTP server, in the shape `/api/accounts` takes.
+fn imap_account(host: &str, port: u16, username: &str, password: Option<&str>) -> Value {
+    let mut login = json!({ "kind": "password", "username": username });
+    if let Some(password) = password {
+        login["password"] = json!(password);
+    }
+    json!({
+        "name": "Reports",
+        "provider": "generic",
+        "address": "reports@corp.internal",
+        "login": login,
+        "imap": { "host": host, "port": port, "security": "tls" },
+        "smtp": { "host": "", "port": null, "security": "tls" },
+        "receiving": { "enabled": true, "folder": "", "forwarded_from": [] },
+    })
+}
+
+/// `POST /api/accounts/test` of the IMAP login of `account` (`id`: the
+/// stored account it edits); its `imap` step.
+async fn test_imap(app: &axum::Router, id: Option<i64>, account: Value) -> Value {
+    let (status, res) = post_json(
+        app,
+        "/api/accounts/test",
+        json!({ "id": id, "account": account, "smtp": false }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{res}");
+    assert!(res["smtp"].is_null(), "{res}");
+    res["mailbox"].clone()
+}
 
 #[tokio::test]
 async fn test_get_settings_unconfigured() {
@@ -16,232 +50,111 @@ async fn test_get_settings_unconfigured() {
 
     let (status, body) = get(&app, "/api/settings").await;
     assert_eq!(status, StatusCode::OK);
-    let mailbox = &body["mailbox"];
-    assert_eq!(mailbox["port"], 993);
-    assert_eq!(mailbox["folder"], "INBOX");
-    assert_eq!(mailbox["poll_interval_secs"], 300);
-    assert_eq!(mailbox["host"], "");
-    assert_eq!(mailbox["has_password"], false);
-    assert_eq!(mailbox["configured"], false);
-    // Never expose password field
-    assert!(mailbox.get("password").is_none());
+    assert!(body.get("mailbox").is_none(), "the 0.3 group is gone");
+    assert_eq!(body["accounts"], json!([]));
+    assert_eq!(body["receiving"]["poll_interval_secs"], 300);
+    assert_eq!(
+        body["account_defaults"],
+        json!({
+            "imap": { "tls": 993, "starttls": 143 },
+            "smtp": { "tls": 465, "starttls": 587 },
+            "folder": "INBOX",
+        })
+    );
     assert_eq!(body["monitoring"]["report_freshness_warning_hours"], 24);
     assert_eq!(body["monitoring"]["domain_reports_stopped_days"], 14);
     assert_eq!(body["retention"]["report_retention_months"], 12);
     assert!(body["monitoring"].get("report_retention_months").is_none());
 }
 
+/// An account is answered without its password, by its `POST`, its `PUT`
+/// and `GET /api/settings`; saved again for the same server (the host's
+/// case aside) without a password, the stored one stays; a blank password
+/// is none, so another server needs it typed.
 #[tokio::test]
-async fn test_save_and_retrieve_imap_settings() {
+async fn an_account_round_trips_without_its_password() {
     let t = TestApp::new().await;
     let app = t.app.clone();
+    let mut account = imap_account(
+        "mail.corp.internal",
+        993,
+        "reports@corp.internal",
+        Some("supersecretpassword"),
+    );
+    account["receiving"]["folder"] = json!("DMARC");
+    let (status, saved) = post_json(&app, "/api/accounts", account).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert!(!saved.to_string().contains("supersecretpassword"));
+    let stored = &saved["accounts"][0];
+    assert_eq!(stored["imap"]["host"], "mail.corp.internal");
+    assert_eq!(stored["imap"]["port"], 993);
+    assert_eq!(stored["login"]["username"], "reports@corp.internal");
+    assert!(stored["login"].get("password").is_none());
+    assert_eq!(stored["login"]["has_password"], true);
+    assert_eq!(stored["receiving"]["folder"], "DMARC");
+    assert_eq!(stored["ready_to_receive"], true);
 
-    // Save full IMAP settings
-    let (status, save_res) = put_json(
-        &app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "mail.corp.internal",
-            "port": 993,
-            "username": "reports@corp.internal",
-            "password": "supersecretpassword",
-            "folder": "DMARC",
-            "poll_interval_secs": 120,
-            "security": "tls",
-        }),
-    )
-    .await;
+    let got = get_ok(&app, "/api/settings").await;
+    assert!(!got.to_string().contains("supersecretpassword"));
+    assert_eq!(got["accounts"], saved["accounts"]);
 
-    assert_eq!(status, StatusCode::OK);
-    // Ensure password is NEVER serialized in response
-    assert!(!save_res.to_string().contains("supersecretpassword"));
-    let save_res = &save_res["mailbox"];
-    assert_eq!(save_res["host"], "mail.corp.internal");
-    assert_eq!(save_res["port"], 993);
-    assert_eq!(save_res["username"], "reports@corp.internal");
-    assert_eq!(save_res["folder"], "DMARC");
-    assert_eq!(save_res["poll_interval_secs"], 120);
-    assert_eq!(save_res["has_password"], true);
-    assert_eq!(save_res["configured"], true);
-    assert!(save_res.get("password").is_none());
+    let mut same = imap_account("MAIL.corp.internal", 993, "reports@corp.internal", Some(""));
+    same["receiving"]["folder"] = json!("Reports");
+    let (status, res) = put_json(&app, "/api/accounts/1", same).await;
+    assert_eq!(status, StatusCode::OK, "{res}");
+    assert_eq!(res["accounts"][0]["receiving"]["folder"], "Reports");
+    assert_eq!(res["accounts"][0]["login"]["has_password"], true);
 
-    // GET should return the database settings
-    let (get_status, get_res) = get(&app, "/api/settings").await;
-    assert_eq!(get_status, StatusCode::OK);
-    assert!(!get_res.to_string().contains("supersecretpassword"));
-    let get_res = &get_res["mailbox"];
-    assert_eq!(get_res["host"], "mail.corp.internal");
-    assert_eq!(get_res["username"], "reports@corp.internal");
-    assert_eq!(get_res["folder"], "DMARC");
-    assert_eq!(get_res["poll_interval_secs"], 120);
-    assert_eq!(get_res["has_password"], true);
-    assert_eq!(get_res["configured"], true);
-    assert!(get_res.get("password").is_none());
+    let blank = imap_account("attacker.example", 993, "reports@corp.internal", Some("  "));
+    let (status, res) = put_json(&app, "/api/accounts/1", blank).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{res}");
+    assert_eq!(res["error"], PASSWORD_AGAIN);
+    let current = get_ok(&app, "/api/settings").await;
+    assert_eq!(current["accounts"][0]["imap"]["host"], "MAIL.corp.internal");
 
-    // Update folder/interval without password: same mailbox, so the stored
-    // password is kept.
-    let (up_status, up_res) = put_json(
-        &app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "MAIL.corp.internal",
-            "port": 993,
-            "username": "reports@corp.internal",
-            "password": "",
-            "folder": "Reports",
-            "poll_interval_secs": 180,
-            "security": "tls",
-        }),
-    )
-    .await;
-
-    assert_eq!(up_status, StatusCode::OK);
-    assert_eq!(up_res["mailbox"]["folder"], "Reports");
-    assert_eq!(up_res["mailbox"]["poll_interval_secs"], 180);
-    assert_eq!(up_res["mailbox"]["has_password"], true); // Still has password!
+    let typed = imap_account(
+        "imap.new.example",
+        993,
+        "reports@corp.internal",
+        Some("new-secret"),
+    );
+    let (status, res) = put_json(&app, "/api/accounts/1", typed).await;
+    assert_eq!(status, StatusCode::OK, "{res}");
+    assert_eq!(res["accounts"][0]["imap"]["host"], "imap.new.example");
+    assert_eq!(res["accounts"][0]["login"]["has_password"], true);
 }
 
-async fn save_stored_mailbox(app: &axum::Router) {
-    let (status, _) = put_json(
-        app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "mail.corp.internal",
-            "port": 993,
-            "username": "reports@corp.internal",
-            "password": "stored-secret",
-            "security": "tls",
-            "folder": "",
-            "poll_interval_secs": 300,
-        }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-}
-
+/// Through the real network: the stored account's own server is tried with
+/// its stored password (a closed local port, so the step fails, without the
+/// password in the answer); another port, host or username is not tried.
 #[tokio::test]
-async fn save_requires_password_when_mailbox_changes() {
+async fn account_test_uses_the_stored_password_for_its_own_server_only() {
     let t = TestApp::new().await;
     let app = t.app.clone();
-    save_stored_mailbox(&app).await;
+    let stored = imap_account(
+        "127.0.0.1",
+        65534,
+        "reports@corp.internal",
+        Some("stored-secret"),
+    );
+    let (status, body) = post_json(&app, "/api/accounts", stored).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
 
-    // Changing host, port or username without a password would send the
-    // stored password to the new target on the next poll.
-    for changed in [
-        json!({ "host": "attacker.example", "port": 993, "username": "reports@corp.internal", "security": "tls", "folder": "", "poll_interval_secs": 300 }),
-        json!({ "host": "mail.corp.internal", "port": 1993, "username": "reports@corp.internal", "security": "tls", "folder": "", "poll_interval_secs": 300 }),
-        json!({ "host": "mail.corp.internal", "port": 993, "username": "other@corp.internal", "security": "tls", "folder": "", "poll_interval_secs": 300 }),
-        json!({ "host": "attacker.example", "port": 993, "username": "reports@corp.internal", "password": "  ", "security": "tls", "folder": "", "poll_interval_secs": 300 }),
-    ] {
-        let (status, body) = put_json(&app, "/api/settings/mailbox", changed.clone()).await;
-        assert_eq!(status, StatusCode::CONFLICT, "{changed}");
-        assert!(body["error"]
-            .as_str()
-            .unwrap()
-            .contains("password is required"));
-    }
-
-    // Nothing was written by the rejected requests.
-    let (_, current) = get(&app, "/api/settings").await;
-    assert_eq!(current["mailbox"]["host"], "mail.corp.internal");
-    assert_eq!(current["mailbox"]["port"], 993);
-    assert_eq!(current["mailbox"]["username"], "reports@corp.internal");
-
-    // With a new password the change is accepted.
-    let (status, body) = put_json(
-        &app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "imap.new.example",
-            "port": 993,
-            "username": "reports@corp.internal",
-            "password": "new-secret",
-            "security": "tls",
-            "folder": "",
-            "poll_interval_secs": 300,
-        }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["mailbox"]["host"], "imap.new.example");
-    assert_eq!(body["mailbox"]["has_password"], true);
-}
-
-#[tokio::test]
-async fn save_rejects_too_short_poll_interval() {
-    let t = TestApp::new().await;
-    let app = t.app.clone();
-    let (status, body) = put_json(
-        &app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "mail.corp.internal",
-            "username": "u",
-            "password": "p",
-            "poll_interval_secs": 0,
-            "port": 993,
-            "security": "tls",
-            "folder": "",
-        }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(body["code"], "unprocessable");
-    assert_eq!(body["error"], "poll interval must be at least 10 seconds");
-}
-
-#[tokio::test]
-async fn connect_endpoint_never_sends_stored_password_to_another_mailbox() {
-    let t = TestApp::new().await;
-    let app = t.app.clone();
-    save_stored_mailbox(&app).await;
-
-    for target in [
-        json!({ "host": "127.0.0.1", "port": 65534 }),
-        json!({ "port": 65534 }),
-        json!({ "username": "someone-else" }),
-    ] {
-        let (status, body) = post_json(&app, "/api/settings/imap/connect", target.clone()).await;
-        assert_eq!(status, StatusCode::CONFLICT, "{target}");
-        assert!(body["error"]
-            .as_str()
-            .unwrap()
-            .contains("password is required"));
-    }
-}
-
-#[tokio::test]
-async fn connect_endpoint_reuses_stored_password_for_stored_mailbox() {
-    let t = TestApp::new().await;
-    let app = t.app.clone();
-    // A stored mailbox on a closed local port: the connection fails, but the
-    // request is accepted because the target is unchanged.
-    let (status, _) = put_json(
-        &app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "127.0.0.1",
-            "port": 65534,
-            "username": "reports@corp.internal",
-            "password": "stored-secret",
-            "security": "tls",
-            "folder": "",
-            "poll_interval_secs": 300,
-        }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-
-    let (status, res) = post_json(
-        &app,
-        "/api/settings/imap/connect",
-        json!({ "host": "127.0.0.1", "port": 65534, "username": "reports@corp.internal" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
+    let same = imap_account("127.0.0.1", 65534, "reports@corp.internal", None);
+    let res = test_imap(&app, Some(1), same).await;
     assert_eq!(res["ok"], false);
-    assert!(!res["message"].as_str().unwrap().contains("stored-secret"));
     assert_eq!(res["message"], "Could not reach 127.0.0.1:65534.");
+    assert!(!res.to_string().contains("stored-secret"));
+
+    for (host, port, username) in [
+        ("127.0.0.1", 65533, "reports@corp.internal"),
+        ("localhost", 65534, "reports@corp.internal"),
+        ("127.0.0.1", 65534, "someone-else"),
+    ] {
+        let res = test_imap(&app, Some(1), imap_account(host, port, username, None)).await;
+        assert_eq!(res["ok"], false);
+        assert_eq!(res["message"], PASSWORD_AGAIN, "{host}:{port} {username}");
+    }
 }
 
 #[tokio::test]
@@ -249,85 +162,93 @@ async fn failed_sync_is_reported_in_system_health() {
     let t = TestApp::new().await;
     let app = t.app.clone();
 
-    let (status, res) = post_json(&app, "/api/settings/imap/sync", json!({})).await;
+    let (status, res) = post_json(&app, "/api/settings/receiving/sync", json!({})).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(res["started"], false);
     assert_eq!(res["reason"], "not_configured");
-    assert!(res["message"].as_str().unwrap().contains("not set up"));
+    assert!(res["message"]
+        .as_str()
+        .unwrap()
+        .starts_with("No account receives reports yet."));
     let (_, health) = get(&app, "/api/system/health").await;
-    assert!(health["imap_last_error"].is_null());
-    assert!(health["imap_progress"].is_null());
+    assert!(health["receive_last_error"].is_null());
+    assert!(health["pass_progress"].is_null());
 
-    let (status, _) = put_json(
-        &app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "127.0.0.1",
-            "port": 65534,
-            "username": "reports@corp.internal",
-            "password": "stored-secret",
-            "security": "tls",
-            "folder": "",
-            "poll_interval_secs": 300,
-        }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
+    let account = imap_account(
+        "127.0.0.1",
+        65534,
+        "reports@corp.internal",
+        Some("stored-secret"),
+    );
+    let (status, body) = post_json(&app, "/api/accounts", account).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
 
-    // Returns at once; the pass runs in the background.
-    let (status, res) = post_json(&app, "/api/settings/imap/sync", json!({})).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(res["started"], true, "{res}");
-    assert!(res["reason"].is_null());
-
+    // The loop, as the server runs it, reads the new account at once: its
+    // pass fails to connect and backs off.
+    let imap = t.run_imap_loop();
+    let passes = || async {
+        let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM receive_passes")
+            .fetch_one(&t.pool)
+            .await
+            .unwrap();
+        n
+    };
     // Poll health like the UI does until the pass has finished. Health reads the
     // progress before the stored outcome and the pass writes its outcome in one
     // transaction before clearing its progress, so the first idle response already
     // carries the complete error. The bound only guards against a hang (a refused
     // connection can take seconds on Windows).
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
-    let health = loop {
-        let (status, health) = get(&app, "/api/system/health").await;
-        assert_eq!(status, StatusCode::OK);
-        match health["imap_progress"].as_object() {
-            None => break health,
-            Some(progress) => {
-                assert_eq!(progress["running"], true);
-                assert!(progress["started_at"].as_i64().is_some());
+    let until_idle = |count: i64| {
+        let app = app.clone();
+        let passes = &passes;
+        async move {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+            loop {
+                let (status, health) = get(&app, "/api/system/health").await;
+                assert_eq!(status, StatusCode::OK);
+                match health["pass_progress"].as_object() {
+                    None if passes().await >= count => break health,
+                    None => {}
+                    Some(progress) => {
+                        assert_eq!(progress["running"], true);
+                        assert!(progress["started_at"].as_i64().is_some());
+                    }
+                }
+                assert!(std::time::Instant::now() < deadline, "sync never finished");
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
             }
         }
-        assert!(std::time::Instant::now() < deadline, "sync never finished");
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     };
-    assert_eq!(health["imap_configured"], true);
-    let error = health["imap_last_error"]
+    until_idle(1).await;
+
+    // Returns at once; the loop runs the pass, and the very next health
+    // poll already shows it.
+    let (status, res) = post_json(&app, "/api/settings/receiving/sync", json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(res["started"], true, "{res}");
+    assert!(res["reason"].is_null());
+    let (_, health) = get(&app, "/api/system/health").await;
+    assert_eq!(health["pass_progress"]["running"], true, "{health}");
+    let health = until_idle(2).await;
+    imap.stop().await;
+    assert_eq!(passes().await, 2);
+    assert_eq!(health["receive_configured"], true);
+    let error = health["receive_last_error"]
         .as_str()
         .expect("last error recorded");
     assert!(error.contains("127.0.0.1:65534"), "{error}");
     assert!(!error.contains("stored-secret"));
-    assert!(health["imap_last_error_at"].as_i64().is_some());
-    assert!(health["imap_last_success_at"].is_null());
+    assert!(health["receive_last_error_at"].as_i64().is_some());
+    assert!(health["receive_last_success_at"].is_null());
 }
 
 #[tokio::test]
-async fn connect_endpoint_reports_unreachable_server() {
+async fn account_test_reports_an_unreachable_server() {
     let t = TestApp::new().await;
-    let app = t.app.clone();
 
-    // Test with non-existent port on localhost -> should fail gracefully with ok: false
-    let (status, res) = post_json(
-        &app,
-        "/api/settings/imap/connect",
-        json!({
-            "host": "127.0.0.1",
-            "port": 65534,
-            "username": "fake_user",
-            "password": "fake_password"
-        }),
-    )
-    .await;
-
-    assert_eq!(status, StatusCode::OK);
+    // A closed port on localhost: the step fails, answered with ok: false.
+    let account = imap_account("127.0.0.1", 65534, "fake_user", Some("fake_password"));
+    let res = test_imap(&t.app, None, account).await;
     assert_eq!(res["ok"], false);
     assert_eq!(res["message"], "Could not reach 127.0.0.1:65534.");
     assert!(res["detail"].as_str().is_some_and(|d| !d.is_empty()));
@@ -337,47 +258,63 @@ async fn connect_endpoint_reports_unreachable_server() {
 }
 
 #[tokio::test]
-async fn imap_security_round_trip_and_its_port() {
+async fn account_imap_security_round_trip_and_its_port() {
     let t = TestApp::new().await;
     let app = t.app.clone();
     let body = get(&app, "/api/settings").await.1;
-    assert_eq!(body["mailbox"]["security"], "tls");
-    assert_eq!(body["mailbox"]["defaults"]["port"], 993);
-    assert_eq!(body["mailbox"]["defaults"]["starttls_port"], 143);
+    assert_eq!(body["account_defaults"]["imap"]["tls"], 993);
+    assert_eq!(body["account_defaults"]["imap"]["starttls"], 143);
 
-    let mailbox = json!({
-        "host": "mail.corp.internal",
-        "port": 143,
-        "security": "starttls",
-        "username": "reports@corp.internal",
-        "password": "secret",
-        "folder": "",
-        "poll_interval_secs": 300,
-    });
-    let (status, saved) = put_json(&app, "/api/settings/mailbox", mailbox.clone()).await;
-    assert_eq!(status, StatusCode::OK, "{saved}");
-    assert_eq!(saved["mailbox"]["security"], "starttls");
-    assert_eq!(saved["mailbox"]["port"], 143);
-    assert_eq!(saved["mailbox"]["folder"], "INBOX", "empty: INBOX");
-
-    // The whole group is sent: without the security nothing is saved.
-    let mut partial = mailbox.clone();
-    partial.as_object_mut().unwrap().remove("security");
-    let (status, _) = put_json(&app, "/api/settings/mailbox", partial).await;
-    assert!(status.is_client_error(), "{status}");
-
-    let mut plain = mailbox;
-    plain["security"] = json!("plain");
-    let (status, _) = put_json(&app, "/api/settings/mailbox", plain).await;
-    assert!(status.is_client_error(), "{status}");
-    assert_eq!(
-        get(&app, "/api/settings").await.1["mailbox"]["security"],
-        "starttls"
+    let mut account = imap_account(
+        "mail.corp.internal",
+        143,
+        "reports@corp.internal",
+        Some("secret"),
     );
+    account["imap"]["security"] = json!("starttls");
+    let (status, saved) = post_json(&app, "/api/accounts", account.clone()).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert_eq!(saved["accounts"][0]["imap"]["security"], "starttls");
+    assert_eq!(saved["accounts"][0]["imap"]["port"], 143);
+    assert_eq!(
+        saved["accounts"][0]["receiving"]["folder"], "INBOX",
+        "empty: INBOX"
+    );
+
+    // The whole account is sent: without the security nothing is saved.
+    let mut partial = account.clone();
+    partial["imap"].as_object_mut().unwrap().remove("security");
+    let (status, _) = put_json(&app, "/api/accounts/1", partial).await;
+    assert!(status.is_client_error(), "{status}");
+
+    let mut plain = account.clone();
+    plain["imap"]["security"] = json!("plain");
+    let (status, _) = put_json(&app, "/api/accounts/1", plain).await;
+    assert!(status.is_client_error(), "{status}");
+
+    // Port 0 is not set: the usual one for the security chosen (STARTTLS,
+    // as saved above). One that is not a port number at all is a malformed
+    // request, a 400 in JSON.
+    let mut zero = account.clone();
+    zero["imap"]["port"] = json!(0);
+    zero["imap"]["security"] = json!("starttls");
+    let (status, body) = put_json(&app, "/api/accounts/1", zero).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["accounts"][0]["imap"]["port"], 143);
+    let mut huge = account;
+    huge["imap"]["port"] = json!(70000);
+    let (status, body) = put_json(&app, "/api/accounts/1", huge).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], "bad_request");
+    assert!(body["error"].as_str().unwrap().contains("70000"), "{body}");
+
+    let imap = &get(&app, "/api/settings").await.1["accounts"][0]["imap"];
+    assert_eq!(imap["security"], "starttls");
+    assert_eq!(imap["port"], 143);
 }
 
 #[tokio::test]
-async fn connect_endpoint_says_when_the_server_does_not_offer_starttls() {
+async fn account_test_says_when_the_imap_server_does_not_offer_starttls() {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -394,19 +331,9 @@ async fn connect_endpoint_says_when_the_server_does_not_offer_starttls() {
             .unwrap();
     });
     let t = TestApp::new().await;
-    let (status, res) = post_json(
-        &t.app,
-        "/api/settings/imap/connect",
-        json!({
-            "host": "127.0.0.1",
-            "port": port,
-            "security": "starttls",
-            "username": "u",
-            "password": "fake_password"
-        }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
+    let mut account = imap_account("127.0.0.1", port, "u", Some("fake_password"));
+    account["imap"]["security"] = json!("starttls");
+    let res = test_imap(&t.app, None, account).await;
     assert_eq!(res["ok"], false);
     assert_eq!(
         res["message"],
@@ -416,29 +343,41 @@ async fn connect_endpoint_says_when_the_server_does_not_offer_starttls() {
 }
 
 #[tokio::test]
-async fn connect_endpoint_reports_unknown_host_and_missing_fields() {
+async fn account_test_reports_an_unknown_host_and_missing_fields() {
     let t = TestApp::new().await;
     let app = t.app.clone();
 
-    let (status, res) = post_json(
+    let res = test_imap(
         &app,
-        "/api/settings/imap/connect",
-        json!({ "host": "imap.invalid", "username": "u", "password": "p" }),
+        None,
+        imap_account("imap.invalid", 993, "u", Some("p")),
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
     assert_eq!(res["ok"], false);
     assert_eq!(res["message"], "Server not found. Check the host name.");
 
-    let (status, res) = post_json(
-        &app,
-        "/api/settings/imap/connect",
-        json!({ "host": "imap.invalid", "username": "u" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
+    let res = test_imap(&app, None, imap_account("imap.invalid", 993, "u", None)).await;
     assert_eq!(res["ok"], false);
     assert_eq!(res["message"], "Enter the password.");
+
+    let res = test_imap(
+        &app,
+        None,
+        imap_account("imap.invalid", 993, " ", Some("p")),
+    )
+    .await;
+    assert_eq!(res["ok"], false);
+    assert_eq!(res["message"], "Enter the username.");
+
+    // No server at all: nothing to test.
+    let (status, res) = post_json(
+        &app,
+        "/api/accounts/test",
+        json!({ "account": imap_account("", 993, "u", Some("p")), "smtp": true }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{res}");
+    assert_eq!(res["error"], "Enter a server to test.");
 }
 
 #[tokio::test]
@@ -500,16 +439,14 @@ async fn posts_must_be_json() {
         (None, ""),
         (
             Some("text/plain"),
-            r#"{"host":"internal.example","username":"x"}"#,
+            r#"{"account":{"imap":{"host":"internal.example"}},"smtp":false}"#,
         ),
         (
             Some("application/x-www-form-urlencoded"),
             "host=internal.example",
         ),
     ] {
-        let mut request = Request::builder()
-            .method("POST")
-            .uri("/api/settings/imap/connect");
+        let mut request = Request::builder().method("POST").uri("/api/accounts/test");
         if let Some(ct) = content_type {
             request = request.header(header::CONTENT_TYPE, ct);
         }
@@ -631,120 +568,38 @@ async fn test_dns_settings_api() {
     assert_eq!(body["dns"]["nameservers"], json!([]));
 }
 
-#[tokio::test]
-async fn report_address_round_trip_and_validation() {
-    let t = TestApp::new().await;
-    let app = t.app.clone();
-    let (_, body) = get(&app, "/api/settings").await;
-    assert_eq!(body["reporting"]["report_address"], "");
-    assert_eq!(body["reporting"]["report_org_domain"], "");
-
-    let with = |addr: &str| json!({ "report_address": addr });
-
-    let (status, body) = put_json(
-        &app,
-        "/api/settings/reporting",
-        with(" dmarc@Reports.example "),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["reporting"]["report_address"], "dmarc@Reports.example");
-    let (_, body) = get(&app, "/api/settings").await;
-    assert_eq!(body["reporting"]["report_address"], "dmarc@Reports.example");
-
-    // Omitting the field keeps the stored value, and so does saving the mailbox.
-    let (status, body) = put_json(&app, "/api/settings/reporting", json!({})).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["reporting"]["report_address"], "dmarc@Reports.example");
-    let (status, body) = put_json(
-        &app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "mail.corp.internal",
-            "port": 993,
-            "username": "imap-user",
-            "password": "pw",
-            "security": "tls",
-            "folder": "",
-            "poll_interval_secs": 300,
-        }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["reporting"]["report_address"], "dmarc@Reports.example");
-
-    for bad in ["not-an-email", "a@b", "a b@example.com", "x@example.com;y"] {
-        let (status, body) = put_json(&app, "/api/settings/reporting", with(bad)).await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{bad}");
-        assert_eq!(body["code"], "unprocessable");
-        assert_eq!(
-            body["error"],
-            format!("report address is not a valid email address: {bad}")
-        );
-    }
-    let (_, body) = get(&app, "/api/settings").await;
-    assert_eq!(body["reporting"]["report_address"], "dmarc@Reports.example");
-
-    // An empty string clears it.
-    let (status, body) = put_json(&app, "/api/settings/reporting", with("")).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["reporting"]["report_address"], "");
+/// A receiving account at `address` (on an IMAP server nobody answers), the
+/// reports of the `forwarded_from` addresses forwarded to it.
+fn report_account(address: &str, forwarded_from: &[&str]) -> Value {
+    let mut account = imap_account("127.0.0.1", 65534, address, Some("pw"));
+    account["name"] = json!(address);
+    account["address"] = json!(address);
+    account["receiving"]["forwarded_from"] = json!(forwarded_from);
+    account
 }
 
-#[tokio::test]
-async fn reporting_mode_round_trip_and_validation() {
-    let t = TestApp::new().await;
-    let app = t.app.clone();
-    let (_, body) = get(&app, "/api/settings").await;
-    assert_eq!(body["reporting"]["reporting_mode"], "direct", "default");
-    assert_eq!(body["reporting"]["reporting_mode_saved"], false);
-
-    let with = |mode: &str| json!({ "reporting_mode": mode });
-
-    // Saving the connection alone leaves the mode unsaved.
-    let (status, body) = put_json(
-        &app,
-        "/api/settings/mailbox",
-        json!({
-            "host": "mail.corp.internal",
-            "port": 993,
-            "username": "imap-user",
-            "password": "pw",
-            "security": "tls",
-            "folder": "",
-            "poll_interval_secs": 300,
-        }),
+async fn add_domain(app: &axum::Router, domain: &str) -> i64 {
+    let (_, organizations) = get(app, "/api/organizations").await;
+    let org = organizations["items"][0]["id"].as_i64().unwrap();
+    let (status, created) = post_json(
+        app,
+        "/api/domains",
+        json!({ "organization_id": org, "domain": domain }),
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["reporting"]["reporting_mode_saved"], false);
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    created["id"].as_i64().unwrap()
+}
 
-    let (status, body) = put_json(&app, "/api/settings/reporting", with("forwarded")).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["reporting"]["reporting_mode"], "forwarded");
-    assert_eq!(body["reporting"]["reporting_mode_saved"], true);
-    let (_, body) = get(&app, "/api/settings").await;
-    assert_eq!(body["reporting"]["reporting_mode"], "forwarded");
-
-    // Omitting the field keeps the stored value.
-    let (status, body) = put_json(
-        &app,
-        "/api/settings/reporting",
-        json!({ "report_address": "dmarc@example.com" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["reporting"]["reporting_mode"], "forwarded");
-
-    // Unknown values are rejected and leave the stored mode alone.
-    let (status, _) = put_json(&app, "/api/settings/reporting", with("alias")).await;
-    assert!(status.is_client_error(), "got {status}");
-    let (_, body) = get(&app, "/api/settings").await;
-    assert_eq!(body["reporting"]["reporting_mode"], "forwarded");
-
-    let (status, body) = put_json(&app, "/api/settings/reporting", with("direct")).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["reporting"]["reporting_mode"], "direct");
+/// The row of `name` in a reporting setup answer.
+fn setup_row(body: &Value, name: &str) -> Value {
+    body["domains"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["domain"] == name)
+        .cloned()
+        .unwrap_or_else(|| panic!("{name} missing: {body}"))
 }
 
 /// Each domain's reporting status is the server's: a lookup that fails is
@@ -755,48 +610,42 @@ async fn reporting_setup_reports_failed_lookups_as_check_failed() {
     let t = TestApp::with_resolver(TableResolver::failing()).await;
     let app = t.app.clone();
 
-    // No report address: nothing to check the domains against.
+    // No receiving account: nothing to check the domains against.
     let body = get_ok(&app, "/api/reporting-setup").await;
-    assert_eq!(body["report_address"], "");
+    assert_eq!(body["addresses"], json!([]));
+    assert_eq!(body["default_address"], "");
     assert_eq!(body["domains"], json!([]));
-    assert_eq!(body["mailbox_authorization"], Value::Null);
+    assert_eq!(body["authorizations"], json!([]));
 
-    let (status, _) = put_json(
+    let (status, body) = post_json(
         &app,
-        "/api/settings/reporting",
-        json!({ "report_address": "dmarc@Reports.test", "reporting_mode": "direct" }),
+        "/api/accounts",
+        report_account("dmarc@Reports.test", &[]),
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    let (_, organizations) = get(&app, "/api/organizations").await;
-    let org = organizations["items"][0]["id"].as_i64().unwrap();
-    let (status, created) = post_json(
-        &app,
-        "/api/domains",
-        json!({ "organization_id": org, "domain": "example.com" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(status, StatusCode::OK, "{body}");
+    add_domain(&app, "example.com").await;
 
     let body = get_ok(&app, "/api/reporting-setup?refresh=true").await;
-    assert_eq!(body["mailbox_domain"], "reports.test");
-    assert_eq!(body["mailbox_authorization"]["state"], "check_failed");
+    assert_eq!(body["default_address"], "dmarc@Reports.test");
+    assert_eq!(body["authorizations"][0]["domain"], "reports.test");
+    assert_eq!(body["authorizations"][0]["state"], "check_failed");
     let row = &body["domains"][0];
     assert_eq!(row["domain"], "example.com");
     assert_eq!(row["state"], "check_failed");
     assert_eq!(row["status"], "neutral");
     assert_eq!(row["set_up"], false);
-    assert_eq!(row["mailbox_auth_missing"], false);
+    assert_eq!(row["missing_authorizations"], json!([]));
 
     let (status, _) = get(&app, "/api/reporting-setup?domain_id=999999").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 /// With the records published, the reporting setup reads them: a domain
-/// whose `rua=` names the report address and whose reports the mailbox
-/// domain accepts is set up and waits for its first report; one with no
-/// record (and no authorization record) says so, and with no wildcard the
-/// mailbox domain says that too.
+/// whose `rua=` names the account's address and whose reports its domain
+/// accepts is set up and waits for its first report; one with no record
+/// (and no authorization record) says so, and with no wildcard the address
+/// domain says that too.
 #[tokio::test]
 async fn reporting_setup_reads_the_published_records() {
     let resolver = TableResolver::new()
@@ -807,49 +656,216 @@ async fn reporting_setup_reads_the_published_records() {
         .with_txt("example.com._report._dmarc.reports.test", &["v=DMARC1"]);
     let t = TestApp::with_resolver(resolver).await;
     let app = t.app.clone();
-    let (status, _) = put_json(
+    let (status, body) = post_json(
         &app,
-        "/api/settings/reporting",
-        json!({ "report_address": "dmarc@reports.test", "reporting_mode": "direct" }),
+        "/api/accounts",
+        report_account("dmarc@reports.test", &[]),
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    let (_, organizations) = get(&app, "/api/organizations").await;
-    let org = organizations["items"][0]["id"].as_i64().unwrap();
+    assert_eq!(status, StatusCode::OK, "{body}");
     for domain in ["example.com", "example.net"] {
-        let (status, created) = post_json(
-            &app,
-            "/api/domains",
-            json!({ "organization_id": org, "domain": domain }),
-        )
-        .await;
-        assert_eq!(status, StatusCode::CREATED, "{created}");
+        add_domain(&app, domain).await;
     }
 
     let body = get_ok(&app, "/api/reporting-setup?refresh=true").await;
-    assert_eq!(
-        body["mailbox_authorization"]["state"], "no_wildcard",
-        "{body}"
-    );
-    let row = |name: &str| {
-        body["domains"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|d| d["domain"] == name)
-            .cloned()
-            .unwrap_or_else(|| panic!("{name} missing: {body}"))
-    };
-    let set_up = row("example.com");
+    assert_eq!(body["authorizations"][0]["state"], "no_wildcard", "{body}");
+    let set_up = setup_row(&body, "example.com");
     assert_eq!(set_up["state"], "waiting_for_first_report", "{set_up}");
     assert_eq!(set_up["set_up"], true);
-    assert_eq!(set_up["mailbox_auth_missing"], false);
-    let missing = row("example.net");
+    assert_eq!(set_up["named_addresses"], json!(["dmarc@reports.test"]));
+    assert_eq!(set_up["missing_authorizations"], json!([]));
+    let missing = setup_row(&body, "example.net");
     assert_eq!(missing["state"], "no_record", "{missing}");
     assert_eq!(missing["set_up"], false);
-    assert_eq!(missing["mailbox_auth_missing"], true);
+    assert_eq!(missing["missing_authorizations"], json!(["reports.test"]));
     // Worst first: the domain that needs a DNS change leads.
     assert_eq!(body["domains"][0]["domain"], "example.net");
+}
+
+/// One domain's reporting setup (its page's waiting card) reads the DMARC
+/// record from the stored DNS check, the one its header and scorecard show,
+/// not a lookup of its own; `refresh` re-checks and stores it, so the page's
+/// other answers then agree.
+#[tokio::test]
+async fn one_domains_reporting_setup_reads_the_stored_dns_check() {
+    let published = "v=DMARC1; p=reject; rua=mailto:dmarc@reports.test";
+    let resolver = TableResolver::new()
+        .with_txt("_dmarc.example.com", &[published])
+        .with_txt("example.com._report._dmarc.reports.test", &["v=DMARC1"]);
+    let t = TestApp::with_resolver(resolver).await;
+    let app = t.app.clone();
+    let (status, body) = post_json(
+        &app,
+        "/api/accounts",
+        report_account("dmarc@reports.test", &[]),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let id = add_domain(&app, "example.com").await;
+    // The stored check, fresh, still has the old record.
+    let stored = "v=DMARC1; p=none; rua=mailto:dmarc@reports.test";
+    common::store_dns(
+        &t.pool,
+        "example.com",
+        stored,
+        "v=spf1 -all",
+        dmarc_store::unix_now(),
+    )
+    .await;
+
+    let one = format!("/api/reporting-setup?domain_id={id}");
+    let row = get_ok(&app, &one).await["domains"][0].clone();
+    assert_eq!(row["dmarc"]["records"], json!([stored]), "{row}");
+    assert_eq!(row["dmarc"]["parsed"]["p"], "none");
+    let dns = get_ok(&app, "/api/dns/check?domain=example.com").await;
+    assert_eq!(dns["dmarc"]["records"], json!([stored]));
+
+    // Re-check: the live record, stored for everyone.
+    let row = get_ok(&app, &format!("{one}&refresh=true")).await["domains"][0].clone();
+    assert_eq!(row["dmarc"]["records"], json!([published]), "{row}");
+    assert_eq!(row["state"], "waiting_for_first_report", "{row}");
+    let dns = get_ok(&app, "/api/dns/check?domain=example.com").await;
+    assert_eq!(dns["cached"], true);
+    assert_eq!(dns["dmarc"]["records"], json!([published]));
+    let overview = get_ok(&app, &format!("/api/domains/{id}")).await;
+    assert_eq!(overview["policy"]["p"], "reject", "{overview}");
+}
+
+/// Two receiving accounts, the second also receiving the reports forwarded
+/// from `dmarc@example.org` and `dmarc@client.test`: a record naming any of
+/// the addresses is
+/// judged by that address, each address domain's authorization is its own,
+/// and new records (in the list and for one domain, as its page asks) name
+/// the first receiving account's address in list order.
+#[tokio::test]
+async fn reporting_setup_with_two_accounts() {
+    let resolver = TableResolver::new()
+        .with_txt(
+            "_dmarc.example.com",
+            &["v=DMARC1; p=none; rua=mailto:dmarc@reports.test"],
+        )
+        .with_txt("example.com._report._dmarc.reports.test", &["v=DMARC1"])
+        .with_txt(
+            "_dmarc.example.org",
+            &["v=DMARC1; p=none; rua=mailto:DMARC@example.org"],
+        )
+        .with_txt(
+            "_dmarc.shop.example",
+            &["v=DMARC1; p=none; rua=mailto:reports@other.test,mailto:x@vendor.test"],
+        );
+    let t = TestApp::with_resolver(resolver).await;
+    let app = t.app.clone();
+    for account in [
+        report_account("dmarc@reports.test", &[]),
+        report_account(
+            "reports@other.test",
+            &["dmarc@example.org", "dmarc@client.test"],
+        ),
+    ] {
+        let (status, body) = post_json(&app, "/api/accounts", account).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+    }
+    let mut ids = std::collections::HashMap::new();
+    for domain in ["example.com", "example.org", "shop.example", "example.net"] {
+        ids.insert(domain, add_domain(&app, domain).await);
+    }
+
+    let body = get_ok(&app, "/api/reporting-setup?refresh=true").await;
+    assert_eq!(body["default_address"], "dmarc@reports.test");
+    assert_eq!(
+        body["addresses"],
+        json!([
+            { "account_id": 1, "name": "dmarc@reports.test", "address": "dmarc@reports.test", "forwarded_from": [] },
+            { "account_id": 2, "name": "reports@other.test", "address": "reports@other.test", "forwarded_from": ["dmarc@example.org", "dmarc@client.test"] }
+        ])
+    );
+    let row = setup_row(&body, "example.com");
+    assert_eq!(row["state"], "waiting_for_first_report", "{row}");
+    // The forwarded-from address, on the domain itself: nothing to authorize.
+    let row = setup_row(&body, "example.org");
+    assert_eq!(row["state"], "waiting_for_first_report", "{row}");
+    assert_eq!(row["named_addresses"], json!(["DMARC@example.org"]));
+    // Account 2's address, which its domain does not accept yet.
+    let row = setup_row(&body, "shop.example");
+    assert_eq!(row["state"], "not_authorized", "{row}");
+    assert_eq!(row["missing_authorizations"], json!(["other.test"]));
+    assert_eq!(row["other_addresses"], json!(["x@vendor.test"]));
+    assert_eq!(row["refused"][0]["host"], "vendor.test");
+    // No record: the first account's address, and its domain's permission.
+    let row = setup_row(&body, "example.net");
+    assert_eq!(row["state"], "no_record", "{row}");
+    assert_eq!(
+        row["record_to_publish"],
+        "v=DMARC1; p=none; rua=mailto:dmarc@reports.test"
+    );
+    assert_eq!(row["missing_authorizations"], json!(["reports.test"]));
+
+    let auth: Vec<(String, String, Value)> = body["authorizations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| {
+            (
+                a["domain"].as_str().unwrap().to_owned(),
+                a["state"].as_str().unwrap().to_owned(),
+                a["addresses"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        auth,
+        [
+            (
+                "reports.test".to_owned(),
+                "no_wildcard".to_owned(),
+                json!(["dmarc@reports.test"])
+            ),
+            (
+                "other.test".to_owned(),
+                "no_wildcard".to_owned(),
+                json!(["reports@other.test"])
+            ),
+            (
+                "example.org".to_owned(),
+                "not_needed".to_owned(),
+                json!(["dmarc@example.org"])
+            ),
+            (
+                "client.test".to_owned(),
+                "not_needed".to_owned(),
+                json!(["dmarc@client.test"])
+            ),
+        ]
+    );
+
+    // The domain page asks for its one domain: the same record to publish.
+    let one = format!("/api/reporting-setup?domain_id={}", ids["example.net"]);
+    let page = get_ok(&app, &one).await;
+    assert_eq!(
+        page["domains"][0]["record_to_publish"],
+        "v=DMARC1; p=none; rua=mailto:dmarc@reports.test"
+    );
+    assert_eq!(page["authorizations"], json!([]));
+
+    // Account 1 stops receiving: account 2's address is the default.
+    let mut first = report_account("dmarc@reports.test", &[]);
+    first["login"]["password"] = json!("");
+    first["receiving"]["enabled"] = json!(false);
+    let (status, answer) = put_json(&app, "/api/accounts/1", first).await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    let body = get_ok(&app, "/api/reporting-setup").await;
+    assert_eq!(body["default_address"], "reports@other.test");
+    assert_eq!(
+        setup_row(&body, "example.net")["record_to_publish"],
+        "v=DMARC1; p=none; rua=mailto:reports@other.test"
+    );
+    // example.com still names account 1's address, no longer a known one.
+    assert_eq!(setup_row(&body, "example.com")["state"], "address_missing");
+    let page = get_ok(&app, &one).await;
+    assert_eq!(
+        page["domains"][0]["record_to_publish"],
+        "v=DMARC1; p=none; rua=mailto:reports@other.test"
+    );
 }
 
 #[tokio::test]
@@ -887,71 +903,55 @@ async fn onboarding_state_round_trip() {
     assert_eq!(body["onboarding"]["state"], Value::Null);
 }
 
-/// Saving the delivery settings must not interrupt a running import; only a
-/// different mailbox does. Passwords are saved verbatim.
+/// Saving the poll interval or the same account again must not interrupt a
+/// running import; only a different mailbox pass does. Passwords are saved verbatim.
 #[tokio::test]
 async fn delivery_settings_do_not_interrupt_the_import() {
-    let dir = tempfile::tempdir().unwrap();
-    let pool = init(&dir.path().join("t.db")).await.unwrap();
-    let state = dmarc_server::AppState::new(pool.clone());
-    let worker = state.imap.clone();
-    let app = dmarc_server::router_with_state(state);
+    let t = TestApp::new().await;
+    let (app, pool) = (t.app.clone(), t.pool.clone());
+    let worker = t.state.mailboxes.clone();
 
-    let mailbox = json!({
-        "host": "imap.example.com",
-        "port": 993,
-        "username": "reports@example.com",
-        "password": "  spaced secret  ",
-        "folder": "INBOX",
-        "security": "tls",
-        "poll_interval_secs": 300,
-    });
-    let (status, body) = put_json(&app, "/api/settings/mailbox", mailbox.clone()).await;
+    let mut account = imap_account(
+        "imap.example.com",
+        993,
+        "reports@example.com",
+        Some("  spaced secret  "),
+    );
+    account["receiving"]["folder"] = json!("INBOX");
+    let (status, body) = post_json(&app, "/api/accounts", account.clone()).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let after_first_save = worker.settings_generation();
     assert_eq!(after_first_save, 1);
-    let stored = dmarc_store::AppSettings::load(&pool).await.unwrap().mailbox;
     assert_eq!(
-        stored.password, "  spaced secret  ",
+        stored_password(&pool).await,
+        "  spaced secret  ",
         "passwords are not trimmed"
     );
 
-    // The same mailbox again (password omitted: the stored one is kept), then
-    // the delivery settings.
-    let mut same = mailbox.clone();
-    same["password"] = json!("");
-    let (status, body) = put_json(&app, "/api/settings/mailbox", same).await;
+    // The same account again (password omitted: the stored one is kept),
+    // then the poll interval.
+    let mut same = account.clone();
+    same["login"]["password"] = json!("");
+    let (status, body) = put_json(&app, "/api/accounts/1", same).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    let (status, body) = put_json(
+    let (status, _) = put_json(
         &app,
-        "/api/settings/reporting",
-        json!({
-            "report_address": "dmarc@reports.firma.co.uk",
-            "reporting_mode": "forwarded",
-        }),
+        "/api/settings/receiving",
+        json!({ "poll_interval_secs": 600 }),
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(status, StatusCode::OK);
     assert_eq!(worker.settings_generation(), after_first_save);
-    assert_eq!(
-        body["reporting"]["report_address"],
-        "dmarc@reports.firma.co.uk"
-    );
-    assert_eq!(body["reporting"]["report_org_domain"], "firma.co.uk");
-    assert_eq!(body["reporting"]["reporting_mode"], "forwarded");
-    let stored = dmarc_store::AppSettings::load(&pool).await.unwrap().mailbox;
-    assert_eq!(stored.password, "  spaced secret  ");
+    assert_eq!(stored_password(&pool).await, "  spaced secret  ");
 
     // A different folder is a different mailbox pass.
-    let mut other = mailbox;
-    other["folder"] = json!("DMARC");
-    other["password"] = json!("");
-    let (status, _) = put_json(&app, "/api/settings/mailbox", other).await;
+    let mut other = account;
+    other["receiving"]["folder"] = json!("DMARC");
+    other["login"]["password"] = json!("");
+    let (status, _) = put_json(&app, "/api/accounts/1", other).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(worker.settings_generation(), after_first_save + 1);
-
-    let (_, body) = get(&app, "/api/settings").await;
-    assert_eq!(body["reporting"]["report_org_domain"], "firma.co.uk");
+    assert_eq!(stored_password(&pool).await, "  spaced secret  ");
 }
 
 /// The report retention defaults to 12 months and is its own group, saved
@@ -1020,19 +1020,23 @@ async fn report_retention_round_trip() {
     assert_eq!(body["monitoring"]["report_freshness_warning_hours"], 168);
 }
 
-/// `GET /api/settings` reflects each group's write; every PUT answers it.
+/// `GET /api/settings` reflects each write; every account write and every
+/// group's PUT answers it.
 #[tokio::test]
 async fn get_settings_reflects_each_group_write() {
     let t = TestApp::new().await;
     let app = t.app.clone();
+    let mut account = imap_account("imap.example.com", 993, "u@example.com", Some("pw"));
+    account["receiving"]["folder"] = json!("DMARC");
+    account["smtp"] = json!({ "host": "smtp.example.com", "port": 465, "security": "tls" });
+    let (status, answer) = post_json(&app, "/api/accounts", account).await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    assert_eq!(answer, get(&app, "/api/settings").await.1, "accounts");
     let writes = [
+        ("receiving", json!({ "poll_interval_secs": 120 })),
         (
-            "mailbox",
-            json!({ "host": "imap.example.com", "username": "u@example.com", "password": "pw", "folder": "DMARC", "port": 993, "security": "tls", "poll_interval_secs": 300 }),
-        ),
-        (
-            "reporting",
-            json!({ "report_address": "dmarc@example.com", "reporting_mode": "forwarded" }),
+            "sending",
+            json!({ "enabled": true, "account_id": 1, "sender": "", "reply_to": "", "test_recipient": "me@example.org" }),
         ),
         (
             "monitoring",
@@ -1049,14 +1053,22 @@ async fn get_settings_reflects_each_group_write() {
         assert_eq!(answer, get(&app, "/api/settings").await.1, "{group}");
     }
     let (_, body) = get(&app, "/api/settings").await;
-    assert_eq!(body["mailbox"]["host"], "imap.example.com");
-    assert_eq!(body["mailbox"]["folder"], "DMARC");
-    assert_eq!(body["mailbox"]["has_password"], true);
-    assert_eq!(body["mailbox"]["configured"], true);
-    assert_eq!(body["reporting"]["report_address"], "dmarc@example.com");
-    assert_eq!(body["reporting"]["report_org_domain"], "example.com");
-    assert_eq!(body["reporting"]["reporting_mode"], "forwarded");
-    assert_eq!(body["reporting"]["reporting_mode_saved"], true);
+    let stored = &body["accounts"][0];
+    assert_eq!(stored["imap"]["host"], "imap.example.com");
+    assert_eq!(stored["receiving"]["folder"], "DMARC");
+    assert_eq!(stored["login"]["has_password"], true);
+    assert_eq!(stored["ready_to_receive"], true);
+    assert_eq!(body["receiving"]["poll_interval_secs"], 120);
+    assert_eq!(body["sending"]["enabled"], true);
+    assert_eq!(body["sending"]["account_id"], 1);
+    assert_eq!(
+        body["sending"]["effective_test_recipient"],
+        "me@example.org"
+    );
+    assert!(
+        body.get("reporting").is_none(),
+        "the reporting group is gone"
+    );
     assert_eq!(body["monitoring"]["report_freshness_warning_hours"], 48);
     assert_eq!(body["retention"]["report_retention_months"], 6);
     assert_eq!(body["dns"]["nameservers"], json!(["9.9.9.9"]));
@@ -1158,7 +1170,8 @@ async fn retention_pass_skips_an_unreadable_setting() {
     assert_eq!(left, vec!["two-years-old"]);
 }
 
-/// The per-setting endpoints that came before the groups are gone.
+/// The per-setting endpoints that came before the groups are gone, and so
+/// are the 0.3 mailbox endpoints the accounts replaced.
 #[tokio::test]
 async fn old_per_setting_endpoints_are_gone() {
     let t = TestApp::new().await;
@@ -1176,10 +1189,24 @@ async fn old_per_setting_endpoints_are_gone() {
         "/api/settings/report-retention",
         "/api/settings/dns",
         "/api/settings/onboarding",
+        "/api/settings/imap/connect",
     ] {
         let (status, _) = post_json(&t.app, path, json!({})).await;
         assert!(status.is_client_error(), "POST {path}: {status}");
     }
+    let mailbox = json!({
+        "host": "imap.example.com", "port": 993, "username": "u", "password": "p",
+        "security": "tls", "folder": "", "poll_interval_secs": 300,
+    });
+    let (status, _) = put_json(&t.app, "/api/settings/mailbox", mailbox).await;
+    assert!(
+        status.is_client_error(),
+        "PUT /api/settings/mailbox: {status}"
+    );
+    assert!(dmarc_store::list_accounts(&t.pool)
+        .await
+        .unwrap()
+        .is_empty());
 }
 
 /// The version check is on by default and shows nothing before its first
@@ -1244,4 +1271,13 @@ async fn the_version_check_is_on_by_default_and_forgets_when_off() {
     // The whole group, as every PUT.
     let (status, _) = put_json(&app, "/api/settings/updates", json!({})).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+/// The mailbox's (account 1's) stored password, which no key seals here.
+async fn stored_password(pool: &sqlx::SqlitePool) -> String {
+    let row = dmarc_store::get_account_secret(pool, 1, dmarc_store::SecretKind::Password)
+        .await
+        .unwrap()
+        .expect("a stored password");
+    String::from_utf8(row.value).unwrap()
 }

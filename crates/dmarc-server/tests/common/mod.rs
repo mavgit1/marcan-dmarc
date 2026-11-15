@@ -44,6 +44,14 @@ impl TestApp {
         })
     }
 
+    /// A fresh temp database under the state `state` builds over it (a
+    /// secret key, a mail recorder).
+    pub async fn with_state(state: impl FnOnce(SqlitePool) -> AppState) -> Self {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pool = init(&dir.path().join("test.db")).await.expect("init");
+        Self::over(dir, pool, state)
+    }
+
     fn over(
         dir: tempfile::TempDir,
         pool: SqlitePool,
@@ -57,6 +65,47 @@ impl TestApp {
             state,
             app,
         }
+    }
+}
+
+impl TestApp {
+    /// Run the IMAP worker's polling loop, the one driver of its passes, as
+    /// the server does; it stops when the guard is dropped. Without it a
+    /// sync is only asked for and nothing is read.
+    pub fn run_imap_loop(&self) -> ImapLoop {
+        let token = tokio_util::sync::CancellationToken::new();
+        let task = tokio::spawn(
+            self.state
+                .mailboxes
+                .clone()
+                .run(self.state.mailbox_backend(), token.clone()),
+        );
+        ImapLoop {
+            token,
+            task: Some(task),
+        }
+    }
+}
+
+/// The IMAP loop of a [`TestApp`]; cancelled when dropped.
+pub struct ImapLoop {
+    token: tokio_util::sync::CancellationToken,
+    task: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl ImapLoop {
+    /// Stop the loop and wait for it: the running pass stops between batches.
+    pub async fn stop(mut self) {
+        self.token.cancel();
+        if let Some(task) = self.task.take() {
+            task.await.expect("the IMAP loop ended abnormally");
+        }
+    }
+}
+
+impl Drop for ImapLoop {
+    fn drop(&mut self) {
+        self.token.cancel();
     }
 }
 
@@ -231,15 +280,30 @@ pub async fn seed_organizations(pool: &SqlitePool) {
     }
 }
 
-/// Record a mailbox pass that finished without error at `at`: the mailbox
-/// was read then.
+/// Record a pass of the mailbox (account 1, receiving with a made-up login;
+/// added when missing) that finished without error at `at`: it was read then.
 pub async fn record_mailbox_read(pool: &SqlitePool, at: i64) {
-    let pass = dmarc_store::ImapPassRow {
+    if dmarc_store::get_account(pool, 1).await.unwrap().is_none() {
+        let account = dmarc_store::AccountFields {
+            name: "Reports".into(),
+            username: "reports@example.com".into(),
+            imap_host: "imap.example.com".into(),
+            ..Default::default()
+        };
+        let password = dmarc_store::SecretRow::plain(dmarc_store::SecretKind::Password, "p");
+        dmarc_store::insert_account(pool, Some(1), &account, &[password], 0)
+            .await
+            .expect("mailbox account");
+    }
+    let pass = dmarc_store::ReceivePassRow {
+        account_id: 1,
         finished_at: at,
         checked_at: Some(at),
         ..Default::default()
     };
-    dmarc_store::record_imap_pass(pool, &pass).await.unwrap();
+    dmarc_store::record_receive_pass(pool, &pass, None)
+        .await
+        .unwrap();
 }
 
 /// Store a complete DNS result for `domain` with `dmarc` and `spf` as its
@@ -273,4 +337,31 @@ pub async fn store_dns(pool: &SqlitePool, domain: &str, dmarc: &str, spf: &str, 
     assert!(dmarc_store::upsert_dns_snapshot(pool, &snapshot)
         .await
         .unwrap());
+}
+
+/// Sending on through a made-up account (account 2, `smtp.example.com:465`,
+/// logging in as `username` with password `secret`) from its `address`;
+/// never contacted when the test stubs the sender.
+pub async fn enable_sending(pool: &SqlitePool, username: &str, address: &str) {
+    let account = dmarc_store::AccountFields {
+        name: "Sending".into(),
+        address: address.into(),
+        username: username.into(),
+        smtp_host: "smtp.example.com".into(),
+        smtp_port: Some(465),
+        receive_enabled: false,
+        ..Default::default()
+    };
+    let password = dmarc_store::SecretRow::plain(dmarc_store::SecretKind::Password, "secret");
+    dmarc_store::insert_account(pool, Some(2), &account, &[password], 0)
+        .await
+        .expect("sending account");
+    let sending = dmarc_store::SendingSettings {
+        enabled: true,
+        account_id: Some(2),
+        ..Default::default()
+    };
+    dmarc_store::save_settings(pool, &sending)
+        .await
+        .expect("sending settings");
 }

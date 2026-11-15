@@ -1,5 +1,5 @@
 /**
- * Helpers for pointing DMARC aggregate reports (`rua=`) at the Marcan mailbox: the words for the
+ * Helpers for pointing DMARC aggregate reports (`rua=`) at the receiving accounts: the words for the
  * server's reporting setup (`GET /api/reporting-setup`), which decides each domain's status from
  * live lookups and writes the records to publish (`record_to_publish`; the Enforcement tab's
  * steps carry theirs too). No DMARC record text is parsed or edited here.
@@ -7,11 +7,32 @@
 
 import type { DomainAssessment } from '$lib/types/DomainAssessment';
 import type { MailboxAuthorization } from '$lib/types/MailboxAuthorization';
-import type { ReportingMode } from '$lib/types/ReportingMode';
 import type { ReportingStatus } from '$lib/types/ReportingStatus';
+import type { SettingsResponse } from '$lib/types/SettingsResponse';
 
 /** How long receivers usually take to send the first aggregate report. */
 export const FIRST_REPORT_ETA = '24–48 h';
+
+/**
+ * Some account is where reports are sent: receiving, with an address, its server and login set
+ * (the server's `report_address`, as its `ReportAddresses` counts them).
+ */
+export function receivesReports(s: SettingsResponse | null | undefined): boolean {
+	return !!s && s.accounts.some((a) => a.report_address);
+}
+
+/**
+ * What the reporting setup is decided from in the settings: each account's address, whether it
+ * is a report address, and its forwarded addresses. A change asks it again.
+ */
+export function reportAddressKey(s: SettingsResponse | null | undefined): string {
+	return JSON.stringify(
+		s?.accounts.map((a) => [a.id, a.address, a.report_address, a.receiving.forwarded_from]) ?? null
+	);
+}
+
+/** Up to this many forwarded addresses are named in a sentence; more are counted. */
+export const FORWARDED_NAMED = 3;
 
 /** Reports arrive: the server's `assessment.reporting`. */
 export function isReporting(d: { assessment: Pick<DomainAssessment, 'reporting'> }): boolean {
@@ -48,7 +69,7 @@ export const REPORTING_STATUS_LABEL: Record<ReportingStatus, string> = {
 	reporting: 'Reporting'
 };
 
-/** The mailbox domain's authorization of other domains' reports; `null`: no badge. */
+/** A report address domain's authorization of other domains' reports; `null`: no badge. */
 export const MAILBOX_AUTHORIZATION_LABEL: Record<MailboxAuthorization, string | null> = {
 	not_needed: null,
 	wildcard: 'Authorized',
@@ -56,5 +77,3 @@ export const MAILBOX_AUTHORIZATION_LABEL: Record<MailboxAuthorization, string | 
 	no_wildcard: 'No wildcard',
 	check_failed: 'Check failed'
 };
-
-export type { ReportingMode };

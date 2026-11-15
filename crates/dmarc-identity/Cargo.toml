@@ -13,5 +13,8 @@ ipnet = { workspace = true }
 serde = { workspace = true }
 ts-rs = { workspace = true }
 
+[dev-dependencies]
+ts-rs = { workspace = true, features = ["format"] }
+
 [lints]
 workspace = true

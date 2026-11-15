@@ -39,7 +39,7 @@
 	const moreHref = resolve('/domains?attention=1' as '/domains');
 
 	/**
-	 * Every open issue (the server's `assessment.issues`, worst first, each with its badge), one
+	 * Every open issue (the server's `assessment.issues`, each with its badge, in `IssueBadges`' fixed order), one
 	 * row per domain, so nothing is dropped and nothing repeats. Rows in the server's
 	 * `attention_rank`.
 	 */

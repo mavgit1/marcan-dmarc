@@ -3,7 +3,7 @@
 
 use super::stats::TimeseriesPoint;
 use dmarc_assess::{
-    dkim_coverage, pass_rate, sender_check, sender_dkim_check, sender_domain_verdict,
+    dkim_coverage, sender_check, sender_dkim_check, sender_domain_verdict, sender_pass_rate,
     spoofing_status, DkimCoverage, SenderCheck, SenderDomainVerdict, Status,
 };
 use dmarc_store::{SenderDetailRow, SenderDomainStatsRow, SenderSummaryRow};
@@ -20,13 +20,18 @@ pub struct SenderSummary {
     /// The raw pass rate, `compliant / total` as 0–100 (`Mail::pass_rate`);
     /// 0 without messages.
     pub compliance_pct: f64,
-    /// `compliance_pct` judged by the 99 / 95 rule.
+    /// `compliance_pct` judged by the 99 / 95 rule, green instead of red or
+    /// amber when nothing but forwarded mail failed (`sender_pass_rate`).
     pub compliance_status: Status,
 }
 
 impl From<SenderSummaryRow> for SenderSummary {
     fn from(row: SenderSummaryRow) -> Self {
-        let rate = pass_rate(row.compliant_messages, row.total_messages);
+        let rate = sender_pass_rate(
+            row.compliant_messages,
+            row.total_messages,
+            row.failed_messages,
+        );
         Self {
             compliance_pct: rate.pct.unwrap_or(0.0),
             compliance_status: rate.status,

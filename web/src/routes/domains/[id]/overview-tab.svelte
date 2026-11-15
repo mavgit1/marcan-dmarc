@@ -9,11 +9,12 @@
 	import { filters } from '$lib/state/filters.svelte';
 	import ReportingDomain from '$lib/components/reporting-setup/reporting-domain.svelte';
 	import { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
-	import { isReporting, REPORTING_STATUS_LABEL } from '$lib/report-address';
+	import { isReporting, receivesReports, REPORTING_STATUS_LABEL } from '$lib/report-address';
 	import { resource } from '$lib/state/resource.svelte';
 	import { refresh } from '$lib/state/refresh.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { untrack } from 'svelte';
+	import { dnsCheckedAt } from './dns-sync';
 	import MailWarningIcon from '@lucide/svelte/icons/mail-warning';
 	import RecentChanges from '../../alerts/recent-changes.svelte';
 
@@ -49,15 +50,23 @@
 	const dnsError = $derived(dns.error === null ? null : apiErrorMessage(dns.error));
 
 	/**
-	 * A domain shown before its first DNS check (policy "Not checked yet") gets its first stored
-	 * result from this page's check: reload the overview once so the header's policy follows.
+	 * One page shows one DNS result. The header's policy, the readiness line and the
+	 * Enforcement tab come with the overview (the stored check as the page loaded); the
+	 * scorecard has its own answer, which may be a newer check (this page's first or a
+	 * re-check, or one the server ran meanwhile), while a report refresh may bring the
+	 * overview a newer stored check than the scorecard's. Whichever is older loads again, once
+	 * per pair of results; an answer without a complete result changes nothing.
 	 */
-	let reloadedFor: number | null = null;
+	let syncedFor: string | null = null;
 	$effect(() => {
-		const pending = overview.policy_source === 'not_checked' || overview.policy_source === 'check_failed';
-		if (!pending || !currentDns || currentDns.status === 'failed' || reloadedFor === overview.id) return;
-		reloadedFor = overview.id;
-		untrack(() => refresh.refresh());
+		if (!currentDns || currentDns.status === 'failed') return;
+		const shown = dnsCheckedAt(currentDns.checked_at);
+		const stored = overview.dns?.checked_at ?? null;
+		if (shown == null || shown === stored) return;
+		const pair = `${overview.id}|${shown}|${stored}`;
+		if (syncedFor === pair) return;
+		syncedFor = pair;
+		untrack(() => (stored == null || shown > stored ? refresh.refresh() : dns.reload()));
 	});
 
 	/** The Re-check button: again, bypassing the server's caches. */
@@ -65,18 +74,25 @@
 		dns.reload({ recheck: true });
 	}
 
-	/** The report address and mode, for the setup section; a failed load hides it. */
+	/** Whether an account receives reports, for the setup section; a failed load hides it. */
 	$effect(() => {
 		settings.load().catch(() => {});
 	});
-	const reporting = $derived(settings.current?.reporting ?? null);
 
 	/**
 	 * No recent report: this domain's DMARC record as the reporting setup needs it, its status
-	 * decided by the server (the mailbox domain's own part is the setup's, under /setup).
+	 * decided by the server (the address domains' own part is the setup's, under /setup). The
+	 * server reads the record from the stored DNS check, so it is asked once the scorecard's
+	 * answer is in (a first check is then stored, not run twice) and again whenever that answer
+	 * changes (Re-check); it has no re-check of its own.
 	 */
-	const wantSetup = $derived(!!reporting?.report_address.trim() && !isReporting(overview));
-	const setup = new ReportingSetupState({ domainId: () => overview.id, enabled: () => wantSetup });
+	const wantSetup = $derived(receivesReports(settings.current) && !isReporting(overview));
+	const dnsAnswered = $derived(currentDns != null || dns.error != null);
+	const setup = new ReportingSetupState({
+		domainId: () => overview.id,
+		enabled: () => wantSetup && dnsAnswered,
+		reloadOn: () => currentDns?.checked_at
+	});
 	const setupRow = $derived(wantSetup ? (setup.data?.domains[0] ?? null) : null);
 </script>
 
@@ -88,12 +104,7 @@
 				{setupRow.set_up ? REPORTING_STATUS_LABEL[setupRow.state] : "Reports don't reach Marcan yet"}
 			</h2>
 			<ul class="divide-border divide-y rounded-lg border text-xs leading-relaxed">
-				<ReportingDomain
-					row={setupRow}
-					{setup}
-					mode={setup.data.reporting_mode}
-					mailboxDomain={setup.data.mailbox_domain}
-				/>
+				<ReportingDomain row={setupRow} {setup} defaultAddress={setup.data.default_address} recheck={false} />
 			</ul>
 		</section>
 	{/if}

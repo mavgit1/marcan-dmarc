@@ -1,7 +1,9 @@
 //! REST API route modules.
 
+mod accounts;
 mod alerts;
 mod analytics;
+mod certificates;
 mod client_reports;
 mod dns;
 mod domain_detail;
@@ -23,6 +25,7 @@ mod system;
 pub(crate) use identity::identities_named;
 pub use sender_names::load_sender_names;
 
+use crate::error::AppError;
 use crate::AppState;
 use axum::extract::Request;
 use axum::http::{header, Method};
@@ -48,7 +51,7 @@ async fn require_json_post(req: Request, next: Next) -> Response {
             v.starts_with("application/json") || v.starts_with("image/")
         });
     if req.method() == Method::POST && !accepted {
-        return crate::error::AppError::unsupported_media_type(
+        return AppError::unsupported_media_type(
             "POST requests must be application/json (or an image, for the logo)",
         )
         .into_response();
@@ -130,14 +133,34 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/api/dns/tls-rpt", get(dns::check_tls_rpt))
         .route("/api/dns/bimi", get(dns::check_bimi))
         .route("/api/dns/ptr", get(dns::check_ptr))
+        .route(
+            "/api/accounts/certificate",
+            post(certificates::generate_certificate),
+        )
+        .route(
+            "/api/accounts/certificate/{draft_id}",
+            get(certificates::download_draft_certificate),
+        )
+        .route(
+            "/api/accounts/{id}/certificate.cer",
+            get(certificates::download_certificate),
+        )
+        .route("/api/accounts", post(accounts::create_account))
+        .route("/api/accounts/test", post(accounts::test_account))
+        .route(
+            "/api/accounts/{id}",
+            put(accounts::update_account).delete(accounts::delete_account),
+        )
+        .route("/api/accounts/{id}/sync", post(accounts::sync_account))
         .route("/api/settings", get(settings::get_settings))
-        .route("/api/settings/mailbox", put(settings::put_mailbox))
-        .route("/api/settings/reporting", put(settings::put_reporting))
+        .route("/api/settings/receiving", put(settings::put_receiving))
         .route("/api/settings/monitoring", put(settings::put_monitoring))
         .route("/api/settings/retention", put(settings::put_retention))
-        .route("/api/settings/imap/connect", post(settings::connect_imap))
-        .route("/api/settings/imap/sync", post(settings::sync_imap))
-        .route("/api/settings/imap/reimport", post(settings::reimport_imap))
+        .route("/api/settings/receiving/sync", post(settings::sync_all))
+        .route(
+            "/api/settings/receiving/reimport",
+            post(settings::reimport_all),
+        )
         .route("/api/settings/dns", put(settings::put_dns))
         .route("/api/settings/sending", put(settings::put_sending))
         .route("/api/settings/sending/test", post(settings::send_test))

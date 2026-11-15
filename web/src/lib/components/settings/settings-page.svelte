@@ -21,6 +21,8 @@
 	 */
 	let {
 		page,
+		title,
+		back,
 		hint,
 		docs,
 		tag,
@@ -31,9 +33,13 @@
 		after
 	}: {
 		page: SettingsPageId;
+		/** In place of the page's title (a page below another: an account). */
+		title?: string;
+		/** The back link of a page below another. */
+		back?: { href: string; label: string };
 		/** One sentence: what the page configures. */
 		hint: string;
-		/** The docs page and anchor, such as `mailbox#sending`. */
+		/** The docs page and anchor, such as `accounts#sending`. */
 		docs: string;
 		/** A label in the warn tone after the title, such as "Experimental". */
 		tag?: string;
@@ -53,13 +59,17 @@
 	const off = $derived(!!feature && !feature.on);
 </script>
 
-<SettingsPageHeader {page} {hint} {docs} {tag} />
+<SettingsPageHeader {page} {title} {back} {hint} {docs} {tag} />
 
 <form onsubmit={(e) => form.submit(e)} class="space-y-4">
 	{#if feature}
 		<SettingsSection>
-			<SettingRow title={feature.title} hint={feature.hint} labelFor="{page}-enabled">
+			<SettingRow title={feature.title} labelFor="{page}-enabled">
 				<SwitchInput id="{page}-enabled" checked={feature.on} onchange={(on) => feature.set(on)} />
+				<!-- The row's hint, as `SettingRow` sets it, but above the dependency line. -->
+				{#if feature.hint}
+					<p class="text-muted-foreground mt-1.5 text-xs leading-relaxed">{feature.hint}</p>
+				{/if}
 				{#if below}
 					<div class="mt-2">{@render below()}</div>
 				{/if}

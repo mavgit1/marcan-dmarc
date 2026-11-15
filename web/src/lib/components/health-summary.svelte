@@ -5,12 +5,15 @@
 	import OutcomeLegend from '$lib/components/outcome-legend.svelte';
 	import type { OutcomeFigures } from '$lib/components/outcome-legend';
 	import Skeleton from '$lib/components/skeleton.svelte';
+	import { formatInt } from '$lib/format';
+	import { formatRate } from '$lib/health';
+	import { statusFigure } from '$lib/tokens';
 	import { cn } from '$lib/utils.js';
 
 	/**
-	 * A report's posture strip: the server's health verdict for the report as its badge (the
-	 * rate is the stat card's), then the legend with the four outcomes, a report having no
-	 * chart to carry it. The dashboard has no health card: a scope-wide badge said nothing the
+	 * A report's posture strip: the server's health verdict for the report as its badge with the
+	 * delivered compliance it rests on beside it, then the legend with the four outcomes, a report
+	 * having no chart to carry it. The dashboard has no health card: a scope-wide badge said nothing the
 	 * Delivered compliance card and the attention list do not.
 	 */
 	let {
@@ -35,8 +38,17 @@
 	{#if loading || !mail}
 		<Skeleton class="h-6 w-24" />
 	{:else}
-		<div class="flex items-center">
+		<div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
 			<HealthBadge health={mail.health} />
+			<span class="text-sm">
+				<span class="text-muted-foreground">Delivered compliance</span>
+				<span class={cn('font-semibold tabular-nums', statusFigure[mail.delivered_compliance.status])}
+					>{formatRate(mail.delivered_compliance)}</span
+				>
+			</span>
+			<span class="text-muted-foreground text-xs">
+				{formatInt(mail.compliant_messages)} of {formatInt(mail.delivered_messages)} delivered messages passed DMARC
+			</span>
 		</div>
 	{/if}
 	<OutcomeLegend class="border-t pt-3" {...outcomes} mail={loading ? null : outcomes.mail} />

@@ -1,15 +1,19 @@
 //! The server's sentences, written once for the emails and the UI: an alert
 //! event and the alert catalogue ([`alerts`]), a domain's open issues
 //! ([`issues`]), its policy readiness ([`readiness`]) and the client reports
-//! that did not go out ([`client_reports`]). The emails (`mail`) word with
+//! that did not go out ([`client_reports`]), an account that is locked
+//! ([`accounts`]), a CSV export request that is refused ([`exports`]). The emails (`mail`) word with
 //! them and the API sends them beside the verdicts they word
 //! (`AlertItem::text`, `WordedIssue::label`, `Readiness::lead`, the
 //! catalogues in `GET /api/meta`), so the UI words none of this itself: it colours and lays out what it is sent. Numbers read like
 //! the UI's `$lib/format`: `12,345`, `99.8%`, `1 day`, `3 days`.
 
+pub mod accounts;
 pub mod alerts;
 pub mod client_reports;
+pub mod exports;
 pub mod issues;
+pub mod microsoft;
 pub mod readiness;
 
 /// `12,345`.

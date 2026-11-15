@@ -14,17 +14,14 @@
 >
 	<ListEditor
 		list={names}
-		example={'crm.example.com,Our CRM\n192.0.2.10,Office printer\n192.0.2.0/24,Office\nhostpoint.ch,'}
+		example={'crm.acme.example,Our CRM\n192.0.2.10,Office printer\n192.0.2.0/24,Office\nmailer.example,'}
+		docs="sender-names#your-own-names"
 	>
 		{#snippet format()}
 			<li>
-				One <code class="font-mono">target,name</code> per line. The target is a sender's domain (from reverse DNS or SPF,
-				as shown on its page) or a host under it, an IP, or an IP range.
+				One <code class="font-mono">target,name</code> per line: a sender's domain or a host under it, an IP, or an IP range.
 			</li>
-			<li>
-				The most specific target wins: an IP, then the narrowest range, then the longest host name, then the domain.
-			</li>
-			<li>An empty name hides the built-in one. <code class="font-mono">#</code> starts a comment.</li>
+			<li>An empty name hides the built-in one.</li>
 		{/snippet}
 	</ListEditor>
 </SettingsPage>

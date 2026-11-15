@@ -67,7 +67,7 @@
 			<span class="text-muted-foreground text-xs font-medium">{label}</span>
 			{#if lostPts === null}
 				<span class="text-muted-foreground text-[11px]">Not scored</span>
-			{:else if lostPts !== undefined && !pending}
+			{:else if lostPts && !pending}
 				<span
 					class={cn('text-xs font-semibold tabular-nums', statusText[pointsTone])}
 					title={findings ? `Score points lost · ${findings.label}` : 'Score points lost'}

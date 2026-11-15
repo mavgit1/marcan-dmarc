@@ -6,17 +6,18 @@
 //! Nothing is ever sent in plaintext beyond `EHLO` and `STARTTLS`: a server
 //! that does not offer `STARTTLS` is left before the login.
 
-use super::{Message, SendError, SmtpConfig, CONNECT_TIMEOUT, SEND_TIMEOUT};
+use super::mime::build;
+use super::{Message, SendConfig, SendError, SmtpServer, Stage, CONNECT_TIMEOUT, SEND_TIMEOUT};
 use dmarc_store::SmtpSecurity;
-use lettre::message::{header::ContentType, Attachment, Mailbox, MultiPart, SinglePart};
+use lettre::address::Envelope;
 use lettre::transport::smtp::authentication::{Credentials, Mechanism};
 use lettre::transport::smtp::client::{AsyncSmtpConnection, AsyncTokioStream, TlsParameters};
-use lettre::transport::smtp::extension::ClientId;
+use lettre::transport::smtp::commands::{Data, Mail, Rcpt};
+use lettre::transport::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParameter};
 use std::error::Error as _;
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
@@ -25,7 +26,7 @@ use tracing::{info, warn};
 
 /// How the port-465 connection is secured once TCP is up.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum Handshake {
+pub(crate) enum Handshake {
     /// native-tls (the system trust store, like IMAP), TLS 1.2 or newer.
     Native,
     /// No TLS, so tests can script the dialogue after the handshake.
@@ -33,18 +34,20 @@ pub(super) enum Handshake {
     PlainForTests,
 }
 
-/// Connect, log in, send `message`, and say goodbye.
-pub(super) async fn deliver(
-    config: &SmtpConfig,
+/// Connect to `server`, log in, send `message` as `config` builds it, and
+/// say goodbye.
+pub(crate) async fn deliver(
+    config: &SendConfig,
+    server: &SmtpServer,
     message: &Message,
     handshake: Handshake,
 ) -> Result<(), SendError> {
     let email = build(config, message)?;
-    info!(host = %config.host, port = config.port, to = %message.to, "sending mail");
-    let mut conn = connect(config, handshake).await?;
+    info!(host = %server.host, port = server.port, to = %message.to, "sending mail");
+    let mut conn = connect(server, handshake).await?;
     match timeout(
         SEND_TIMEOUT,
-        conn.send(email.envelope(), &email.formatted()),
+        hand_over(&mut conn, email.envelope(), &email.formatted()),
     )
     .await
     {
@@ -53,21 +56,29 @@ pub(super) async fn deliver(
             Err(SendError::Other {
                 message: format!(
                     "{}:{} did not confirm the message in time; it may or may not have been sent.",
-                    config.host, config.port
+                    server.host, server.port
                 ),
                 detail: format!("no answer in {} seconds", SEND_TIMEOUT.as_secs()),
             })
         }
-        Ok(Err(e)) => Err(match reply(&e) {
-            Some(reply) => SendError::Rejected {
-                reply: config.redact(&reply),
-            },
-            None => SendError::Other {
-                message: "The connection to the mail server broke off while sending.".into(),
-                detail: config.redact(&e.to_string()),
-            },
-        }),
-        Ok(Ok(_)) => {
+        Ok(Err(Unsendable(why))) => {
+            conn.abort().await;
+            Err(SendError::Other {
+                message: "The mail server cannot take this message.".into(),
+                detail: why.into(),
+            })
+        }
+        Ok(Err(Refused(stage, e))) => {
+            conn.abort().await;
+            Err(match reply(&e) {
+                Some(reply) => SendError::refusal(stage, server.redact(&reply)),
+                None => SendError::Other {
+                    message: "The connection to the mail server broke off while sending.".into(),
+                    detail: server.redact(&e.to_string()),
+                },
+            })
+        }
+        Ok(Ok(())) => {
             if let Ok(Err(e)) = timeout(SEND_TIMEOUT, conn.quit()).await {
                 warn!(error = %e, "SMTP QUIT failed after the message was accepted");
             }
@@ -76,66 +87,71 @@ pub(super) async fn deliver(
     }
 }
 
-/// The message as lettre sends it: `From` the sender, `Reply-To` from the
-/// settings, plain text with an optional HTML alternative, and its images
-/// beside the HTML as an inline attachment (`multipart/related`).
-fn build(config: &SmtpConfig, message: &Message) -> Result<lettre::Message, SendError> {
-    let mut builder = lettre::Message::builder()
-        .from(Mailbox::new(
-            Some(config.sender_name.clone()),
-            config.sender.clone(),
-        ))
-        .to(Mailbox::new(None, message.to.clone()))
-        .subject(message.subject.as_str())
-        .message_id(Some(message_id(config)));
-    if let Some(reply_to) = &config.reply_to {
-        builder = builder.reply_to(Mailbox::new(None, reply_to.clone()));
-    }
-    let built = match &message.html {
-        Some(html) if !message.images.is_empty() => {
-            let mut related = MultiPart::related().singlepart(SinglePart::html(html.clone()));
-            for image in &message.images {
-                let content_type =
-                    ContentType::parse(image.media_type).map_err(|e| SendError::Other {
-                        message: "Marcan could not put the message together.".into(),
-                        detail: e.to_string(),
-                    })?;
-                related = related.singlepart(
-                    Attachment::new_inline(image.cid.to_owned())
-                        .body(image.bytes.clone(), content_type),
-                );
-            }
-            builder.multipart(
-                MultiPart::alternative()
-                    .singlepart(SinglePart::plain(message.text.clone()))
-                    .multipart(related),
-            )
+/// Why [`hand_over`] did not hand the message over.
+enum HandOverError {
+    /// The server answered no at `Stage` (or the connection broke there).
+    Refused(Stage, lettre::transport::smtp::Error),
+    /// The server lacks an extension the message needs; nothing was sent.
+    Unsendable(&'static str),
+}
+use HandOverError::{Refused, Unsendable};
+
+/// `MAIL FROM`, `RCPT TO` and `DATA`, each step on its own (lettre's
+/// `send` with the same options), so a refusal names the step it came at:
+/// the sender's, the recipient's, or the message's.
+async fn hand_over(
+    conn: &mut AsyncSmtpConnection,
+    envelope: &Envelope,
+    email: &[u8],
+) -> Result<(), HandOverError> {
+    let mut options = Vec::new();
+    let non_ascii = envelope
+        .from()
+        .into_iter()
+        .chain(envelope.to())
+        .any(|a| !AsRef::<str>::as_ref(a).is_ascii());
+    if non_ascii {
+        if !conn.server_info().supports_feature(Extension::SmtpUtfEight) {
+            return Err(Unsendable(
+                "the addresses need SMTPUTF8, which the server does not offer",
+            ));
         }
-        Some(html) => builder.multipart(MultiPart::alternative_plain_html(
-            message.text.clone(),
-            html.clone(),
-        )),
-        None => builder
-            .header(ContentType::TEXT_PLAIN)
-            .body(message.text.clone()),
-    };
-    built.map_err(|e| SendError::Other {
-        message: "Marcan could not put the message together.".into(),
-        detail: e.to_string(),
-    })
+        options.push(MailParameter::SmtpUtfEight);
+    }
+    if !email.is_ascii() {
+        if !conn.server_info().supports_feature(Extension::EightBitMime) {
+            return Err(Unsendable(
+                "the message needs 8BITMIME, which the server does not offer",
+            ));
+        }
+        options.push(MailParameter::Body(MailBodyParameter::EightBitMime));
+    }
+    conn.command(Mail::new(envelope.from().cloned(), options))
+        .await
+        .map_err(|e| Refused(Stage::Sender, e))?;
+    for to in envelope.to() {
+        conn.command(Rcpt::new(to.clone(), Vec::new()))
+            .await
+            .map_err(|e| Refused(Stage::Recipient, e))?;
+    }
+    conn.command(Data)
+        .await
+        .map_err(|e| Refused(Stage::Message, e))?;
+    conn.message(email)
+        .await
+        .map_err(|e| Refused(Stage::Message, e))?;
+    Ok(())
 }
 
-/// A unique `Message-ID` in the sender's domain (not this host's name, which
-/// inside a container means nothing to anyone).
-fn message_id(config: &SmtpConfig) -> String {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default();
-    format!(
-        "<{nanos:x}.{}.{:x}@{}>",
-        std::process::id(),
-        COUNTER.fetch_add(1, Ordering::Relaxed),
-        config.sender.domain()
-    )
+/// Connect and log in, then say goodbye: the connection test of an
+/// account's SMTP login (`EHLO` and `AUTH`), no message sent.
+pub(crate) async fn login_only(server: &SmtpServer, handshake: Handshake) -> Result<(), SendError> {
+    info!(host = %server.host, port = server.port, "testing the SMTP login");
+    let mut conn = connect(server, handshake).await?;
+    if let Ok(Err(e)) = timeout(SEND_TIMEOUT, conn.quit()).await {
+        warn!(error = %e, "SMTP QUIT failed after the login test");
+    }
+    Ok(())
 }
 
 /// The server's negative reply ("550 5.7.1 …"), when the error is one.
@@ -147,7 +163,7 @@ fn reply(e: &lettre::transport::smtp::Error) -> Option<String> {
 
 /// Resolve, TCP, TLS, greeting and login: a connection ready for `MAIL FROM`.
 async fn connect(
-    config: &SmtpConfig,
+    config: &SmtpServer,
     handshake: Handshake,
 ) -> Result<AsyncSmtpConnection, SendError> {
     let tcp = tcp_connect(config).await?;
@@ -168,7 +184,7 @@ async fn connect(
 }
 
 /// Resolve the host and connect to the first address that answers.
-async fn tcp_connect(config: &SmtpConfig) -> Result<TcpStream, SendError> {
+async fn tcp_connect(config: &SmtpServer) -> Result<TcpStream, SendError> {
     let resolve_failed = |detail: String| SendError::Resolve {
         host: config.host.clone(),
         detail,
@@ -210,7 +226,7 @@ async fn tcp_connect(config: &SmtpConfig) -> Result<TcpStream, SendError> {
 
 /// The TLS handshake of an implicit-TLS (port 465) connection.
 async fn secure(
-    config: &SmtpConfig,
+    config: &SmtpServer,
     tcp: TcpStream,
     handshake: Handshake,
 ) -> Result<Box<dyn AsyncTokioStream>, SendError> {
@@ -243,7 +259,7 @@ async fn secure(
 /// Read the greeting and send `EHLO`. A server that stays silent on a
 /// `STARTTLS` connection probably waits for a TLS handshake.
 async fn greet(
-    config: &SmtpConfig,
+    config: &SmtpServer,
     stream: Box<dyn AsyncTokioStream>,
     hello: &ClientId,
 ) -> Result<AsyncSmtpConnection, SendError> {
@@ -279,7 +295,7 @@ async fn greet(
 /// Upgrade a plain connection with `STARTTLS`, or leave before anything else
 /// is sent when the server does not offer it.
 async fn starttls(
-    config: &SmtpConfig,
+    config: &SmtpServer,
     conn: &mut AsyncSmtpConnection,
     hello: &ClientId,
 ) -> Result<(), SendError> {
@@ -321,14 +337,11 @@ async fn starttls(
     }
 }
 
-/// `AUTH` with PLAIN or LOGIN, only ever over TLS.
-async fn login(config: &SmtpConfig, conn: &mut AsyncSmtpConnection) -> Result<(), SendError> {
+/// `AUTH` with PLAIN or LOGIN and the password, only ever over TLS.
+async fn login(config: &SmtpServer, conn: &mut AsyncSmtpConnection) -> Result<(), SendError> {
     let credentials = Credentials::new(config.username.clone(), config.password.clone());
-    let result = timeout(
-        CONNECT_TIMEOUT,
-        conn.auth(&[Mechanism::Plain, Mechanism::Login], &credentials),
-    )
-    .await;
+    let mechanisms = [Mechanism::Plain, Mechanism::Login];
+    let result = timeout(CONNECT_TIMEOUT, conn.auth(&mechanisms, &credentials)).await;
     let error = match result {
         Ok(Ok(_)) => return Ok(()),
         Ok(Err(e)) => match reply(&e) {
@@ -338,7 +351,7 @@ async fn login(config: &SmtpConfig, conn: &mut AsyncSmtpConnection) -> Result<()
             None if e.is_client() => SendError::Other {
                 message: "The server offers no login method Marcan supports (PLAIN or LOGIN)."
                     .into(),
-                detail: e.to_string(),
+                detail: config.redact(&e.to_string()),
             },
             None => SendError::Other {
                 message: "The mail server returned an error.".into(),
@@ -394,39 +407,45 @@ impl AsyncTokioStream for TlsStream {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
-    use crate::mail::parse_address;
+    use crate::mail::{parse_address, Transport};
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
     /// How the scripted server answers.
     #[derive(Clone, Copy)]
-    struct Script {
+    pub(crate) struct Script {
         /// Offer `STARTTLS` in the `EHLO` answer.
-        starttls: bool,
+        pub starttls: bool,
         /// The answer to `AUTH`.
-        auth: &'static str,
+        pub auth: &'static str,
+        /// The answer to `MAIL FROM`.
+        pub mail: &'static str,
         /// The answer to `RCPT TO`.
-        rcpt: &'static str,
+        pub rcpt: &'static str,
+        /// The answer after the message's end.
+        pub data: &'static str,
     }
 
-    const ACCEPTING: Script = Script {
+    pub(crate) const ACCEPTING: Script = Script {
         starttls: false,
         auth: "235 2.7.0 Authentication successful",
+        mail: "250 2.1.0 OK",
         rcpt: "250 2.1.5 OK",
+        data: "250 2.0.0 Queued",
     };
 
     /// What the scripted server saw: every line, the message, and the first
     /// byte after it agreed to `STARTTLS`.
     #[derive(Debug, Default)]
-    struct Seen {
-        lines: Vec<String>,
-        data: String,
+    pub(crate) struct Seen {
+        pub lines: Vec<String>,
+        pub data: String,
         after_starttls: Option<u8>,
     }
 
     impl Seen {
-        fn sent(&self, command: &str) -> bool {
+        pub(crate) fn sent(&self, command: &str) -> bool {
             self.lines.iter().any(|l| l.starts_with(command))
         }
     }
@@ -434,7 +453,7 @@ mod tests {
     /// A plain SMTP server on a local port that greets, answers `EHLO` (with
     /// `AUTH PLAIN LOGIN`, and `STARTTLS` when the script says so) and plays
     /// the script until `QUIT`, `STARTTLS` or the client hangs up.
-    async fn server(script: Script) -> (u16, tokio::task::JoinHandle<Seen>) {
+    pub(crate) async fn server(script: Script) -> (u16, tokio::task::JoinHandle<Seen>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let task = tokio::spawn(async move {
@@ -468,7 +487,7 @@ mod tests {
                         break;
                     }
                     "AUTH" => script.auth.to_owned(),
-                    "MAIL" => "250 2.1.0 OK".to_owned(),
+                    "MAIL" => script.mail.to_owned(),
                     "RCPT" => script.rcpt.to_owned(),
                     "DATA" => {
                         stream.write_all(b"354 Go ahead\r\n").await.unwrap();
@@ -481,7 +500,7 @@ mod tests {
                             }
                             seen.data.push_str(&data);
                         }
-                        "250 2.0.0 Queued".to_owned()
+                        script.data.to_owned()
                     }
                     "QUIT" => {
                         let _ = stream.write_all(b"221 2.0.0 Bye\r\n").await;
@@ -496,20 +515,27 @@ mod tests {
         (port, task)
     }
 
-    fn config(port: u16, security: SmtpSecurity) -> SmtpConfig {
-        SmtpConfig {
-            host: "127.0.0.1".into(),
-            port,
-            security,
-            username: "alerts@example.com".into(),
-            password: "hunter2".into(),
+    pub(crate) fn config(port: u16, security: SmtpSecurity) -> SendConfig {
+        SendConfig {
+            transport: Transport::Smtp(SmtpServer {
+                host: "127.0.0.1".into(),
+                port,
+                security,
+                username: "alerts@example.com".into(),
+                password: "hunter2".into(),
+            }),
             sender: parse_address("dmarc@example.com").unwrap(),
             sender_name: "Marcan".into(),
             reply_to: parse_address("help@example.com"),
         }
     }
 
-    fn message() -> Message {
+    /// [`deliver`] of `config` through its own SMTP server.
+    async fn send(config: &SendConfig, handshake: Handshake) -> Result<(), SendError> {
+        deliver(config, config.smtp().unwrap(), &message(), handshake).await
+    }
+
+    pub(crate) fn message() -> Message {
         Message {
             to: parse_address("owner@example.org").unwrap(),
             subject: "Marcan test".into(),
@@ -520,12 +546,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_login_test_logs_in_and_sends_nothing() {
+        let (port, accepted) = server(ACCEPTING).await;
+        login_only(
+            config(port, SmtpSecurity::Tls).smtp().unwrap(),
+            Handshake::PlainForTests,
+        )
+        .await
+        .unwrap();
+        let seen = accepted.await.unwrap();
+        assert!(seen.sent("EHLO"), "{:?}", seen.lines);
+        assert!(seen.sent("AUTH PLAIN "), "{:?}", seen.lines);
+        assert!(seen.sent("QUIT"), "{:?}", seen.lines);
+        assert!(!seen.sent("MAIL"), "{:?}", seen.lines);
+
+        let (port, refused) = server(Script {
+            auth: "535 5.7.8 Authentication credentials invalid",
+            ..ACCEPTING
+        })
+        .await;
+        let err = login_only(
+            config(port, SmtpSecurity::Tls).smtp().unwrap(),
+            Handshake::PlainForTests,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.reason(), "auth");
+        assert!(!refused.await.unwrap().sent("MAIL"));
+    }
+
+    #[tokio::test]
     async fn a_message_goes_out_with_its_headers() {
         let (port, server) = server(ACCEPTING).await;
         let cfg = config(port, SmtpSecurity::Tls);
-        deliver(&cfg, &message(), Handshake::PlainForTests)
-            .await
-            .unwrap();
+        send(&cfg, Handshake::PlainForTests).await.unwrap();
         let seen = server.await.unwrap();
         assert!(seen.sent("AUTH PLAIN "), "{:?}", seen.lines);
         assert!(
@@ -559,13 +613,9 @@ mod tests {
     #[tokio::test]
     async fn a_server_without_starttls_gets_no_credentials() {
         let (port, server) = server(ACCEPTING).await;
-        let err = deliver(
-            &config(port, SmtpSecurity::StartTls),
-            &message(),
-            Handshake::Native,
-        )
-        .await
-        .unwrap_err();
+        let err = send(&config(port, SmtpSecurity::StartTls), Handshake::Native)
+            .await
+            .unwrap_err();
         let seen = server.await.unwrap();
         assert_eq!(err, SendError::StartTlsNotOffered { port });
         assert!(err.message().contains("does not offer STARTTLS"), "{err}");
@@ -585,13 +635,9 @@ mod tests {
             ..ACCEPTING
         })
         .await;
-        let err = deliver(
-            &config(port, SmtpSecurity::StartTls),
-            &message(),
-            Handshake::Native,
-        )
-        .await
-        .unwrap_err();
+        let err = send(&config(port, SmtpSecurity::StartTls), Handshake::Native)
+            .await
+            .unwrap_err();
         let seen = server.await.unwrap();
         assert_eq!(seen.lines.last().map(String::as_str), Some("STARTTLS"));
         // 0x16: a TLS handshake record (the ClientHello), not AUTH.
@@ -607,13 +653,9 @@ mod tests {
             ..ACCEPTING
         })
         .await;
-        let err = deliver(
-            &config(port, SmtpSecurity::Tls),
-            &message(),
-            Handshake::PlainForTests,
-        )
-        .await
-        .unwrap_err();
+        let err = send(&config(port, SmtpSecurity::Tls), Handshake::PlainForTests)
+            .await
+            .unwrap_err();
         let seen = server.await.unwrap();
         assert_eq!(
             err,
@@ -632,13 +674,9 @@ mod tests {
             ..ACCEPTING
         })
         .await;
-        let err = deliver(
-            &config(port, SmtpSecurity::Tls),
-            &message(),
-            Handshake::PlainForTests,
-        )
-        .await
-        .unwrap_err();
+        let err = send(&config(port, SmtpSecurity::Tls), Handshake::PlainForTests)
+            .await
+            .unwrap_err();
         server.await.unwrap();
         assert_eq!(
             err,
@@ -648,115 +686,73 @@ mod tests {
         );
     }
 
+    /// A refusal names whose it is by the step it came at: `MAIL FROM` is
+    /// the sending account's, `DATA` with Exchange's send-as refusal too,
+    /// neither for good; `DATA` with a mailbox code is the recipient's.
+    #[tokio::test]
+    async fn a_refusal_is_told_apart_by_its_step() {
+        let cases = [
+            (
+                Script {
+                    mail: "550 5.7.1 Sender address rejected",
+                    ..ACCEPTING
+                },
+                SendError::SenderRejected {
+                    reply: "550 5.7.1 Sender address rejected".into(),
+                },
+                false,
+            ),
+            (
+                Script {
+                    data: "554 5.2.0 STOREDRV.Submission.Exception:SendAsDeniedException",
+                    ..ACCEPTING
+                },
+                SendError::SenderRejected {
+                    reply: "554 5.2.0 STOREDRV.Submission.Exception:SendAsDeniedException".into(),
+                },
+                false,
+            ),
+            (
+                Script {
+                    data: "552 5.2.2 Mailbox full",
+                    ..ACCEPTING
+                },
+                SendError::Rejected {
+                    reply: "552 5.2.2 Mailbox full".into(),
+                },
+                true,
+            ),
+        ];
+        for (script, expected, permanent) in cases {
+            let (port, server) = server(script).await;
+            let err = send(&config(port, SmtpSecurity::Tls), Handshake::PlainForTests)
+                .await
+                .unwrap_err();
+            server.await.unwrap();
+            assert_eq!(err, expected);
+            assert_eq!(err.is_permanent(), permanent, "{err}");
+        }
+    }
+
     #[tokio::test]
     async fn an_unresolvable_host_and_a_closed_port_are_named() {
         let mut cfg = config(465, SmtpSecurity::Tls);
-        cfg.host = "smtp.invalid".into();
-        let err = deliver(&cfg, &message(), Handshake::Native)
-            .await
-            .unwrap_err();
+        if let Transport::Smtp(server) = &mut cfg.transport {
+            server.host = "smtp.invalid".into();
+        }
+        let err = send(&cfg, Handshake::Native).await.unwrap_err();
         assert!(matches!(err, SendError::Resolve { .. }), "{err}");
 
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         drop(listener);
-        let err = deliver(
-            &config(port, SmtpSecurity::Tls),
-            &message(),
-            Handshake::Native,
-        )
-        .await
-        .unwrap_err();
+        let err = send(&config(port, SmtpSecurity::Tls), Handshake::Native)
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, SendError::Connect { silent: false, .. }),
             "{err}"
         );
         assert_eq!(err.message(), format!("Could not reach 127.0.0.1:{port}."));
-    }
-
-    #[test]
-    fn html_goes_out_as_an_alternative() {
-        let cfg = config(465, SmtpSecurity::Tls);
-        let email = build(
-            &cfg,
-            &Message {
-                html: Some("<p>Hello</p>".into()),
-                ..message()
-            },
-        )
-        .unwrap();
-        let text = String::from_utf8(email.formatted()).unwrap();
-        assert!(text.contains("multipart/alternative"), "{text}");
-        assert!(text.contains("text/html"), "{text}");
-        assert!(!text.contains("multipart/related"), "{text}");
-    }
-
-    #[test]
-    fn the_logo_is_attached_inline_beside_the_html() {
-        let cfg = config(465, SmtpSecurity::Tls);
-        let email = build(
-            &cfg,
-            &Message {
-                html: Some("<p><img src=\"cid:logo\"><img src=\"cid:marcan-mark\"></p>".into()),
-                images: vec![
-                    super::super::InlineImage {
-                        cid: "logo",
-                        media_type: "image/png",
-                        bytes: b"\x89PNG\r\n\x1a\n".to_vec(),
-                        size: dmarc_store::PixelSize {
-                            width: 1,
-                            height: 1,
-                        },
-                    },
-                    super::super::InlineImage::marcan_mark(),
-                ],
-                ..message()
-            },
-        )
-        .unwrap();
-        let text = String::from_utf8(email.formatted()).unwrap();
-        // Plain text, then the HTML and its image together.
-        assert!(text.contains("multipart/alternative"), "{text}");
-        assert!(text.contains("multipart/related"), "{text}");
-        assert!(text.contains("Content-ID: <logo>\r\n"), "{text}");
-        assert!(text.contains("Content-ID: <marcan-mark>\r\n"), "{text}");
-        assert!(text.contains("Content-Disposition: inline"), "{text}");
-        assert!(text.contains("Content-Type: image/png\r\n"), "{text}");
-        assert!(text.contains("iVBORw0KGgo="), "{text}");
-        assert!(
-            text.find("text/plain").unwrap() < text.find("multipart/related").unwrap(),
-            "{text}"
-        );
-
-        // A plain-text message has no attachment, logo or not.
-        let plain = build(
-            &cfg,
-            &Message {
-                images: vec![super::super::InlineImage::marcan_mark()],
-                ..message()
-            },
-        )
-        .unwrap();
-        let text = String::from_utf8(plain.formatted()).unwrap();
-        assert!(!text.contains("multipart"), "{text}");
-    }
-
-    #[test]
-    fn the_sender_name_is_the_from_display_name() {
-        let cfg = SmtpConfig {
-            sender_name: "Acme IT via Marcan".into(),
-            ..config(465, SmtpSecurity::Tls)
-        };
-        let email = build(&cfg, &message()).unwrap();
-        let text = String::from_utf8(email.formatted()).unwrap();
-        assert!(
-            text.contains("From: \"Acme IT via Marcan\" <dmarc@example.com>\r\n"),
-            "{text}"
-        );
-        // The envelope sender stays the address.
-        assert_eq!(
-            email.envelope().from().map(ToString::to_string).as_deref(),
-            Some("dmarc@example.com")
-        );
     }
 }

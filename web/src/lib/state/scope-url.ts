@@ -37,22 +37,23 @@ const SINCE_ONLY: readonly ScopeParam[] = ['since'];
 const NONE: readonly ScopeParam[] = [];
 
 /**
- * The parameters a page reads, so its URL carries only those. A page whose route names part of
- * the scope (a domain page its domain, an organization page its organization) leaves it out, and
- * so does a page the scope does not narrow (Settings, the tools, a report).
+ * The parameters a page reads, so its URL carries only those. The scope narrows the lists and
+ * the dashboard; the Domains list reads no domain (picking one opens its page). A page about one
+ * organization, domain or sender shows that entity whatever the scope, so it reads the time
+ * range only, and a stale `org` or `domain` in its URL is neither adopted nor kept. Settings,
+ * the tools and a report read none.
  */
 export function scopeParamsFor(pathname: string): readonly ScopeParam[] {
 	const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
 	if (path === '/' || path === '/alerts' || path === '/reports' || path === '/senders') return ALL;
-	// A domain or sender page pins its own entity; it still carries the organization so a
-	// reload there, then a step back to a list, keeps the organization the list was narrowed to.
-	if (path === '/domains' || path.startsWith('/domains/') || path.startsWith('/senders/')) {
-		return ORG_AND_SINCE;
-	}
-	if (path === '/organizations' || path.startsWith('/organizations/')) {
-		return SINCE_ONLY;
-	}
+	if (path === '/domains') return ORG_AND_SINCE;
+	if (path === '/organizations' || isEntityPath(path)) return SINCE_ONLY;
 	return NONE;
+}
+
+/** A page about one organization, domain or sender: its route says which. */
+export function isEntityPath(pathname: string): boolean {
+	return /^\/(organizations|domains|senders)\/[^/]+\/?$/.test(pathname);
 }
 
 function parseId(raw: string | null): number | null {
@@ -105,13 +106,15 @@ export function adoptScope(
 	return { ...base, ...found };
 }
 
+/** A list the scope narrows; only these take a scope in a link. */
+export type ScopedList = '/' | '/alerts' | '/reports' | '/senders' | '/domains';
+
 /**
- * `path` with the parts of the scope it names in its query (`org`, `domain`), for a link that
- * narrows the page it opens: an organization page's links to its domains carry `?org=`, a
- * domain's "all changes" link `?org=…&domain=…`. Opening it narrows the scope (`adoptScope`),
- * visibly in the URL; an in-app link without them carries the current scope.
+ * A link to a list narrowed on purpose (a domain's "all changes" opens the alerts with
+ * `?org=…&domain=…`): opening it is picking that scope in the header, visibly and sticky. A link
+ * to an organization, domain or sender never carries the scope; the type keeps this to lists.
  */
-export function scopedHref(path: string, scope: Partial<Pick<Scope, 'organizationId' | 'domainId'>>): string {
+export function scopedHref(path: ScopedList, scope: Partial<Pick<Scope, 'organizationId' | 'domainId'>>): string {
 	const params: ScopeParam[] = [];
 	if (scope.organizationId != null) params.push('org');
 	if (scope.domainId != null) params.push('domain');
@@ -120,11 +123,14 @@ export function scopedHref(path: string, scope: Partial<Pick<Scope, 'organizatio
 }
 
 /**
- * `search` with `params` set from `scope`, each left out at its default. Other parameters (a
- * tab, a list's state) and scope parameters the page does not read stay as they are.
+ * `search` with `params` set from `scope`, each left out at its default, and the scope
+ * parameters the page does not read dropped. Other parameters (a tab, a list's state) stay. A
+ * page that reads none is never rewritten (`syncScopeUrl`), so the DNS inspector keeps its own
+ * `?domain=`.
  */
 export function writeScope(search: URLSearchParams, scope: Scope, params: readonly ScopeParam[]): URLSearchParams {
 	const next = new URLSearchParams(search);
+	for (const param of ALL) if (!params.includes(param)) next.delete(param);
 	const values: Record<ScopeParam, string | null> = {
 		org: scope.organizationId === DEFAULT_SCOPE.organizationId ? null : String(scope.organizationId),
 		domain: scope.domainId === DEFAULT_SCOPE.domainId ? null : String(scope.domainId),

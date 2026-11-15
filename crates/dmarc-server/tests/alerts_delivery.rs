@@ -8,7 +8,7 @@ use dmarc_server::mail::{MemorySender, SendError};
 use dmarc_server::{router_with_state, AppState};
 use dmarc_store::{
     get_last_digest_at, ingest_report, init, save_settings, set_last_digest_at, AlertSettings,
-    DigestFrequency, SendingGroup, SendingSettings, Weekday,
+    DigestFrequency, Weekday,
 };
 use serde_json::{json, Value};
 use sqlx::SqlitePool;
@@ -53,19 +53,7 @@ async fn app() -> App {
 
 /// Sending through a made-up account (never contacted: the sender is stubbed).
 async fn enable_sending(pool: &SqlitePool) {
-    let sending = SendingSettings {
-        group: SendingGroup {
-            enabled: true,
-            host: "smtp.example.com".into(),
-            port: Some(465),
-            same_login_as_mailbox: false,
-            username: "alerts@example.com".into(),
-            sender: "dmarc@example.com".into(),
-            ..SendingGroup::default()
-        },
-        password: "secret".into(),
-    };
-    save_settings(pool, &sending).await.unwrap();
+    common::enable_sending(pool, "alerts@example.com", "dmarc@example.com").await;
 }
 
 async fn enable_alerts(pool: &SqlitePool, digest: DigestFrequency) {
@@ -144,9 +132,9 @@ async fn one_email_with_the_changes_grouped_and_the_events_marked_sent() {
     let other = text.find("\nother.org\n").expect("other.org block");
     assert!(example < other, "{text}");
     for line in [
-        "  [Problem] DMARC policy changed: p reject → none.",
+        "  [Problem] DMARC policy changed: p=reject → p=none.",
         "  [Note] SPF record changed: added ip4:198.51.100.0/24.",
-        "  [Good] DMARC policy changed: p none → quarantine.",
+        "  [Good] DMARC policy changed: p=none → p=quarantine.",
         "  https://marcan.example.com/domains/",
     ] {
         assert!(text.contains(line), "missing {line:?} in\n{text}");
@@ -266,7 +254,7 @@ async fn the_test_alert_goes_to_the_test_recipient() {
     // A saved test recipient, with the alert recipients set: only it gets the test.
     enable_alerts(&a.pool, DigestFrequency::Off).await;
     let mut settings = dmarc_store::AppSettings::load(&a.pool).await.unwrap();
-    settings.sending.group.test_recipient = "me@example.org".into();
+    settings.sending.test_recipient = "me@example.org".into();
     save_settings(&a.pool, &settings.sending).await.unwrap();
     let (status, body) = post_json(&a.app, "/api/settings/alerts/test", json!({})).await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -278,7 +266,7 @@ async fn the_test_alert_goes_to_the_test_recipient() {
     assert_eq!(sent[0].subject, "[Test] Marcan: 4 changes on example.com");
     assert!(sent[0]
         .text
-        .contains("[Problem] New issue: delivered failures."));
+        .contains("[Problem] DMARC policy changed: p=reject → p=none."));
     // The made-up domain has no page to link to; the alert list has.
     assert!(!sent[0].text.contains("/domains/"));
     assert!(sent[0].text.contains("https://marcan.example.com/alerts"));

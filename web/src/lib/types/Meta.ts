@@ -30,13 +30,14 @@ export type Meta = {
    */
   readiness_window_days: number;
   /**
-   * ...and needs at least this many messages in them under the current policy.
-   */
-  readiness_min_messages: number;
-  /**
    * ...and at least this share of the window's messages evaluated under it.
    */
   readiness_min_policy_share_pct: number;
+  /**
+   * ...and at most this share of the mail that passed DMARC passing
+   * without an aligned DKIM signature, on SPF alone.
+   */
+  readiness_max_spf_only_pct: number;
   /**
    * RSA DKIM keys below this many bits are weak (critical).
    */
@@ -65,7 +66,8 @@ export type Meta = {
   alert_catalogue: Array<AlertCatalogueItem>;
   /**
    * Every issue a domain can have open, with its name and what it means
-   * (the open ones come worded with each domain's assessment).
+   * (the open ones come worded with each domain's assessment), in the
+   * fixed order the issue chips of a row take (`IssueKind::ALL`).
    */
   issue_catalogue: Array<IssueCatalogueItem>;
   /**
@@ -128,6 +130,11 @@ export type Meta = {
    * The email of the stored operator key, when it is valid.
    */
   licensed_to: string | null;
+  /**
+   * `MARCAN_SECRET_KEY` is set: account passwords and
+   * certificate keys are stored encrypted. Fixed while the server runs.
+   */
+  secrets_encrypted: boolean;
   /**
    * A newer version than the running one, as the version check last
    * named it (the sidebar and Settings → License say so); `null` while

@@ -1,15 +1,16 @@
-//! DMARC identifier alignment (RFC 7489 §3.1): whether one check's domain
+//! DMARC identifier alignment (RFC 9989 §4.4): whether one check's domain
 //! aligns with the From domain. Whether the record passed DMARC is
 //! `dmarc_assess::RecordFacts`'s, decided at ingest.
 //!
 //! Organizational domains come from `dmarc-domain` (the compiled-in Public
-//! Suffix List): a bare public suffix has none and aligns with nothing.
+//! Suffix List, on purpose instead of RFC 9989 §4.10's DNS tree walk): a bare
+//! public suffix has none and aligns with nothing.
 
 use crate::types::{DkimAuthResult, SpfAuthResult};
 use dmarc_domain::{normalize_name, organizational_domain};
 
-/// `adkim` / `aspf` alignment mode. RFC 7489 defaults to relaxed when the tag
-/// is absent or unrecognized.
+/// `adkim` / `aspf` alignment mode. RFC 9989 §4.7 defaults to relaxed when the
+/// tag is absent; an unrecognized value is read as relaxed too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlignmentMode {
     Relaxed,
@@ -73,8 +74,9 @@ pub fn dkim_auth_aligned(
 }
 
 /// Whether this SPF result is DMARC's SPF identity. DMARC checks MAIL FROM
-/// (RFC 7489 §4.1); a HELO result only stands in when the record has no other
-/// (a bounce with an empty MAIL FROM). Results without a scope count.
+/// (RFC 9989 §4.4.2); a HELO result only stands in when the record has no other
+/// (a bounce with an empty MAIL FROM, which SPF checks as `postmaster@` the
+/// HELO name, RFC 7208 §2.4). Results without a scope count.
 pub fn spf_counts_for_dmarc(spf: &SpfAuthResult, all: &[SpfAuthResult]) -> bool {
     !is_helo(spf) || all.iter().all(is_helo)
 }

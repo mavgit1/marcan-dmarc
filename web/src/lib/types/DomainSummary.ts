@@ -13,7 +13,7 @@ import type { StoredDnsGrade } from "./StoredDnsGrade";
 export type DomainSummary = {
   /**
    * Organizational domain (PSL registrable domain) of `domain`, or `domain`
-   * itself when none can be derived. RFC 7489 §7.1 authorization is only
+   * itself when none can be derived. RFC 9990 §4 authorization is only
    * needed for a `rua` address under a different organizational domain.
    */
   org_domain: string;

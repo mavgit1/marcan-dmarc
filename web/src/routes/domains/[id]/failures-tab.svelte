@@ -10,7 +10,9 @@
 	import type { Page } from '$lib/types/Page';
 	import { outcomeDisplay } from '$lib/auth-display';
 	import {
+		DEFAULT_FAILURE_KINDS,
 		FAILURE_KINDS,
+		isDefaultFailureKinds,
 		OUTCOME_FILTER_LABEL,
 		OUTCOME_FILTER_TITLE,
 		failureKindCounts,
@@ -28,7 +30,7 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import { formatInt, plural } from '$lib/format';
+	import { formatDateSpan, formatInt, plural } from '$lib/format';
 	import { filters, sincePhrase } from '$lib/state/filters.svelte';
 	import { resource } from '$lib/state/resource.svelte';
 	import { ServerList } from '$lib/state/server-list.svelte';
@@ -60,7 +62,8 @@
 
 	/**
 	 * `?outcome=` (and `?ip=`) deep-link into the tab: the ticked kinds separated by commas
-	 * (`all_failures` is the three failure kinds, `all` every kind); without it, the failures.
+	 * (`all_failures` is the three failure kinds, `all` every kind); without it, the three failure
+	 * kinds. Mail that passed DMARC through one check only is an explicit choice under Show.
 	 */
 	function initialKinds(): FailureKind[] {
 		const raw = page.url.searchParams.get('outcome');
@@ -69,15 +72,16 @@
 			.split(',')
 			.map((v) => v.trim())
 			.filter((v): v is FailureOutcome => OUTCOME_VALUES.includes(v));
-		return values.length ? failureKinds(values) : [...FAILURE_KINDS];
+		return values.length ? failureKinds(values) : [...DEFAULT_FAILURE_KINDS];
 	}
 
 	/** What is typed; `sourceIpFilter` follows it after a pause, so typing sends one request. */
 	let ipInput = $state(page.url.searchParams.get('ip') || '');
 	let sourceIpFilter = $state(page.url.searchParams.get('ip') || '');
-	// Every kind is ticked by default; unticking narrows the list.
+	// The failure kinds are ticked by default; the single-check passes are added under Show.
 	let kinds = $state<FailureKind[]>(initialKinds());
 	const allKinds = $derived(kinds.length === FAILURE_KINDS.length);
+	const defaultKinds = $derived(isDefaultFailureKinds(kinds));
 
 	$effect(() => {
 		const typed = ipInput;
@@ -94,7 +98,7 @@
 	// Keep both filters in the URL (`?ip=`, `?outcome=`), so a reload or a shared link keeps them.
 	$effect(() => {
 		const ip = sourceIpFilter.trim();
-		const outcome = allKinds ? null : kinds.join(',');
+		const outcome = defaultKinds ? null : allKinds ? 'all' : kinds.join(',');
 		const url = new URL(page.url);
 		const params = url.searchParams;
 		if (ip) params.set('ip', ip);
@@ -167,7 +171,9 @@
 			header: 'Reporter',
 			accessor: (r) => r.org_name || '—',
 			sortKey: 'org_name'
-		}
+		},
+		{ id: 'seen', header: 'Seen', accessor: (r) => r.last_seen, sortKey: 'last_seen' },
+		{ id: 'report', header: 'Report', accessor: () => null }
 	];
 
 	/**
@@ -205,7 +211,7 @@
 	const emptyHeadline = $derived(
 		kinds.length === 1
 			? `${OUTCOME_FILTER_LABEL[kinds[0]]}: none in this range`
-			: allKinds
+			: defaultKinds
 				? 'No failures in this range'
 				: 'None of these kinds in this range'
 	);
@@ -241,13 +247,19 @@
 <div class="mb-4 flex flex-wrap items-center gap-3">
 	<div class="relative flex items-center">
 		<SearchIcon class="text-muted-foreground pointer-events-none absolute left-2 size-3.5" />
-		<Input type="text" placeholder="Filter IP…" bind:value={ipInput} class="h-7 w-36 pl-7 pr-6 font-mono text-xs" />
+		<Input
+			type="text"
+			placeholder="Search by IP"
+			aria-label="Search failures by source IP"
+			bind:value={ipInput}
+			class="h-7 w-36 pl-7 pr-6 font-mono text-xs placeholder:font-sans"
+		/>
 		{#if ipInput}
 			<button
 				type="button"
 				class="text-muted-foreground hover:text-foreground absolute right-1.5 p-0.5 cursor-pointer"
 				onclick={clearIp}
-				aria-label="Clear IP filter"
+				aria-label="Clear the IP search"
 			>
 				<XIcon class="size-3" />
 			</button>
@@ -264,7 +276,7 @@
 				<span class="truncate" id="failures-show-summary">{showSummary}</span>
 				<ChevronDownIcon class="text-muted-foreground size-4" />
 			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="start" class="min-w-56">
+			<DropdownMenu.Content align="start" class="w-max min-w-56">
 				{#each showItems as item (item.kind)}
 					{#if item.kind === 'dkim_only'}
 						<DropdownMenu.Separator />
@@ -275,7 +287,7 @@
 						disabled={item.locked}
 						closeOnSelect={false}
 						title={item.title}
-						class="text-xs"
+						class="whitespace-nowrap text-xs"
 					>
 						<span class="tabular-nums">{item.text}</span>
 					</DropdownMenu.CheckboxItem>
@@ -312,6 +324,14 @@
 				<span class="inline-block max-w-[160px] truncate align-middle text-xs" title={row.org_name || '—'}>
 					{row.org_name || '—'}
 				</span>
+			{:else if column.id === 'seen'}
+				<span class="whitespace-nowrap text-xs tabular-nums">{formatDateSpan(row.first_seen, row.last_seen)}</span>
+			{:else if column.id === 'report'}
+				<a
+					href={resolve(`/reports/${row.newest_report_id}`)}
+					class="text-muted-foreground hover:text-foreground whitespace-nowrap text-xs underline underline-offset-2"
+					title="The newest report with these records">Newest</a
+				>
 			{:else}
 				{defaultCellText(column, row)}
 			{/if}
@@ -324,7 +344,7 @@
 		<EmptyState
 			icon={TriangleAlertIcon}
 			headline={emptyHeadline}
-			description={allKinds
+			description={defaultKinds
 				? 'Either mail is authenticating, or there are no aggregate reports yet for this domain.'
 				: 'Nothing matches the kinds ticked under Show. Tick more, or try a longer time range.'}
 		/>

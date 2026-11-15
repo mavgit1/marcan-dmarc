@@ -2,19 +2,19 @@
 
 ## No reports arrive. What should I check?
 
-1. **Is the mailbox connected?** The status in the header shows the last poll and any error. **Sync now** polls at once.
-2. **Is the folder right?** Reports must land in the folder set under **Settings → Mailbox**. Check that mail filters do not move them elsewhere.
-3. **Does the domain's DMARC record name the right address?** The domain's page and the [DNS inspector](./dns-checks) show its `rua=`.
-4. **Is the report address authorized?** If the mailbox is on another organizational domain, receivers drop reports silently unless the mailbox's domain publishes an authorization record. See [Central mailbox](./mailbox#central-mailbox-recommended).
+1. **Is the account connected?** Each card under **Settings → Accounts** shows its last check and any error, and the status in the header sums them up. **Check now** reads every account at once.
+2. **Is the folder right?** Reports must land in the folder set on the account. Check that mail filters do not move them elsewhere.
+3. **Does the domain's DMARC record name the right address?** It must name an account's address, or an address forwarded to one ([Report address](./accounts#the-report-address)). The domain's page and the [DNS inspector](./dns-checks) show its `rua=`.
+4. **Is the report address authorized?** If the address is on another organizational domain than the domain, receivers drop reports silently unless the address's domain publishes an authorization record. See [Authorization](./accounts#authorization).
 5. **Has it been long enough?** Receivers send reports about once a day; the first ones usually arrive within 24 to 48 hours.
 
 ## Why does my domain show red although all mail passes?
 
-The DNS grade rates DNS configuration, not mail. `p=none` is a critical finding, because with it spoofed mail is still delivered. Health, which rates the mail, can be **Protected** at the same time. Move to `p=quarantine` or `p=reject` once every legitimate sender passes: the domain's page says when it is ready (see [Policy readiness](./readiness)).
+The DNS grade rates DNS configuration, not mail. `p=none` is a critical finding, because with it spoofed mail is still delivered. Health, which rates the mail, can be **Healthy** at the same time. Move to `p=quarantine` or `p=reject` once every legitimate sender passes: the domain's page says when it is ready (see [Policy readiness](./readiness)).
 
 ## Why do Marcan's numbers differ from the reporter's?
 
-Marcan recomputes DMARC alignment for every record instead of trusting each receiver's verdict, and it separates forwarded mail from real failures. See [How it works](./how-it-works).
+Marcan decides every record's DMARC result from the report's raw SPF and DKIM evidence with one rule for all reporters, and it separates forwarded mail from real failures. See [How it works](./how-it-works).
 
 ## What are "forwarded" failures?
 
@@ -26,7 +26,11 @@ Somebody sent mail as that domain with your report address in its DMARC record, 
 
 ## Can I use a Microsoft 365 mailbox?
 
-No. Microsoft has turned off IMAP password logins for Exchange Online, and Marcan does not support OAuth2. Use another mailbox and forward or point the reports there.
+Yes, with an app registration in Microsoft Entra: Marcan reads the mailbox and sends as it over Microsoft Graph, with OAuth tokens proved by a certificate it generates. An administrator sets it up once, in Entra and in Exchange Online PowerShell. See [Microsoft 365](./accounts#microsoft-365).
+
+## Can I use Gmail or Google Workspace?
+
+Yes, with an app password. See [Google Workspace and Gmail](./accounts#google).
 
 ## Does Marcan delete or move mail?
 

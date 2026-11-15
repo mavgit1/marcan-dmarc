@@ -52,9 +52,11 @@ describe('outcome wording', () => {
 
 	it('summarizes the ticked kinds on the trigger and in the export scope', () => {
 		expect(failureKindsSummary(['delivered'])).toBe('Delivered failures');
-		expect(failureKindsSummary(['delivered', 'forwarded', 'blocked'])).toBe('3 kinds');
+		expect(failureKindsSummary(['delivered', 'forwarded', 'blocked'])).toBe('All failures');
+		expect(failureKindsSummary(['delivered', 'blocked', 'dkim_only'])).toBe('3 kinds');
 		expect(failureKindsSummary(failureKinds(null))).toBe('All kinds');
 		expect(failureKindsScope(['blocked', 'dkim_only'])).toBe('Blocked by policy, DMARC pass via DKIM only');
 		expect(failureKindsScope(null)).toBeNull();
+		expect(failureKindsScope(['all_failures'])).toBe('All failures');
 	});
 });

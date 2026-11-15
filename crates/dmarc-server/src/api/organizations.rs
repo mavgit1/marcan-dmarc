@@ -129,7 +129,7 @@ pub struct UpcomingClientReport {
     pub next_send_at: i64,
     /// The organization's lines in the recipient list.
     pub recipients: i64,
-    /// Its due report is held until the mailbox is read again.
+    /// Its due report is held until the receiving accounts are read again.
     pub held: bool,
 }
 
@@ -144,7 +144,7 @@ pub async fn get_client_report(
         .await?
         .ok_or_else(|| AppError::not_found(format!("organization {id} not found")))?;
     let settings = AppSettings::load(&state.pool).await?;
-    if !settings.sending.group.enabled {
+    if !settings.sending.enabled {
         return Ok(Json(None));
     }
     let schedule = schedule(&state.pool, &settings, unix_now()).await?;

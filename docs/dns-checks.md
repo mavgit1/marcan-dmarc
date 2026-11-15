@@ -8,10 +8,10 @@ Marcan checks each monitored domain's mail DNS records live, and the **DNS inspe
 
 | Check | What Marcan looks at |
 | :--- | :--- |
-| **DMARC** (RFC 7489, RFC 9989) | Policy (`p=`), subdomain policy (`sp=`), the policy for subdomains that do not exist (`np=`), rollout percentage (`pct=`), testing mode (`t=`), the public suffix flag (`psd=`), alignment modes, and whether external report addresses (`rua=` / `ruf=`) have authorized receiving the reports (RFC 7489 §7.1). |
+| **DMARC** (RFC 9989, RFC 7489) | Policy (`p=`), subdomain policy (`sp=`), the policy for subdomains that do not exist (`np=`), rollout percentage (`pct=`), testing mode (`t=`), the public suffix flag (`psd=`), alignment modes, and whether external report addresses (`rua=` / `ruf=`) have authorized receiving the reports (RFC 9990 §4, and RFC 9991 §5 for `ruf=`). |
 | **SPF** (RFC 7208) | The full include tree, the 10-lookup limit, void lookups, mechanism syntax, and how the record ends (`-all`, `~all`, `+all`). |
-| **DKIM** (RFC 6376) | The selectors seen signing in your reports, plus the ones on your selector list. Key type and size. |
-| **MTA-STS** (RFC 8461) | The DNS record and, only when the record exists, the policy file: the fetch follows no redirects and reads at most 64 KB. A policy host that does not resolve, redirects, serves the wrong certificate or answers with an error shows as **Policy unreachable**, since receivers cannot apply the policy either. So does a policy host that resolves to a loopback, private, link-local, unique-local or multicast address (or the cloud metadata address 169.254.169.254): Marcan does not connect to it, so a report for a made-up domain cannot point the server at an internal service. |
+| **DKIM** (RFC 6376, RFC 8301, RFC 8463) | The selectors seen signing in your reports, plus the ones on your selector list. Key type and size. |
+| **MTA-STS** (RFC 8461) | The DNS record and, only when the record exists, the policy file: the fetch follows no redirects and reads at most 64 KB. A policy host that does not resolve, redirects, serves the wrong certificate or answers with an error shows as **Policy unreachable**, since sending servers cannot apply the policy either. So does a policy host that resolves to a loopback, private, link-local, unique-local or multicast address (or the cloud metadata address 169.254.169.254): Marcan does not connect to it, so a report for a made-up domain cannot point the server at an internal service. |
 | **TLS-RPT** (RFC 8460) | The reporting record: exactly one, with a `rua=` address. |
 | **BIMI** | The assertion record. An empty `l=` is a declination (the domain opts out of BIMI). No effect on the score. |
 
@@ -31,7 +31,7 @@ RFC 9989 replaces RFC 7489. Receivers move to it over time, so Marcan reads a re
 
 | Finding | Severity | When |
 | :--- | :--- | :--- |
-| `dmarc_testing` | Critical | `t=y` with `p=quarantine` or `p=reject`: DMARCbis receivers do not apply the policy, so it is monitoring only, like `pct=0`. Not raised again when `pct=0` is published too. |
+| `dmarc_testing` | Critical | `t=y` with `p=quarantine` or `p=reject`: DMARCbis receivers do not apply the policy but treat failing mail one level lower (`p=reject` as quarantine, `p=quarantine` as none), as RFC 7489 receivers do with `pct=0`. Not raised again when `pct=0` is published too. |
 | `dmarc_bad_t` | Warning | `t=` is neither `y` nor `n`. |
 | `dmarc_bad_np` | Warning | `np=` is not none, quarantine or reject. |
 | `dmarc_bad_psd` | Warning | `psd=` is not `y`, `n` or `u`. |
@@ -50,7 +50,7 @@ It starts at 100, and each distinct finding deducts once:
 | :--- | :--- | :--- |
 | Critical | −28 | No DMARC record, `p=none`, `pct=0` or `t=y`, SPF over 10 lookups, `+all` |
 | Warning | −8 | `~all`, `pct=` below 100, a 1024-bit DKIM key |
-| Info | −2 | MTA-STS or TLS-RPT not published, a policy file receivers cannot read, two records where one is allowed, the obsolete `rf=` / `ri=` |
+| Info | −2 | MTA-STS or TLS-RPT not published, a policy file senders cannot read, two records where one is allowed, the obsolete `rf=` / `ri=` |
 | Notice | 0 | BIMI, unknown tags, a lookup or fetch that did not finish |
 
 Grades: **A** from 90, **B** from 80, **C** from 70, **D** from 60, **F** below. Because `p=none` is critical, a domain that only monitors shows red until it enforces a policy. That is intentional: with `p=none`, spoofed mail is delivered.

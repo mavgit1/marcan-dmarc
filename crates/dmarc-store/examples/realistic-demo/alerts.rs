@@ -12,7 +12,7 @@ use dmarc_assess::{
     AlertEvent, AlertKind, AlertedIssue, CheckKind, DeliveredFigures, DmarcRecordFacts,
     EnforcementState, HealthState, Mail, NewSender, PolicyStep, ReadinessEvidence, RecordDelta,
     Status, StoppedFigures, NEW_SENDER_MIN_FAILURES, RATE_PASS_MIN_PCT, RATE_WARN_MIN_PCT,
-    READINESS_MIN_MESSAGES, READINESS_WINDOW_DAYS,
+    READINESS_WINDOW_DAYS,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -73,12 +73,15 @@ fn issue_status(m: &Mail) -> Status {
     }
 }
 
-fn record_facts(p: &str) -> DmarcRecordFacts {
+fn record_facts(p: &str, org: usize) -> DmarcRecordFacts {
     DmarcRecordFacts {
         p: Some(p.to_owned()),
         sp: None,
         pct: 100,
-        rua: vec![format!("mailto:{}", crate::catalogue::REPORT_ADDRESS)],
+        rua: vec![format!(
+            "mailto:{}",
+            crate::catalogue::report_address_of(org)
+        )],
         adkim: "r".into(),
         aspf: "r".into(),
         testing: false,
@@ -187,7 +190,6 @@ pub fn history(
             };
             let is_ready = plan.policy_on(DAYS - e as i64) == "none"
                 && e >= start + READINESS_WINDOW_DAYS as usize
-                && m.total >= READINESS_MIN_MESSAGES
                 && m.delivered_compliance()
                     .pct
                     .is_some_and(|p| p >= RATE_PASS_MIN_PCT);
@@ -249,9 +251,30 @@ pub fn history(
                 continue;
             }
 
+            // Health first: as in the server's evaluation, a health change
+            // is the one event, and delivered failures opening or clearing
+            // with it raise none of their own.
+            let mut health_changed = false;
+            if let Some(was) = health.update(state) {
+                if was != HealthState::NoData && state != HealthState::NoData {
+                    health_changed = true;
+                    out.push((
+                        d,
+                        created,
+                        AlertEvent {
+                            kind: AlertKind::HealthChanged {
+                                from: was,
+                                to: state,
+                                mail: Some(figures(&m, state.status())),
+                            },
+                            severity: state.status(),
+                        },
+                    ));
+                }
+            }
             if let Some(was) = issue.update(status) {
                 let opened = was == Status::Pass;
-                if opened || status == Status::Pass {
+                if !health_changed && (opened || status == Status::Pass) {
                     let kind = if opened {
                         AlertKind::IssueOpened {
                             issue: AlertedIssue::DeliveredFailures,
@@ -267,22 +290,6 @@ pub fn history(
                     };
                     let severity = if opened { status } else { Status::Pass };
                     out.push((d, created, AlertEvent { kind, severity }));
-                }
-            }
-            if let Some(was) = health.update(state) {
-                if was != HealthState::NoData && state != HealthState::NoData {
-                    out.push((
-                        d,
-                        created,
-                        AlertEvent {
-                            kind: AlertKind::HealthChanged {
-                                from: was,
-                                to: state,
-                                mail: Some(figures(&m, state.status())),
-                            },
-                            severity: state.status(),
-                        },
-                    ));
                 }
             }
             if ready.update(is_ready) == Some(false) {
@@ -314,8 +321,8 @@ pub fn history(
                     at(rng, e.min(DAYS as usize - 1)),
                     AlertEvent {
                         kind: AlertKind::PolicyChanged {
-                            from: record_facts(before),
-                            to: record_facts(plan.shape.dns.policy()),
+                            from: record_facts(before, plan.org),
+                            to: record_facts(plan.shape.dns.policy(), plan.org),
                         },
                         severity: Status::Pass,
                     },

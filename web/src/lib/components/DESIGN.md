@@ -52,10 +52,16 @@ record reaches the same conclusion about it.
 13. **No "Loading…" text and no inline spinner;** skeletons only.
 14. **Tables scroll with the page.** No table has a scroll box or fixed height of its own; a
     long list is paged (50 rows on a server list). Where the table fits its column the header
-    sticks under the app header; where it does not (a phone) it scrolls sideways.
+    sticks under the app header; where it does not (a phone) it scrolls sideways. The UI is
+    built for desktop and only has to stay usable on a phone: no per-table phone layouts.
 15. **One outcome legend.** The four outcomes with their counts are always `OutcomeLegend` (a
     chart's footer, or standing alone); pages pass data, never a layout or a legend of their
     own. The one exception is the organizations list: one `OutcomeBar` per row.
+16. **A placeholder is a grey format hint** (`name@domain`, `imap.provider.tld`) or what an
+    empty field means ("Same as the sender address", "Default: 9.9.9.9"), never a sample value;
+    a row hint never says "Empty: …". Every address in the setup or in a record to publish is
+    the installation's real one; with none, the step says what is missing instead of showing
+    an example.
 
 ## Layout, loading and errors
 
@@ -73,6 +79,17 @@ record reaches the same conclusion about it.
   (`ExportDialog`), never a separate export link. No `layerchart` import in pages; use
   `$lib/components/charts/`. Import each component by its path; there is no barrel file.
 
+## Location and scope
+
+- **Location** is the path. The trail shows the hierarchy, never the click path: a domain is
+  always Organizations › its organization › domain, also with one organization.
+- **Scope** is the header filter (organization, domain, time range): in the query string,
+  sticky across the sidebar, narrowing the lists and the dashboard only. A page about one
+  organization, domain or sender ignores it but for the time range, and its header shows the
+  time range alone. Opening a page never changes the scope.
+- A link to an organization, domain or sender carries no scope. A link to a list may name one
+  on purpose (`scopedHref`), which is picking it in the header.
+
 ## Settings pages
 
 - One page per topic in four groups (`$lib/settings-nav`); no tabs. One form per page with one
@@ -84,26 +101,43 @@ record reaches the same conclusion about it.
   it (a model's `blocked`, else its `held`: the check that failed), stated beside Save in the
   warn tone, in the server's words; the field it names is marked invalid (`ariaInvalid`, with
   the message under the field where the page has one). The setup's buttons do the same.
+- The account form says a field's problem only once that field was typed in and left, or Save
+  was pressed: until then Save is enabled, and pressing it saves nothing and says what is
+  missing (`shows`, `reveal`; `account-form` tests). Never a warning on a field the user has
+  not come to yet.
 - Unsaved edits hold another page visibly in the save bar, never by a silent cancel or a
   dialog; closing the browser tab is the browser's question (`settings-form` tests).
 - A stored secret is a locked "Stored" field with Replace (Remove for the operator key); it
   never enters a draft, and a typed one is a change, never compared. Every test and preview
   uses the values on screen and goes to the test recipient set under Sending.
-- No folding, except Alerts' Alert kinds. Below `md` the name sits above the control; the
+- A new account starts with the provider's choice alone (the server's presets, nothing
+  picked, each with its hint); the form follows once one is picked. A saved account's provider
+  is a plain line: another provider is another account.
+- No folding, except Alerts' Alert kinds and the account form's Advanced (the servers its
+  provider fills in; it opens by itself where it must be filled in or holds Save). Below `md` the name sits above the control; the
   control cell is a size container (`@md:` / `@sm:` variants, never viewport `sm:`), and
   nothing in Settings scrolls sideways at 375 px.
 
 ### Settings copy
 
-- A label is a noun ("Host", "Sender address"); a checkbox says what it does ("Same login as
-  the mailbox"); a feature switch says what the feature does ("Send alerts").
+- A label is a noun ("Host", "Test recipient"); a checkbox or a row's switch says what it does
+  ("Receive reports"); a feature switch says what the feature does ("Send alerts").
 - A row hint is at most 12 words: how to fill it in, a default, or a consequence. Never a
   promise or reassurance (those live in `docs/security.md`), a restatement of the label, a
   number the field shows, or a state sentence ("Off: …"). No hint beats a weak one.
-- A page header is the title, one sentence of what the page configures, and one "Docs" link.
-  A dependency is named under the switch only while it is not met.
-- Under a control goes only live state: validation, a consequence computed from the values,
-  what a test answered.
+- A page header is the title, one sentence of what the page configures under it, and the
+  quiet outline "Docs" button at the title's right (as on `/alerts` and the DNS inspector), never
+  a link at the end of the sentence. A dependency is named under the switch only while it is
+  not met.
+- A row hint sits under the control, the full width of its cell (`SettingRow` puts it there on
+  every page), never in the name column. A subtle inline "(docs)" may end a row hint that points
+  to one specific section. Where a row cannot be filled in without the docs (the Microsoft login:
+  its steps happen in Entra and PowerShell), the hint names the guide as its link instead.
+- Under a control go live state (validation, a consequence computed from the values, what a
+  test answered) and then the row's hint; nothing else. A row whose button says what it does
+  ("Delete account", "Test") has no title or hint that says it again.
+- A list editor's Format panel is an example (`.example` domains, documentation IPs) and at most
+  two rules, a destructive one among them in the warn tone, then "More in the docs" for the rest.
 - A validation sentence is the server's (its 409 or 422 `error`). The UI keeps its own copy
   only where it holds a request, worded like the server's, and its doc comment says so.
 
@@ -145,8 +179,12 @@ helpers are in `$lib/tokens` (`statusSurface`, `statusRow`, `statusFg`, `statusB
 - **Parked**: sends no mail of its own; expects `p=reject`; grey badge. **Ignored**: not the
   user's domain; the action is "Ignore domain", never red. **Organization**: the user's
   grouping, never "company". **Reporter**: the receiver that sent a report (`org_name`), never
-  "organization". Missing mailbox login: "Not set up". Accepted mail: "delivered", never
+  "organization". Missing mailbox login: "Not set up". A failing account: "Error" (its card, the
+  Settings list, its page; "Check failed" is DNS's). Reading a mailbox is "check" ("Check now",
+  "checked 5 minutes ago"), never "sync" or "poll". Accepted mail: "delivered", never
   "reached inboxes".
+- **Search** is a typed-text box that narrows a list ("Search by domain or reporter", its
+  aria-label "Search reports by …"); **Filter** is a choice from a menu or a chip. Never mixed.
 
 ### Which compliance figure to show
 
@@ -156,6 +194,8 @@ Blocked mail is a win at estate level and a loss at sender level, so the scopes 
   the denominator, so a domain blocking an attack is not penalised.
 - **One sender**: raw pass rate, coloured by the same 99 / 95 rule. Blocked mail from a
   legitimate sender is lost mail; the delivered figure would show a quarantined ESP as 100%.
+  Red means failed: a sender with no failed message (its shortfall is forwarded mail alone)
+  keeps the figure but reads green, never red or amber (`sender_pass_rate` in `dmarc-assess`).
 
 A raw figure is fine as inventory; a verdict on a confounded number is not.
 
@@ -169,14 +209,18 @@ unconfirmed when reverse DNS failed forward confirmation. There are no sender ca
 ## Rules the tests pin
 
 - Each settings group is written by exactly one Settings page (`settings-ownership.test.ts`).
+- The setup's Report addresses step and the Guide's first blocks name the receiving accounts'
+  real addresses, and with none say what is missing (`step-addresses`, `guide-reporting`).
 - A page form saves its unsaved parts in page order, `saveLast` after, and stops at the first
   failure, naming what was saved (`page-form`).
 - A disabled Save states its reason in the warn tone and marks the field (`save-bar`,
-  `sending-settings-form`, `alerts-settings-form`, `list-editor` component tests).
+  `account-form`, `receiving-settings-form`, `sending-settings-form`, `alerts-settings-form`,
+  `list-editor` component tests).
 - The legend shows all four outcomes in order, a zero muted in place, a trend only where the
   server sent one, the share and meaning in the title (`outcome-legend`).
 - With no DNS answer every card reads "Check failed" with no points (`dns.pillars`).
-- The scope URL omits every default, carries only what the page reads, and opening an
-  organization page never narrows the scope (`scope-url`).
+- The scope URL omits every default and carries only what the page reads; opening an
+  organization, domain or sender page never changes the scope, a stale `?org=` there included
+  (`scope-url`). A domain's trail always names its organization (`nav`).
 - A late answer never lands, and a failed refresh keeps the last data (`resource`).
 - The security select words each choice without a port number (`connection`).

@@ -9,16 +9,19 @@
 
 mod alerts;
 mod client_report;
+mod credential;
 mod dns;
 mod domain;
 mod mail;
 mod pipeline;
 mod readiness;
+mod receiving;
 mod record;
 mod reporting_setup;
 mod status;
 mod trend;
 
+pub use alerts::new_senders_by_network;
 pub use alerts::{
     alert_events, alert_state, catalogue_entry, catalogue_id, worst_first, AlertEvent,
     AlertFigures, AlertGroup, AlertKind, AlertState, AlertedIssue, BimiRecordFacts, CatalogueKind,
@@ -27,10 +30,17 @@ pub use alerts::{
     RecordChange, RecordDelta, SpfRecordFacts, StoppedFigures, TlsRptRecordFacts, ALERT_CATALOGUE,
     ALERT_FORMAT, NEW_SENDER_MIN_FAILURES,
 };
+pub use alerts::{
+    credential_events, AlertedCredential, CredentialAlertState, CredentialStage, ExpiringCredential,
+};
 pub use alerts::{is_newer_release, release_version, update_events, SeenRelease, UpdateAlertState};
+pub use alerts::{unread_events, UnreadAlertState};
 pub use client_report::{
     parked_line, report_line, report_place, report_verdict, ParkedLine, ReportDomainFacts,
     ReportLine, ReportPlace, ReportVerdict,
+};
+pub use credential::{
+    credential_condition, CredentialCondition, LockReason, CREDENTIAL_EXPIRING_DAYS,
 };
 pub use dns::{
     assign_points, authorization_summary, authorization_verdict, critical_count, dkim_summary,
@@ -50,21 +60,22 @@ pub use domain::{
     SenderVerdictKind, WorstDns,
 };
 pub use mail::{
-    dkim_coverage, enforcement, grade_status, pass_rate, rate_status, CoverageState, DkimCoverage,
-    Enforcement, EnforcementState, Health, HealthState, Mail, MailVerdicts, Rate,
-    RATE_PASS_MIN_PCT, RATE_WARN_MIN_PCT,
+    dkim_coverage, enforcement, grade_status, pass_rate, rate_status, sender_pass_rate,
+    CoverageState, DkimCoverage, Enforcement, EnforcementState, Health, HealthState, Mail,
+    MailVerdicts, Rate, RATE_PASS_MIN_PCT, RATE_WARN_MIN_PCT,
 };
 pub use pipeline::{
     client_report_hold, client_report_retry, is_bulk_import, last_poll, pipeline_status,
     ClientReportHold, ClientReportRetry, LastPoll, MailboxState, Pipeline, PipelineFacts,
-    PipelineHeadline, ReportsState, BULK_IMPORT_MIN_MESSAGES, CLIENT_REPORT_HOLD_AFTER_DAYS,
-    CLIENT_REPORT_RETRY_DAYS,
+    PipelineHeadline, ReportsState, BULK_IMPORT_MIN_MESSAGES, CLIENT_REPORT_RETRY_DAYS,
 };
 pub use readiness::{
     policy_readiness, readiness_window_start, NotApplicableReason, PolicyReadiness, PolicyStep,
     PolicyTarget, ReadinessCriteria, ReadinessFacts, ReadinessReason, ReadinessState,
-    ReadinessWindow, READINESS_MIN_MESSAGES, READINESS_MIN_POLICY_SHARE_PCT, READINESS_WINDOW_DAYS,
+    ReadinessWindow, READINESS_MAX_SPF_ONLY_PCT, READINESS_MIN_POLICY_SHARE_PCT,
+    READINESS_WINDOW_DAYS,
 };
+pub use receiving::{stalest_unread, AccountReading, ACCOUNT_NOT_READ_DAYS};
 pub use record::{
     trusted_forward, AuthIssue, CheckState, DmarcVerdict, Outcome, RecordFacts, UnknownToken,
 };

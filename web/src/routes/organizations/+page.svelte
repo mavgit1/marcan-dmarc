@@ -120,40 +120,52 @@
 			{/snippet}
 		</EmptyState>
 	{:else}
-		<ul class="divide-border divide-y rounded-lg border text-sm">
+		<!--
+			Stacked while the list is narrow (a phone). From @xl every row is the same grid, each
+			cell rendered even when empty, so the columns line up: the name truncates, the rest
+			have fixed widths, and the counts go under them until @4xl gives them a column. The
+			list's own width decides, not the viewport's: the sidebar takes a share from md up.
+		-->
+		<ul class="divide-border @container divide-y rounded-lg border text-sm">
 			{#each data.items as c (c.id)}
 				{@const attention = c.attention}
 				<li>
 					<a
 						href={resolve(`/organizations/${c.id}`)}
-						class="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-2.5 transition-colors"
+						class="hover:bg-muted/50 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5 transition-colors @xl:grid @xl:grid-cols-[minmax(0,1fr)_9.5rem_7rem_6rem] @xl:gap-x-3 @4xl:grid-cols-[minmax(0,1fr)_9.5rem_7rem_8rem_18rem]"
 					>
-						<span class="flex min-w-0 items-center gap-2">
-							<span class="truncate font-medium hover:underline">{c.name}</span>
+						<span class="flex w-full min-w-0 items-center gap-2 @xl:w-auto">
+							<span class="truncate font-medium hover:underline" title={c.name}>{c.name}</span>
 							{#if c.is_default}
 								<StatusBadge tone="neutral" class="text-[10px]">
 									<span title="Domains discovered in reports are placed here">Default</span>
 								</StatusBadge>
 							{/if}
 						</span>
-						<span class="flex w-full flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:w-auto">
+						<span
+							class={[
+								'text-xs',
+								statusFg[attention.status],
+								attention.domains_needing_attention === 0 && 'hidden @xl:block'
+							]}
+						>
 							{#if attention.domains_needing_attention > 0}
-								<span class={statusFg[attention.status]}>
-									{formatInt(attention.domains_needing_attention)} of {formatInt(c.domain_count)} need attention
-								</span>
+								{formatInt(attention.domains_needing_attention)} of {formatInt(c.domain_count)} need attention
 							{/if}
+						</span>
+						<span class={['text-muted-foreground text-xs', !attention.worst_dns && 'hidden @xl:block']}>
 							{#if attention.worst_dns}
-								<span class="text-muted-foreground">
-									Worst DNS grade
-									<span class={['font-medium', statusFg[attention.worst_dns.status]]}>{attention.worst_dns.grade}</span>
-								</span>
+								Worst DNS grade
+								<span class={['font-medium', statusFg[attention.worst_dns.status]]}>{attention.worst_dns.grade}</span>
 							{/if}
-							<!-- A phone shows the bar full width under the meta line instead of hiding it. -->
-							<OutcomeBar class="order-last w-full sm:order-none sm:w-32" mail={c} />
-							<span class="text-muted-foreground tabular-nums sm:w-72 sm:shrink-0 sm:text-right sm:whitespace-nowrap">
-								{plural(c.domain_count, 'domain')} · {plural(c.report_count, 'report')} ·
-								{plural(c.total_messages, 'message')}
-							</span>
+						</span>
+						<!-- A phone shows the bar full width under the meta line instead of hiding it. -->
+						<OutcomeBar class="order-last w-full @xl:order-none @xl:w-auto" mail={c} />
+						<span
+							class="text-muted-foreground text-xs tabular-nums @xl:col-span-full @xl:row-start-2 @4xl:col-span-1 @4xl:row-start-auto @4xl:text-right @4xl:whitespace-nowrap"
+						>
+							{plural(c.domain_count, 'domain')} · {plural(c.report_count, 'report')} ·
+							{plural(c.total_messages, 'message')}
 						</span>
 					</a>
 				</li>

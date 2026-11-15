@@ -185,7 +185,7 @@ pub struct DomainSummary {
     #[ts(flatten)]
     pub verdicts: MailVerdicts,
     /// Organizational domain (PSL registrable domain) of `domain`, or `domain`
-    /// itself when none can be derived. RFC 7489 §7.1 authorization is only
+    /// itself when none can be derived. RFC 9990 §4 authorization is only
     /// needed for a `rua` address under a different organizational domain.
     pub org_domain: String,
     /// The DNS grade comes from an older checker: shown until the re-check
@@ -333,6 +333,7 @@ fn judged_readiness(
             policy_messages: mail.policy_messages,
             policy_first_report_at: mail.policy_first_report_at,
             other_policy: mail.other_policy.as_deref(),
+            no_aligned_dkim: mail.no_aligned_dkim,
         },
         now,
     )

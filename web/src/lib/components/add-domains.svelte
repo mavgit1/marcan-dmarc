@@ -132,13 +132,13 @@
 			// Focus after the opening click has settled, so the trigger button doesn't keep it.
 			if (autofocus) setTimeout(() => el.focus());
 		}}
-		placeholder={'example.com\nexample.org'}
+		placeholder={'domain.tld\nother-domain.tld'}
 		class="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 w-full rounded-lg border px-2.5 py-1.5 font-mono text-sm outline-none focus-visible:ring-3"
 	></textarea>
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<p class="text-muted-foreground text-[11px]">One per line, or separated by commas.</p>
 		<BusyButton type="submit" size="sm" {busy} busyLabel="Adding…" disabled={pending.length === 0 || targetId === null}>
-			Add {pending.length > 1 ? `${pending.length} domains` : 'domain'}
+			Add domains
 		</BusyButton>
 	</div>
 

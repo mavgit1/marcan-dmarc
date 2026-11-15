@@ -154,7 +154,8 @@
 	</PageHeader>
 
 	{#if open === 'add'}
-		<Card.Root class="mb-6">
+		<!-- Escape closes it, like the ×. -->
+		<Card.Root class="mb-6" onkeydown={(e) => e.key === 'Escape' && !e.defaultPrevented && (open = null)}>
 			<Card.Header class="pb-3">
 				<div class="flex items-center justify-between gap-2">
 					<Card.Title class="text-sm font-semibold">Add domains to {c.name}</Card.Title>

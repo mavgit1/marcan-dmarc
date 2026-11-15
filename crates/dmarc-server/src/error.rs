@@ -49,6 +49,12 @@ pub struct ErrorBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub detail: Option<String>,
+    /// A failed test send of a Microsoft login whose sentence asks for a
+    /// setup step: the docs section that shows it, relative to their root
+    /// (`accounts#exchange-online`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub docs: Option<String>,
     /// A domain that already exists: the organization that has it.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -92,6 +98,7 @@ pub struct ErrorFields {
     pub errors: Option<Vec<LineError>>,
     pub reason: Option<String>,
     pub detail: Option<String>,
+    pub docs: Option<String>,
     pub organization_name: Option<String>,
 }
 
@@ -172,6 +179,14 @@ impl AppError {
         self
     }
 
+    /// The docs section that shows the fix ([`ErrorBody::docs`]), if any.
+    pub fn with_docs(mut self, docs: Option<&str>) -> Self {
+        if let Some(docs) = docs {
+            self.fields().docs = Some(docs.to_owned());
+        }
+        self
+    }
+
     /// The organization that already has a domain ([`ErrorBody::organization_name`]).
     pub fn with_organization_name(mut self, name: String) -> Self {
         self.fields().organization_name = Some(name);
@@ -196,6 +211,7 @@ impl IntoResponse for AppError {
             errors: fields.errors,
             reason: fields.reason,
             detail: fields.detail,
+            docs: fields.docs,
             organization_name: fields.organization_name,
         };
         (self.status, Json(body)).into_response()
@@ -213,6 +229,23 @@ impl From<dmarc_store::StoreError> for AppError {
     fn from(err: dmarc_store::StoreError) -> Self {
         tracing::error!(error = %err, "store error");
         Self::internal("database error")
+    }
+}
+
+/// The store's failure as one; a Microsoft login that cannot be used (no
+/// token, a server that is not Microsoft's, a form that is missing
+/// something) as a 422 with its sentence, a refused token with the
+/// endpoint's answer as `detail` (`reason` `token`).
+impl From<crate::accounts::AccountError> for AppError {
+    fn from(err: crate::accounts::AccountError) -> Self {
+        use crate::accounts::AccountError;
+        match err {
+            AccountError::Store(e) => e.into(),
+            AccountError::Refused(why) => Self::unprocessable(why),
+            AccountError::Token(e) => Self::unprocessable(e.message)
+                .with_send_failure("token", &e.detail)
+                .with_docs(e.docs),
+        }
     }
 }
 

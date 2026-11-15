@@ -2,15 +2,10 @@
 
 /**
  * Each rule of the next step, judged on its own over the window. The
- * verdict's reason is the first unmet one (volume, history, policy share,
- * compliance).
+ * verdict's reason is the first unmet one (history, policy share,
+ * compliance, DKIM).
  */
 export type ReadinessCriteria = {
-  /**
-   * At least [`READINESS_MIN_MESSAGES`] messages in the window under the
-   * current policy.
-   */
-  enough_mail: boolean;
   /**
    * Reports under the current policy cover the whole window: they begin
    * at or before its start.
@@ -18,7 +13,8 @@ export type ReadinessCriteria = {
   full_history: boolean;
   /**
    * At least [`READINESS_MIN_POLICY_SHARE_PCT`] of the window's messages
-   * were evaluated under the current policy.
+   * were evaluated under the current policy (met when the window has no
+   * mail: the compliance rule speaks for that).
    */
   policy_share_met: boolean;
   /**
@@ -26,4 +22,10 @@ export type ReadinessCriteria = {
    * [`RATE_PASS_MIN_PCT`].
    */
   compliance_met: boolean;
+  /**
+   * At most [`READINESS_MAX_SPF_ONLY_PCT`] of the window's mail that
+   * passed DMARC did so without an aligned DKIM pass (met when nothing
+   * passed: the compliance rule speaks for that).
+   */
+  dkim_met: boolean;
 };

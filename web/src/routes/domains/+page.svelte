@@ -46,7 +46,8 @@
 <BackgroundActivity class="mb-4" />
 
 {#if showAdd}
-	<Card.Root class="mb-4">
+	<!-- Escape closes it, like the × (the organization picker's own Escape stays in its portal). -->
+	<Card.Root class="mb-4" onkeydown={(e) => e.key === 'Escape' && !e.defaultPrevented && (showAdd = false)}>
 		<Card.Header class="pb-3">
 			<div class="flex items-center justify-between gap-2">
 				<Card.Title class="text-sm font-semibold">Add domains</Card.Title>

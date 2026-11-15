@@ -43,8 +43,8 @@ export type SettingsFormSource<T> =
 export type FeatureWords = {
 	/** The switch row's title: "Send alerts". */
 	title: string;
-	/** One line: what the switch turns on. */
-	hint: string;
+	/** One line: what the switch turns on, where the title and the page's sentence do not say it. */
+	hint?: string;
 	/** Why the test waits while the switch is off: "Turn on alert emails to send a test.". */
 	off: string;
 };
@@ -56,7 +56,7 @@ export type FeatureWords = {
  */
 export type Feature = {
 	readonly title: string;
-	readonly hint: string;
+	readonly hint?: string;
 	/** On, in the draft. */
 	readonly on: boolean;
 	/** Flip the draft's switch. */
@@ -153,12 +153,17 @@ export function holdForUnsaved(nav: HeldNavigation): void {
 	held.count += 1;
 }
 
-/** Which Settings page a model belongs to and the settings groups (`PUT /api/settings/{group}`) it writes. */
-export type Writes = { readonly page: SettingsPageId; readonly groups: readonly string[] };
+/**
+ * Which Settings page a model belongs to and what it writes: settings groups (`PUT
+ * /api/settings/{group}`), or a resource of its own (`/api/accounts`).
+ */
+export type Writes =
+	| { readonly page: SettingsPageId; readonly groups: readonly string[] }
+	| { readonly page: SettingsPageId; readonly resource: string };
 
 /**
- * One part of a Settings page as a form, the one base of every settings model (`ImapModel`,
- * `SendingModel`, `AlertsModel`, `ClientReportsModel`, `LicenseModel`, `BrandingModel`,
+ * One part of a Settings page as a form, the one base of every settings model (`AccountModel`,
+ * `ReceivingModel`, `SendingModel`, `AlertsModel`, `ClientReportsModel`, `LicenseModel`, `BrandingModel`,
  * `RetentionModel`, `ResolversModel`, `UpdatesModel`, `ListDraft`): the saved value, an editable
  * `draft` of it (bind to its fields), the draft as it would be saved (`normalized`), whether the two differ
  * (`dirty`), why it cannot be saved (`problem`, which holds Save) or why the page cannot be
@@ -170,7 +175,7 @@ export type Writes = { readonly page: SettingsPageId; readonly groups: readonly 
  * during component initialisation (it owns effects).
  *
  * Every Settings page makes its models in its route (`+page.svelte`) and hands each to the
- * component that shows it as `model` (or `list`); the setup's forms make their own `ImapModel`.
+ * component that shows it as `model` (or `list`); the setup's forms make their own `AccountModel`.
  * Each model declares its page and groups in `static writes`, which `settings-ownership.test.ts`
  * checks: a group written by two pages would overwrite the other's unsaved values. No section
  * hand-rolls load, dirty or save.
@@ -312,13 +317,26 @@ export abstract class SettingsForm<T, D> implements PagePart {
 	/**
 	 * Why this part holds the page's Save, and the field to mark: `blocked`'s reason, else (while
 	 * `canSave` is false) the problem; `null` when it holds nothing. A disabled Save always states
-	 * it (`SaveBar`), so no Save is disabled silently.
+	 * it (`SaveBar`), so no Save is disabled silently. A problem the form does not show yet
+	 * (`shows`) holds nothing here: Save stays enabled, and pressing it shows it (`reveal`).
 	 */
 	get held(): Invalid | null {
 		if (this.#blockedBy) return this.#blockedBy;
 		if (this.canSave) return null;
-		return this.invalid ?? { field: '', message: SAVE_HELD };
+		const why = this.invalid ?? { field: '', message: SAVE_HELD };
+		return this.shows(why.field) ? why : null;
 	}
+
+	/**
+	 * Whether a problem about `field` is said yet; default: at once. A form with many fields to
+	 * fill in (an account) waits until the field was typed in and left, or Save was pressed.
+	 */
+	protected shows(_field: string): boolean {
+		return true;
+	}
+
+	/** Save was pressed while a problem was not said yet: every problem is said from now on. */
+	reveal(): void {}
 
 	/** The reason Save is held when it is about `field` (said under the field where the page has room); else `null`. */
 	fieldProblem(field: string): string | null {
@@ -326,9 +344,12 @@ export abstract class SettingsForm<T, D> implements PagePart {
 		return held?.field === field ? held.message : null;
 	}
 
-	/** `aria-invalid` for `field`'s control: set while Save is held because of it. */
+	/**
+	 * `aria-invalid` for `field`'s control: set while the part is unsaved and Save is held because
+	 * of it. A part nothing was typed into yet (a new account's empty form) marks nothing.
+	 */
 	ariaInvalid(field: string): true | undefined {
-		return this.fieldProblem(field) !== null || undefined;
+		return (this.dirty && this.fieldProblem(field) !== null) || undefined;
 	}
 
 	/** Saved after the other parts of its page (a switch that needs them saved first). */

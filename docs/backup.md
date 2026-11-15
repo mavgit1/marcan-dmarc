@@ -1,12 +1,12 @@
 # Backup
 
-Marcan only reads the mailbox. As long as the reports stay there, the database is a cache: every report can be imported again. You may not need a backup.
+Marcan only reads the accounts' mailboxes. As long as the reports stay there, the database is a cache: every report can be imported again. You may not need a backup.
 
 ## Keep the reports and the lists
 
 Two things are enough:
 
-- **The reports in the mailbox.** Do not delete or archive them.
+- **The reports in the mailboxes.** Do not delete or archive them.
 - **A copy of the four lists.** Each is plain text on its settings page; copy it out when it changes:
   - **Domains** (**Settings → Domains**): every domain with its organization, and whether it is parked or ignored.
   - **Sender names** (**Settings → Sender names**): your own names for senders.
@@ -17,15 +17,15 @@ Two things are enough:
 
 Start Marcan with an empty data directory, then, in the setup or **Settings**:
 
-1. Enter the mailbox (host, user, password, folder, report address).
+1. Add the [accounts](./accounts) again (address, login, folder, the forwarded addresses if any). A Microsoft login needs a new certificate, uploaded to the app registration.
 2. Paste the lists back, Domains first: the client report recipients name its organizations.
-3. Press **Re-import mailbox** (**Settings → Data**). Every report still in the mailbox is imported again.
+3. Press **Re-import all accounts** (**Settings → Data**). Every report still in the accounts' folders is imported again.
 
 This does not bring back:
 
-- **Reports no longer in the mailbox.**
+- **Reports no longer in the mailboxes.**
 - **The alert history and the record of client reports sent.** The **Alerts** list starts empty. Marcan's first look at each domain records where it stands, so starting over raises no alerts. Client reports turned on again within a day of the report time go out once more for the month.
-- **Settings you changed from their defaults**, such as Sending (the SMTP password is in no list), Alerts, the poll interval, DNS resolvers, the operator key, Branding and Retention. Set them again on their pages under **Settings**.
+- **Settings you changed from their defaults**, such as Sending, Alerts, the poll interval, DNS resolvers, the operator key, Branding and Retention. Set them again on their pages under **Settings**.
 
 Messages that could not be imported are tried again, and every domain's DNS is checked again within minutes.
 
@@ -33,11 +33,11 @@ Messages that could not be imported are tried again, and every domain's DNS is c
 
 All of Marcan's state is one SQLite file, `marcan.db`, in its data directory (`/data` inside the container; in the Compose examples a named volume that Docker calls `<project>_marcan_data`, such as `marcan_marcan_data` when the Compose project, by default the directory's name, is `marcan`). Back it up when:
 
-- you delete or archive reports from the mailbox,
+- you delete or archive reports from the mailboxes,
 - you want to keep the alert history and the record of client reports sent,
 - you want to be able to [go back to an older version](./upgrade#going-back-to-an-older-version) after an upgrade.
 
-The file also holds the IMAP password, stored **unencrypted**, so treat a copy like a secret.
+The file also holds the accounts' credentials, **unencrypted** unless `MARCAN_SECRET_KEY` is set, so treat a copy like a secret; with the key, keep the key apart from the backups (and safe: a copy restored without it has its accounts locked until their credentials are entered again; see [Secrets at rest](./security#secrets-at-rest)).
 
 The image contains no `sqlite3`. Run a throwaway container that mounts the data of the Marcan container (`--volumes-from`) and writes a copy into `./backups`. `.backup` takes a consistent snapshot while Marcan keeps running:
 
@@ -67,4 +67,4 @@ To go back to an older version after an upgrade, the order differs: see [Going b
 
 ## Retention
 
-Marcan deletes reports older than the retention period, **12 months** by default (**Settings → Data → Retention**), once a day, together with their records and original XML, and alerts older than the same period from the **Alerts** list. The reverse-DNS names of sender IPs that no remaining report mentions go in the same clean-up. A database backup holds only what was retained when it was made. A re-import of the mailbox brings older reports back until the next daily clean-up.
+Marcan deletes reports older than the retention period, **12 months** by default (**Settings → Data → Retention**), once a day, together with their records and original XML, and alerts older than the same period from the **Alerts** list. The reverse-DNS names of sender IPs that no remaining report mentions go in the same clean-up. A database backup holds only what was retained when it was made. A re-import brings older reports back until the next daily clean-up.

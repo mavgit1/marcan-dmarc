@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { formatCheckedAge, formatMegabytes, formatPct, plural, relativeTime } from './format';
+import {
+	formatCheckedAge,
+	formatDate,
+	formatDateSpan,
+	formatMegabytes,
+	formatPct,
+	plural,
+	relativeTime
+} from './format';
+
+describe('formatDateSpan', () => {
+	it('names one date for a single day and both otherwise', () => {
+		const morning = new Date(2026, 9, 3, 1).getTime() / 1000;
+		const evening = new Date(2026, 9, 3, 23).getTime() / 1000;
+		const later = new Date(2026, 9, 7, 12).getTime() / 1000;
+		expect(formatDateSpan(morning, evening)).toBe(formatDate(evening));
+		expect(formatDateSpan(morning, later)).toBe(`${formatDate(morning)} – ${formatDate(later)}`);
+	});
+});
 
 describe('relativeTime', () => {
 	const now = 1_800_000_000 * 1000;

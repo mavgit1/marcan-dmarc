@@ -5,7 +5,7 @@
 	import { filters } from '$lib/state/filters.svelte';
 </script>
 
-<PageHeader title="Senders" description="Source IPs seen in this scope, busiest first.">
+<PageHeader title="Senders" description="Source IPs that sent mail as your domains, busiest first.">
 	{#snippet actions()}
 		<ExportDialog
 			datasets={['senders', 'auth-issues']}

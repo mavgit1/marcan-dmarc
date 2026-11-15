@@ -75,7 +75,7 @@
 			<DetailHeading>External report destinations</DetailHeading>
 		</div>
 		<p class="text-xs text-muted-foreground mb-3">
-			Authorization record (RFC 7489 §7.1) at <span class="font-mono text-foreground"
+			Authorization record (RFC 9990 §4) at <span class="font-mono text-foreground"
 				>&lt;domain&gt;._report._dmarc.&lt;dest-domain&gt;</span
 			>.
 		</p>

@@ -1,34 +1,47 @@
-//! Where messages go: the [`MailSender`] on `AppState`, the SMTP one paced by
+//! Where messages go: the [`MailSender`] on `AppState`, the network one
+//! (SMTP or Microsoft Graph, as each [`SendConfig`] says) paced by
 //! [`PacedSender`], and [`MemorySender`] for tests.
 
-use super::{send, Message, SendError, SmtpConfig};
+use super::{login, send, Message, SendConfig, SendError, SmtpServer};
 use futures::future::BoxFuture;
 use std::fmt;
 use std::sync::Mutex;
 use std::time::Duration;
 
 /// Where messages go. The server holds one in [`AppState`](crate::AppState):
-/// [`SmtpSender`] paced by [`PacedSender`] in production; tests put a
+/// [`NetworkSender`] paced by [`PacedSender`] in production; tests put a
 /// [`MemorySender`] there, so no test opens a socket.
 pub trait MailSender: Send + Sync {
     fn send<'a>(
         &'a self,
-        config: &'a SmtpConfig,
+        config: &'a SendConfig,
         message: &'a Message,
     ) -> BoxFuture<'a, Result<(), SendError>>;
+
+    /// Log in to `server` and leave, sending nothing (the account test's
+    /// SMTP line of a password login). A sender that only keeps messages (a
+    /// test's) accepts every login.
+    fn login<'a>(&'a self, _server: &'a SmtpServer) -> BoxFuture<'a, Result<(), SendError>> {
+        Box::pin(std::future::ready(Ok(())))
+    }
 }
 
-/// [`send`] through the configured submission server.
+/// [`send`] the way each configuration says: through its SMTP server, or
+/// as its Microsoft 365 mailbox over Graph.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SmtpSender;
+pub struct NetworkSender;
 
-impl MailSender for SmtpSender {
+impl MailSender for NetworkSender {
     fn send<'a>(
         &'a self,
-        config: &'a SmtpConfig,
+        config: &'a SendConfig,
         message: &'a Message,
     ) -> BoxFuture<'a, Result<(), SendError>> {
         Box::pin(send(config, message))
+    }
+
+    fn login<'a>(&'a self, server: &'a SmtpServer) -> BoxFuture<'a, Result<(), SendError>> {
+        Box::pin(login(server))
     }
 }
 
@@ -42,8 +55,8 @@ pub const SEND_MIN_INTERVAL: Duration = Duration::from_secs(5);
 /// Another [`MailSender`], at most one send per `interval`. Callers queue in
 /// the order they arrive (a fair `tokio` mutex held for the whole send), so
 /// sends never overlap and none is dropped; each waits until `interval` after
-/// the start of the one before. The server's production sender is
-/// [`PacedSender::smtp`].
+/// the start of the one before, whichever way each leaves. The server's
+/// production sender is [`PacedSender::network`].
 pub struct PacedSender<S> {
     inner: S,
     interval: Duration,
@@ -61,10 +74,10 @@ impl<S> PacedSender<S> {
     }
 }
 
-impl PacedSender<SmtpSender> {
-    /// [`SmtpSender`] at [`SEND_MIN_INTERVAL`]: what the server sends through.
-    pub fn smtp() -> Self {
-        Self::new(SmtpSender, SEND_MIN_INTERVAL)
+impl PacedSender<NetworkSender> {
+    /// [`NetworkSender`] at [`SEND_MIN_INTERVAL`]: what the server sends through.
+    pub fn network() -> Self {
+        Self::new(NetworkSender, SEND_MIN_INTERVAL)
     }
 }
 
@@ -79,7 +92,7 @@ impl<S> fmt::Debug for PacedSender<S> {
 impl<S: MailSender> MailSender for PacedSender<S> {
     fn send<'a>(
         &'a self,
-        config: &'a SmtpConfig,
+        config: &'a SendConfig,
         message: &'a Message,
     ) -> BoxFuture<'a, Result<(), SendError>> {
         Box::pin(async move {
@@ -91,6 +104,11 @@ impl<S: MailSender> MailSender for PacedSender<S> {
             self.inner.send(config, message).await
         })
     }
+
+    /// A login sends no mail, so it is not paced.
+    fn login<'a>(&'a self, server: &'a SmtpServer) -> BoxFuture<'a, Result<(), SendError>> {
+        self.inner.login(server)
+    }
 }
 
 /// Keeps every message instead of sending it, and answers each send with
@@ -99,7 +117,9 @@ impl<S: MailSender> MailSender for PacedSender<S> {
 pub struct MemorySender {
     sent: Mutex<Vec<Message>>,
     /// The account each kept message went out through.
-    configs: Mutex<Vec<SmtpConfig>>,
+    configs: Mutex<Vec<SendConfig>>,
+    /// The server of each login test.
+    logins: Mutex<Vec<SmtpServer>>,
     error: Option<SendError>,
 }
 
@@ -109,6 +129,7 @@ impl MemorySender {
         Self {
             sent: Mutex::default(),
             configs: Mutex::default(),
+            logins: Mutex::default(),
             error: Some(error),
         }
     }
@@ -122,8 +143,16 @@ impl MemorySender {
     }
 
     /// The account each message in [`MemorySender::sent`] went out through.
-    pub fn configs(&self) -> Vec<SmtpConfig> {
+    pub fn configs(&self) -> Vec<SendConfig> {
         self.configs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// The server of each login test so far, oldest first.
+    pub fn logins(&self) -> Vec<SmtpServer> {
+        self.logins
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
@@ -138,7 +167,7 @@ impl MemorySender {
 impl MailSender for MemorySender {
     fn send<'a>(
         &'a self,
-        config: &'a SmtpConfig,
+        config: &'a SendConfig,
         message: &'a Message,
     ) -> BoxFuture<'a, Result<(), SendError>> {
         let result = match &self.error {
@@ -157,12 +186,22 @@ impl MailSender for MemorySender {
         };
         Box::pin(std::future::ready(result))
     }
+
+    /// Kept, then answered `Ok` or with the error it was given.
+    fn login<'a>(&'a self, server: &'a SmtpServer) -> BoxFuture<'a, Result<(), SendError>> {
+        self.logins
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(server.clone());
+        let result = self.error.clone().map_or(Ok(()), Err);
+        Box::pin(std::future::ready(result))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mail::config::tests::settings;
+    use crate::mail::config::tests::config;
     use crate::mail::parse_address;
 
     /// Records when each message reached it, on tokio's clock.
@@ -172,7 +211,7 @@ mod tests {
     impl MailSender for Stamps {
         fn send<'a>(
             &'a self,
-            _config: &'a SmtpConfig,
+            _config: &'a SendConfig,
             message: &'a Message,
         ) -> BoxFuture<'a, Result<(), SendError>> {
             self.0
@@ -198,7 +237,7 @@ mod tests {
     /// the order they came, none dropped.
     #[tokio::test(start_paused = true)]
     async fn sends_are_spaced_and_queued() {
-        let config = SmtpConfig::from_settings(&settings()).unwrap();
+        let config = config();
         let paced = std::sync::Arc::new(PacedSender::new(Stamps::default(), SEND_MIN_INTERVAL));
         let start = tokio::time::Instant::now();
 

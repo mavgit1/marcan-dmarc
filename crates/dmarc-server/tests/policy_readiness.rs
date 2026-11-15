@@ -1,6 +1,6 @@
 //! Policy-step readiness on the domain overview: judged on the last 30 days
-//! whatever `since` is, with the volume and history it needs under the
-//! current policy.
+//! whatever `since` is, with the history it needs under the current policy
+//! and no minimum volume.
 
 use dmarc_store::{ingest_report, unix_now};
 use serde_json::Value;
@@ -73,7 +73,7 @@ async fn overview(app: &TestApp, domain: &str, since: &str) -> Value {
 }
 
 #[tokio::test]
-async fn readiness_needs_volume_history_and_compliance_over_thirty_days() {
+async fn readiness_needs_history_and_compliance_over_thirty_days() {
     let app = TestApp::new().await;
     // 60 days of history; the window's 20 days of reports hold 400 messages
     // at 99.5%. The 45-day-old report fails badly, but lies outside it.
@@ -83,7 +83,9 @@ async fn readiness_needs_volume_history_and_compliance_over_thirty_days() {
         &[(45, 10, 90), (20, 200, 0), (5, 198, 2)],
     )
     .await;
-    seed(&app, "little.test", &[(45, 10, 0), (5, 50, 0)]).await;
+    seed(&app, "little.test", &[(45, 10, 0), (5, 5, 0)]).await;
+    // Reports that cover the window's start but no mail inside it.
+    seed(&app, "quiet.test", &[(45, 10, 0)]).await;
     seed(&app, "new.test", &[(10, 150, 0), (3, 150, 0)]).await;
 
     let ready = overview(&app, "ready.test", "7d").await;
@@ -115,7 +117,6 @@ async fn readiness_needs_volume_history_and_compliance_over_thirty_days() {
     assert_eq!(r["window"]["policy_share_pct"], 100.0);
     assert_eq!(r["window"]["other_policy"], "unknown");
     assert_eq!(r["history_days"], 30);
-    assert_eq!(r["criteria"]["enough_mail"], true);
     assert_eq!(r["criteria"]["full_history"], true);
     assert_eq!(r["criteria"]["policy_share_met"], true);
     assert_eq!(r["criteria"]["compliance_met"], true);
@@ -138,10 +139,25 @@ async fn readiness_needs_volume_history_and_compliance_over_thirty_days() {
 
     let little = overview(&app, "little.test", "30d").await;
     let r = &little["policy_readiness"];
+    // A handful of passing messages over a covered window is ready, and the
+    // sentence says how few.
+    assert_eq!(r["state"]["kind"], "ready", "{r}");
+    assert_eq!(r["window"]["messages"], 5);
+    assert_eq!(r["status"], "pass");
+    assert_eq!(
+        r["detail"],
+        "30 days and 5 messages under p=none, 100.0% delivered compliance."
+    );
+
+    let quiet = overview(&app, "quiet.test", "30d").await;
+    let r = &quiet["policy_readiness"];
     assert_eq!(r["state"]["kind"], "not_ready", "{r}");
-    assert_eq!(r["state"]["reason"]["kind"], "too_little_mail");
-    assert_eq!(r["window"]["messages"], 50);
-    assert_eq!(r["status"], "neutral");
+    assert_eq!(r["state"]["reason"]["kind"], "below_threshold");
+    assert_eq!(r["window"]["messages"], 0);
+    assert_eq!(
+        r["detail"],
+        "no delivered mail over 30 days to measure compliance."
+    );
 
     let new = overview(&app, "new.test", "30d").await;
     let r = &new["policy_readiness"];
@@ -201,7 +217,6 @@ async fn readiness_counts_only_the_evidence_under_the_current_policy() {
     // The window's p=none mail still counts toward the totals and compliance.
     assert_eq!(r["window"]["messages"], 300 + 29 * 20);
     assert_eq!(r["criteria"]["compliance_met"], true);
-    assert_eq!(r["criteria"]["enough_mail"], true);
     assert_eq!(r["criteria"]["policy_share_met"], false);
 
     let month = overview(&app, "month.test", "30d").await;
@@ -294,6 +309,107 @@ async fn meta_serves_the_readiness_numbers() {
     let app = TestApp::new().await;
     let meta = get_ok(&app.app, "/api/meta").await;
     assert_eq!(meta["readiness_window_days"], 30);
-    assert_eq!(meta["readiness_min_messages"], 200);
+    assert!(meta.get("readiness_min_messages").is_none(), "{meta}");
     assert_eq!(meta["readiness_min_policy_share_pct"], 95.0);
+    assert_eq!(meta["readiness_max_spf_only_pct"], 10.0);
+}
+
+/// Mail that passes DMARC on SPF alone fails once forwarded: above 10% of
+/// the passing mail it holds the next step back, whatever else is met, and
+/// the domains export names that reason.
+#[tokio::test]
+async fn mail_passing_on_spf_alone_holds_the_step_back() {
+    let app = TestApp::new().await;
+    let now = unix_now();
+    // (domain, DKIM-signed messages, SPF-only messages) in a report 5 days
+    // ago, after 40 days of reports.
+    for (domain, signed, spf_only) in [
+        ("unsigned.test", 0, 406),
+        ("tenth.test", 900, 100),
+        ("over.test", 899, 101),
+        ("dkim-only.test", 500, 0),
+    ] {
+        let old = report_with_policy(
+            &format!("{domain}-old"),
+            domain,
+            now - 40 * DAY,
+            "none",
+            "none",
+            vec![rec("192.0.2.1", 1, "pass", "pass")],
+        );
+        ingest_report(&app.pool, &old).await.expect("ingest");
+        let mut records = Vec::new();
+        if spf_only > 0 {
+            records.push(rec("192.0.2.2", spf_only, "fail", "pass"));
+        }
+        if signed > 0 {
+            // dkim-only.test: signed, SPF failing.
+            let spf = if spf_only == 0 { "fail" } else { "pass" };
+            records.push(rec("192.0.2.3", signed, "pass", spf));
+        }
+        let report = report_with_policy(
+            &format!("{domain}-new"),
+            domain,
+            now - 5 * DAY,
+            "none",
+            "none",
+            records,
+        );
+        ingest_report(&app.pool, &report).await.expect("ingest");
+        common::store_dns(&app.pool, domain, "v=DMARC1; p=none", "v=spf1 -all", now).await;
+    }
+
+    let unsigned = overview(&app, "unsigned.test", "30d").await;
+    let r = &unsigned["policy_readiness"];
+    assert_eq!(r["state"]["kind"], "not_ready", "{r:#}");
+    assert_eq!(r["state"]["reason"]["kind"], "relies_on_spf");
+    assert_eq!(r["window"]["compliant"], 406);
+    assert_eq!(r["window"]["no_aligned_dkim"], 406);
+    assert_eq!(r["window"]["spf_only_pct"], 100.0);
+    assert_eq!(r["criteria"]["compliance_met"], true);
+    assert_eq!(r["criteria"]["dkim_met"], false);
+    assert!(r["detail"]
+        .as_str()
+        .unwrap()
+        .starts_with("406 of 406 messages over 30 days passed DMARC on SPF alone"));
+
+    let tenth = overview(&app, "tenth.test", "30d").await;
+    let r = &tenth["policy_readiness"];
+    assert_eq!(r["state"]["kind"], "ready", "{r:#}");
+    assert_eq!(r["window"]["no_aligned_dkim"], 100);
+    let over = overview(&app, "over.test", "30d").await;
+    assert_eq!(
+        over["policy_readiness"]["state"]["reason"]["kind"],
+        "relies_on_spf"
+    );
+    let dkim_only = overview(&app, "dkim-only.test", "30d").await;
+    let r = &dkim_only["policy_readiness"];
+    assert_eq!(r["state"]["kind"], "ready", "{r:#}");
+    assert_eq!(r["window"]["no_aligned_dkim"], 0);
+
+    // The export carries the state and, when not ready, why.
+    let (status, _, _, body) = common::get_raw(&app.app, "/api/export/domains.csv").await;
+    assert_eq!(status, 200);
+    let mut lines = body.trim_start_matches('\u{feff}').lines();
+    let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+    let column = |name: &str| header.iter().position(|h| *h == name).unwrap();
+    let (domain, readiness, reason) = (
+        column("domain"),
+        column("readiness"),
+        column("readiness_reason"),
+    );
+    let rows: Vec<(String, String, String)> = lines
+        .map(|line| {
+            let f: Vec<&str> = line.split(',').collect();
+            (f[domain].into(), f[readiness].into(), f[reason].into())
+        })
+        .collect();
+    let row = |d: &str| {
+        rows.iter()
+            .find(|r| r.0 == d)
+            .map(|r| (r.1.as_str(), r.2.as_str()))
+            .unwrap()
+    };
+    assert_eq!(row("unsigned.test"), ("not_ready", "relies_on_spf"));
+    assert_eq!(row("tenth.test"), ("ready", ""));
 }

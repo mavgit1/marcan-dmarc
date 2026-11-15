@@ -8,7 +8,7 @@ use ts_rs::TS;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
-pub enum ImapPhase {
+pub enum PassPhase {
     /// Resolving, connecting, logging in.
     Connecting,
     /// Selecting the folder, searching for new UIDs and reading their sizes.
@@ -17,12 +17,12 @@ pub enum ImapPhase {
     Importing,
 }
 
-impl From<dmarc_imap::ImapPhase> for ImapPhase {
-    fn from(p: dmarc_imap::ImapPhase) -> Self {
+impl From<dmarc_mailbox::PassPhase> for PassPhase {
+    fn from(p: dmarc_mailbox::PassPhase) -> Self {
         match p {
-            dmarc_imap::ImapPhase::Connecting => Self::Connecting,
-            dmarc_imap::ImapPhase::Scanning => Self::Scanning,
-            dmarc_imap::ImapPhase::Importing => Self::Importing,
+            dmarc_mailbox::PassPhase::Connecting => Self::Connecting,
+            dmarc_mailbox::PassPhase::Scanning => Self::Scanning,
+            dmarc_mailbox::PassPhase::Importing => Self::Importing,
         }
     }
 }
@@ -55,13 +55,15 @@ impl DnsCheckProgress {
     }
 }
 
-/// Live progress of a running IMAP pass.
+/// Live progress of a running mailbox pass.
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
-pub struct ImapProgressResponse {
+pub struct PassProgressResponse {
     /// Always `true`; present so clients can test one field.
     pub running: bool,
-    pub phase: ImapPhase,
+    /// The account the pass reads.
+    pub account_id: Option<i64>,
+    pub phase: PassPhase,
     /// New messages found above the cursor (0 until scanning finishes).
     pub total_messages: u32,
     pub processed_messages: u32,
@@ -77,18 +79,19 @@ pub struct ImapProgressResponse {
     pub started_at: i64,
 }
 
-impl From<dmarc_imap::ImapProgress> for ImapProgressResponse {
-    fn from(p: dmarc_imap::ImapProgress) -> Self {
-        let phase = ImapPhase::from(p.phase);
+impl From<dmarc_mailbox::PassProgress> for PassProgressResponse {
+    fn from(p: dmarc_mailbox::PassProgress) -> Self {
+        let phase = PassPhase::from(p.phase);
         Self {
             running: true,
+            account_id: p.mailbox.parse().ok(),
             phase,
             total_messages: p.total_messages,
             processed_messages: p.processed_messages,
             total_bytes: p.total_bytes,
             processed_bytes: p.processed_bytes,
             reports_ingested: p.reports_ingested,
-            bulk: is_bulk_import(phase == ImapPhase::Importing, p.total_messages),
+            bulk: is_bulk_import(phase == PassPhase::Importing, p.total_messages),
             started_at: p.started_at,
         }
     }

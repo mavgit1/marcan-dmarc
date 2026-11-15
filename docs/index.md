@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Marcan
   text: Self-hosted DMARC monitoring
-  tagline: Reads your DMARC reports from a mailbox, checks your DNS live, and tells you what to do next. When a domain is ready for the next policy, what changed, which new sender fails.
+  tagline: Reads your DMARC reports from your mailboxes, Microsoft 365 included, checks your DNS live, and tells you what to do next. When a domain is ready for the next policy, what changed, which new sender fails.
   image:
     light: /logo-light.svg
     dark: /logo-dark.svg
@@ -28,13 +28,13 @@ features:
     details: One short email per organization about its own domains, under your name and logo. The month against the last, and the next step per domain.
     link: /client-reports
   - title: A setup that checks itself
-    details: Mailbox, import, domains and the DNS records to publish, one step at a time. Each record is checked live, with what it still needs.
+    details: Accounts (any IMAP provider or Microsoft 365), import, domains, report addresses and the DNS records to publish, one step at a time. Each record is checked live, with what it still needs.
     link: /getting-started#first-start
   - title: Its own verdicts
-    details: Recomputes SPF and DKIM alignment with the Public Suffix List, tells forwarded mail from spoofing, and grades SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI.
+    details: Decides every record from the report's raw SPF and DKIM results with one rule, tells forwarded mail from spoofing, and grades SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI.
     link: /how-it-works
   - title: One binary, one SQLite file
-    details: Dashboard, API and IMAP import in one executable. No external database. The login comes from the proxy you put in front.
+    details: Dashboard, API and mailbox import in one executable. No external database. The login comes from the proxy you put in front.
     link: /deployment
 ---
 

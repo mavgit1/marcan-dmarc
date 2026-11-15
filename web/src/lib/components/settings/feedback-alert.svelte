@@ -2,8 +2,12 @@
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import type { Feedback } from '../action.svelte';
+	import DocsSentence from './docs-sentence.svelte';
 
-	/** Pass or fail banner for a settings action. `failTitle` puts a heading over a failure. */
+	/**
+	 * Pass or fail banner for a settings action. `failTitle` puts a heading over a failure; a failure
+	 * whose answer names a docs section ends with its "(docs)" link.
+	 */
 	let {
 		feedback,
 		failTitle,
@@ -28,10 +32,10 @@
 		{#if failTitle}
 			<div class="min-w-0 flex-1">
 				<p class="font-medium">{failTitle}</p>
-				<p class="mt-0.5 break-words text-[11px]">{feedback.message}</p>
+				<p class="mt-0.5 break-words text-[11px]"><DocsSentence message={feedback.message} docs={feedback.docs} /></p>
 			</div>
 		{:else}
-			<span class="min-w-0 flex-1">{feedback.message}</span>
+			<span class="min-w-0 flex-1"><DocsSentence message={feedback.message} docs={feedback.docs} /></span>
 		{/if}
 	</div>
 {/if}

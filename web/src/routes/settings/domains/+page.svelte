@@ -3,6 +3,7 @@
 	import ListEditor from '$lib/components/settings/list-editor.svelte';
 	import { DOMAIN_LIST } from '$lib/components/settings/lists';
 	import SettingsPage from '$lib/components/settings/settings-page.svelte';
+	import { statusText } from '$lib/tokens';
 
 	const domains = new ListDraft(DOMAIN_LIST);
 </script>
@@ -12,18 +13,19 @@
 	hint="Every domain Marcan watches, and the organization it belongs to."
 	docs="domains#domains-as-text"
 >
-	<ListEditor list={domains} example={'Acme,acme.com\nAcme,acme-old.com,parked\nAcme,acme-spoof.com,ignored'}>
+	<ListEditor
+		list={domains}
+		example={'Acme,acme.example\nAcme,acme-old.example,parked\nAcme,acme-spoof.example,ignored'}
+		docs="domains#domains-as-text"
+	>
 		{#snippet format()}
-			<li>One <code class="font-mono">organization,domain</code> per line. A new organization name creates it.</li>
-			<li><code class="font-mono">,parked</code>: a domain that sends no mail.</li>
 			<li>
-				<code class="font-mono">,ignored</code>: not yours; its reports are deleted and new ones dropped. Remove it to
-				watch the domain again; past reports are re-imported.
+				One <code class="font-mono">organization,domain</code> per line; <code class="font-mono">,parked</code>: sends
+				no mail. Domains you leave out stay as they are.
 			</li>
-			<li>Domains you leave out stay as they are.</li>
-			<li>
-				Quote a name with a comma: <code class="font-mono">"Acme, Inc"</code>.
-				<code class="font-mono">#</code> starts a comment.
+			<!-- The one rule that deletes data stays in sight. -->
+			<li class={statusText.warn}>
+				<code class="font-mono">,ignored</code>: not yours. Its reports are deleted.
 			</li>
 		{/snippet}
 	</ListEditor>

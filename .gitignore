@@ -9,6 +9,7 @@ web/build/
 
 # Local secrets (e.g. a .env next to docker-compose.yml)
 .env
+marcan_secret_key
 
 # Local SQLite databases
 *.db

@@ -57,6 +57,23 @@ pub fn pass_rate(compliant: i64, total: i64) -> Rate {
     Rate::of(compliant, total)
 }
 
+/// A sender's [`pass_rate`], coloured by what its shortfall is: red or amber
+/// only while some mail `failed` (delivered failures and blocked, forwarded
+/// left out). When forwarded mail alone keeps the rate down, the figure stays
+/// (forwarded mail did fail DMARC) but reads green: nothing is to be done
+/// about the sender, and the forwarded count beside it is the violet part.
+pub fn sender_pass_rate(compliant: i64, total: i64, failed: i64) -> Rate {
+    let rate = pass_rate(compliant, total);
+    if failed <= 0 && matches!(rate.status, Status::Warn | Status::Fail) {
+        Rate {
+            status: Status::Pass,
+            ..rate
+        }
+    } else {
+        rate
+    }
+}
+
 /// Message totals of a scope by outcome.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Mail {
@@ -355,6 +372,18 @@ mod tests {
         assert_eq!(m.pass_rate().status, Status::Fail);
         assert_eq!(m.delivered_compliance().pct, Some(100.0));
         assert_eq!(mail(0, 0, 0, 0).pass_rate(), Rate::unmeasured());
+    }
+
+    #[test]
+    fn a_sender_short_only_by_forwarded_mail_is_never_red() {
+        // 93 of 100 passed, the other 7 forwarded: the figure stays, green.
+        let forwarded_only = sender_pass_rate(93, 100, 0);
+        assert_eq!(forwarded_only.pct, Some(93.0));
+        assert_eq!(forwarded_only.status, Status::Pass);
+        // One failed message and the 99 / 95 rule applies as before.
+        assert_eq!(sender_pass_rate(93, 100, 1).status, Status::Fail);
+        assert_eq!(sender_pass_rate(100, 100, 0).status, Status::Pass);
+        assert_eq!(sender_pass_rate(0, 0, 0), Rate::unmeasured());
     }
 
     #[test]

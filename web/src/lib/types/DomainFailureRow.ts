@@ -28,4 +28,16 @@ export type DomainFailureRow = {
    */
   org_name: string;
   count: number;
+  /**
+   * The earliest `date_begin` (unix seconds) of the reports with these records.
+   */
+  first_seen: number;
+  /**
+   * The latest `date_begin` of the reports with these records.
+   */
+  last_seen: number;
+  /**
+   * The newest report with these records (latest `date_begin`, then highest id).
+   */
+  newest_report_id: number;
 };

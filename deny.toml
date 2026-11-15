@@ -10,15 +10,30 @@ all-features = false
 # Each ignore says why the advisory does not reach Marcan, or why it cannot be
 # fixed yet. Drop the entry once the dependency moves on.
 ignore = [
-    # rsa 0.9 (Marvin attack, timing side channel; no fixed version exists).
-    # Only in Cargo.lock because sqlx's macros list sqlx-mysql as an optional
-    # dependency; Marcan enables SQLite alone, so rsa is never compiled
-    # (`cargo tree -i rsa --target all` prints nothing).
-    { id = "RUSTSEC-2023-0071", reason = "sqlx-mysql only, never compiled: Marcan uses SQLite" },
+    # rsa 0.9 (Marvin attack: a timing side channel in RSA private-key
+    # decryption; fixed in rsa 0.10.0, released 8 Nov 2026, not adopted
+    # yet: too fresh, and a major API change). Marcan uses rsa only to generate
+    # the Microsoft login's RSA-2048 key (dmarc-server's
+    # accounts/certificate.rs) and never decrypts with it; the client
+    # assertion is signed by ring. (sqlx-mysql lists it too, never compiled.)
+    { id = "RUSTSEC-2023-0071", reason = "key generation only, never decryption; ring signs; rsa 0.10 not adopted yet" },
     # smartstring 1.0 is unmaintained. It comes in through ts-rs's `format`
-    # feature (dprint formats the generated TypeScript bindings), which runs
-    # in `cargo test` only; no request or report ever reaches it.
-    { id = "RUSTSEC-2026-0249", reason = "ts-rs binding formatter only; no maintained replacement upstream yet" },
+    # feature (dprint formats the generated TypeScript bindings), enabled in
+    # the crates' dev-dependencies only: built for `cargo test`, never into
+    # the release binary; no request or report ever reaches it.
+    { id = "RUSTSEC-2026-0249", reason = "ts-rs binding formatter, dev-dependency only; no maintained replacement upstream yet" },
+    # libsqlite3-sys 0.30 bundles SQLite before 3.54 (CVE-2026-119375: a
+    # database opened with a crafted `-wal` file of another page size can
+    # return stale process memory). Marcan opens only its own database in its
+    # own data directory; whoever can plant files there already has the
+    # database and its secrets. The fix is libsqlite3-sys 0.39, which no sqlx
+    # release allows yet (sqlx-sqlite 0.9.0 caps it below 0.38): drop this
+    # once one does.
+    { id = "RUSTSEC-2026-0459", reason = "only Marcan's own data directory is opened; no sqlx release allows the patched libsqlite3-sys yet" },
+    # pin-utils 0.1 is unmaintained (a few lines of pinning macros, no known
+    # flaw). It comes in through async-imap 0.11, which has no release
+    # without it yet.
+    { id = "RUSTSEC-2026-0441", reason = "via async-imap; no release without it yet" },
 ]
 
 [licenses]

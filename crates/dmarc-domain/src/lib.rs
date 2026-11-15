@@ -1,6 +1,11 @@
 //! Domain names as every Marcan crate handles them: one place for hostname
 //! normalization and validation, the organizational (registrable) domain, and
-//! the RFC 7489 §7.1 rule for when a report destination needs authorization.
+//! the RFC 9990 §4 rule for when a report destination needs authorization.
+//!
+//! The organizational domain comes from the Public Suffix List, as in RFC 7489
+//! §3.2. RFC 9989 §4.10 finds it with a DNS tree walk over `_dmarc` records
+//! instead; Marcan keeps the PSL on purpose (the two differ only for hosting
+//! and registry edge cases).
 //!
 //! Two normalizers, on purpose:
 //!
@@ -134,7 +139,7 @@ pub fn organizational_domain(domain: &str) -> Option<String> {
     Some(org.to_ascii_lowercase())
 }
 
-/// RFC 7489 §7.1: reports for `domain` sent to an address at `rua_host` need
+/// RFC 9990 §4: reports for `domain` sent to an address at `rua_host` need
 /// an authorization record only when the two organizational domains differ
 /// (`shop.acme.example` reporting to `x@acme.example` needs none). When either
 /// organizational domain cannot be derived, only the domain itself and its
