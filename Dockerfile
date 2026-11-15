@@ -22,7 +22,7 @@ RUN pnpm build
 # Stage 2: Build Rust backend with embedded SPA
 # ==============================================================================
 # Keep equal to rust-toolchain.toml
-FROM rust:1.98-alpine@sha256:7cc1c22d77d9432f7fe012a70e6d3e555af54c2a6832700ed7d553f1769ae89f AS rust-builder
+FROM rust:1.99-alpine@sha256:44819b27be4c97b0e4d7203bd2e02c4820f97700211b6a37fb4c246a2de59383 AS rust-builder
 
 RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static build-base
 
