@@ -1,3 +1,7 @@
+---
+description: Deploy Marcan with Docker Compose behind Caddy and OAuth2-Proxy, for single sign-on through an OIDC provider such as Entra ID, Okta, Google or Keycloak.
+---
+
 # Caddy with OAuth2-Proxy
 
 If you already have an OIDC identity provider (Entra ID, Okta, Google, Keycloak, ...), [OAuth2-Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) sits between Caddy and Marcan: every request goes through your provider's sign-in, with whatever it enforces (two-factor authentication, passkeys, conditional access).

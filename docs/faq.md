@@ -1,3 +1,7 @@
+---
+description: Answers on missing DMARC reports, a red DNS grade, numbers that differ from the reporter, forwarded mail, Microsoft 365 and Gmail, several users and cost.
+---
+
 # FAQ
 
 ## No reports arrive. What should I check?

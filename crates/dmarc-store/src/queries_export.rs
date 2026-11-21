@@ -125,21 +125,6 @@ impl From<SenderExportSql> for SenderExportRow {
     }
 }
 
-/// Distinct source IPs of [`stream_sender_export`] for the same scope, so the
-/// caller can name them before streaming.
-pub async fn sender_export_ips(pool: &SqlitePool, scope: Scope) -> Result<Vec<String>, StoreError> {
-    let mut qb = QueryBuilder::new(
-        r#"
-        SELECT DISTINCT rec.source_ip
-        FROM records rec
-        INNER JOIN reports r ON r.id = rec.report_id
-        WHERE 1=1
-        "#,
-    );
-    scope.push_reports(&mut qb, "r");
-    Ok(qb.build_query_scalar::<String>().fetch_all(pool).await?)
-}
-
 /// Every sender IP × domain in scope (all columns scoped the same way), by
 /// organization, domain, then busiest sender first.
 pub async fn stream_sender_export<F, Fut>(

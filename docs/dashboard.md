@@ -1,3 +1,7 @@
+---
+description: What the dashboard shows, with the scope filter, domain health and delivered compliance, the attention list, DKIM coverage, the four outcomes and import status.
+---
+
 # Reading the dashboard
 
 The scope filter at the top narrows a page to an organization, a domain and a time range, as far as the page takes them:

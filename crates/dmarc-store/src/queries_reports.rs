@@ -254,6 +254,7 @@ impl From<RecordSql> for RecordRow {
 
 /// Look up a report by its reporting organization and external `report_id`.
 /// The id is only unique per reporter, so both are needed.
+#[cfg(any(test, feature = "test-support"))]
 pub async fn find_report_by_report_id(
     pool: &SqlitePool,
     org_name: &str,

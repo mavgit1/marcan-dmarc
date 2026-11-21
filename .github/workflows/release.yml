@@ -1,12 +1,14 @@
 # Checks the public tree, then builds and pushes the multi-arch image to GHCR when
-# publish.sh pushes a version tag. Nothing is pushed unless scripts/check.sh passes.
+# publish.sh pushes a version tag, then creates the tag's release entry on GitHub.
+# Nothing is pushed unless scripts/check.sh passes.
 name: release
 
 on:
   push:
     tags: ["v*.*.*"]
 
-# Read-only by default; only the jobs that push an image may write packages.
+# Read-only by default; only the jobs that push an image may write packages, and
+# only the last one may create the release entry.
 permissions:
   contents: read
 
@@ -143,3 +145,20 @@ jobs:
 
       - name: Inspect
         run: docker buildx imagetools inspect ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
+
+  # The release entry, once the image it names exists: title and text from the tag's
+  # message. release-entry.yml runs the same script by hand for a tag that has none.
+  entry:
+    needs: merge
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - run: scripts/github-release.sh "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

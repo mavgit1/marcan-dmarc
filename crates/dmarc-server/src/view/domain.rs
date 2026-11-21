@@ -13,7 +13,7 @@ use dmarc_domain::organizational_domain;
 use dmarc_store::{
     DkimCheckRow, DomainOverviewRow, DomainSummaryRow, FailureRow, MailCounts, MonitoringSettings,
     OverrideReason, PolicySource, PublishedPolicy, ReadinessMailRow, RecordChecks, SpfCheckRow,
-    StoredDnsGrade, DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS,
+    StoredDnsGrade,
 };
 use serde::Serialize;
 use std::ops::Deref;
@@ -45,10 +45,11 @@ impl Judging {
     }
 
     /// At `now`, by the settings' defaults.
+    #[cfg(test)]
     pub fn defaults_at(now: i64) -> Self {
         Self {
             now,
-            reports_stopped_after_days: i64::from(DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS),
+            reports_stopped_after_days: i64::from(dmarc_store::DEFAULT_DOMAIN_REPORTS_STOPPED_DAYS),
         }
     }
 }

@@ -1,36 +1,103 @@
+<script module lang="ts">
+	import type { BimiCheckResult } from '$lib/types/BimiCheckResult';
+	import type { LookupStatus } from '$lib/types/LookupStatus';
+	import type { MtaStsCheckResult } from '$lib/types/MtaStsCheckResult';
+	import type { TlsRptCheckResult } from '$lib/types/TlsRptCheckResult';
+	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
+	import LookupBadge from './lookup-badge.svelte';
+	import { formatInt } from '$lib/format';
+	import { policyFetchLabel } from '$lib/dns';
+	import { cn } from '$lib/utils.js';
+
+	/**
+	 * The body of each transport check, exported so the DNS inspector draws the same facts in
+	 * its own panels: the name queried with its raw DNS answer, the record, and what was parsed
+	 * from it. Verdicts stay with the caller (a card badge here, a panel header there).
+	 */
+	export { mtaStsDetails, tlsRptDetails, bimiDetails };
+</script>
+
 <script lang="ts">
 	import type { DnsCheckResponse } from '$lib/types/DnsCheckResponse';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
 	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { formatInt } from '$lib/format';
 	import { bimiStatus, CHECK_FAILED, mtaStsStatus, recordStatus, type Verdict } from '$lib/dns';
-	import { cn } from '$lib/utils.js';
 	import type { Snippet } from 'svelte';
 	import DetailHeading from './detail-heading.svelte';
 
-	let {
-		dns,
-		domain
-	}: {
-		dns: DnsCheckResponse | null;
-		domain: string;
-	} = $props();
+	let { dns }: { dns: DnsCheckResponse | null } = $props();
+</script>
 
-	const mtaSts = $derived(dns?.mta_sts);
-	const tlsRptRecords = $derived(dns?.tls_rpt?.records ?? []);
-	const bimi = $derived(dns?.bimi);
-	const bimiRecords = $derived(bimi?.records ?? []);
-	const policy = $derived(mtaSts?.policy);
-	const mtaStsFields = $derived([
-		{ label: 'Policy URL', value: mtaSts?.policy_url || '—', mono: !!mtaSts?.policy_url },
+{#snippet nameLine(name: string, lookup: LookupStatus)}
+	<div class="flex flex-wrap items-center gap-2 text-xs">
+		<span class="font-mono font-medium break-all">{name}</span>
+		<LookupBadge {lookup} />
+	</div>
+{/snippet}
+
+{#snippet mtaStsDetails(m: MtaStsCheckResult)}
+	{@const fields = [
+		{ label: 'Policy URL', value: m.policy_url || '—', mono: !!m.policy_url },
+		{ label: 'Policy fetch', value: policyFetchLabel(m.fetch), mono: false },
 		{
 			label: 'Max age',
-			value: policy?.max_age != null ? `${formatInt(policy.max_age)} seconds` : '—',
+			value: m.policy?.max_age != null ? `${formatInt(m.policy.max_age)} seconds` : '—',
 			mono: false
 		},
-		{ label: 'MX host patterns', value: policy?.mx?.join(', ') || '—', mono: !!policy?.mx?.length }
-	]);
-</script>
+		{ label: 'MX host patterns', value: m.policy?.mx.join(', ') || '—', mono: !!m.policy?.mx.length }
+	]}
+	<div class="@container space-y-3">
+		{@render nameLine(m.txt_name, m.txt_lookup)}
+		{#if m.txt_record}
+			<DnsRawRecord value={m.txt_record} label="MTA-STS record" />
+		{/if}
+		<div class="grid gap-2 @md:grid-cols-2 text-xs rounded-md border border-border bg-background p-3">
+			{#each fields as field (field.label)}
+				<div>
+					<span class="text-muted-foreground text-[11px]">{field.label}</span>
+					<p class={cn('font-medium text-foreground mt-0.5 break-all', field.mono ? 'font-mono' : 'tabular-nums')}>
+						{field.value}
+					</p>
+				</div>
+			{/each}
+		</div>
+	</div>
+{/snippet}
+
+{#snippet tlsRptDetails(t: TlsRptCheckResult)}
+	<div class="space-y-3">
+		{@render nameLine(t.name, t.lookup)}
+		<!-- eslint-disable-next-line svelte/require-each-key -- a TXT answer is not deduplicated, so the record text can repeat -->
+		{#each t.records as rec}
+			<DnsRawRecord value={rec} label="TLS-RPT record" />
+		{/each}
+	</div>
+{/snippet}
+
+{#snippet bimiDetails(b: BimiCheckResult)}
+	<div class="space-y-3">
+		{@render nameLine(b.name, b.lookup)}
+		<!-- eslint-disable-next-line svelte/require-each-key -- a TXT answer is not deduplicated, so the record text can repeat -->
+		{#each b.records as rec}
+			<DnsRawRecord value={rec} label="BIMI record" />
+		{/each}
+		{#if b.records.length > 0}
+			<div class="text-xs">
+				<p class="text-muted-foreground">
+					Logo location:
+					<span class={cn('text-foreground', b.parsed?.logo_url && 'font-mono break-all')}>
+						{b.parsed?.logo_url || '—'}
+					</span>
+				</p>
+				<p class="text-muted-foreground mt-0.5">
+					Certificate (VMC):
+					<span class={cn('text-foreground', b.parsed?.authority_url && 'font-mono break-all')}>
+						{b.parsed?.authority_url || '—'}
+					</span>
+				</p>
+			</div>
+		{/if}
+	</div>
+{/snippet}
 
 {#snippet card(title: string, status: Verdict, body: Snippet, note?: string)}
 	<div class="rounded-lg border border-border p-3.5 bg-muted/10">
@@ -50,59 +117,19 @@
 {/snippet}
 
 {#snippet mtaStsBody()}
-	{#if mtaSts?.txt_record}
-		<div class="mb-3">
-			<DnsRawRecord value={mtaSts.txt_record} label="MTA-STS record" />
-		</div>
-	{/if}
-	<div class="grid gap-2 sm:grid-cols-3 text-xs rounded-md border border-border bg-background p-3">
-		{#each mtaStsFields as field (field.label)}
-			<div>
-				<span class="text-muted-foreground text-[11px]">{field.label}</span>
-				<p class={cn('font-medium text-foreground mt-0.5 break-all', field.mono ? 'font-mono' : 'tabular-nums')}>
-					{field.value}
-				</p>
-			</div>
-		{/each}
-	</div>
+	{#if dns}{@render mtaStsDetails(dns.mta_sts)}{/if}
 {/snippet}
 
 {#snippet tlsRptBody()}
-	<!-- eslint-disable-next-line svelte/require-each-key -- a TXT answer is not deduplicated, so the record text can repeat -->
-	{#each tlsRptRecords as rec}
-		<DnsRawRecord value={rec} label="TLS-RPT record" />
-	{:else}
-		<p class="text-xs text-muted-foreground">No record at <span class="font-mono">_smtp._tls.{domain}</span></p>
-	{/each}
+	{#if dns}{@render tlsRptDetails(dns.tls_rpt)}{/if}
 {/snippet}
 
 {#snippet bimiBody()}
-	<!-- eslint-disable-next-line svelte/require-each-key -- a TXT answer is not deduplicated, so the record text can repeat -->
-	{#each bimiRecords as rec}
-		<DnsRawRecord value={rec} label="BIMI record" />
-	{:else}
-		<p class="text-xs text-muted-foreground">No record at <span class="font-mono">default._bimi.{domain}</span></p>
-	{/each}
-	{#if bimiRecords.length > 0}
-		<div class="mt-2 text-xs">
-			<p class="text-muted-foreground">
-				Logo location:
-				<span class={cn('text-foreground', bimi?.parsed?.logo_url && 'font-mono break-all')}>
-					{bimi?.parsed?.logo_url || '—'}
-				</span>
-			</p>
-			<p class="text-muted-foreground mt-0.5">
-				Certificate (VMC):
-				<span class={cn('text-foreground', bimi?.parsed?.authority_url && 'font-mono break-all')}>
-					{bimi?.parsed?.authority_url || '—'}
-				</span>
-			</p>
-		</div>
-	{/if}
+	{#if dns}{@render bimiDetails(dns.bimi)}{/if}
 {/snippet}
 
 <div class="space-y-4">
-	{@render card('MTA-STS (RFC 8461)', mtaSts ? mtaStsStatus(mtaSts) : CHECK_FAILED, mtaStsBody)}
+	{@render card('MTA-STS (RFC 8461)', dns ? mtaStsStatus(dns.mta_sts) : CHECK_FAILED, mtaStsBody)}
 	{@render card(
 		'TLS-RPT (RFC 8460)',
 		dns ? recordStatus(dns.tls_rpt.records, dns.tls_rpt.lookup) : CHECK_FAILED,

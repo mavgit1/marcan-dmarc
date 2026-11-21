@@ -1,5 +1,7 @@
 ---
 layout: home
+titleTemplate: Self-hosted DMARC monitoring
+description: Marcan is self-hosted DMARC monitoring that reads aggregate reports from IMAP or Microsoft 365 mailboxes, checks DNS live and says when to tighten the policy.
 
 hero:
   name: Marcan

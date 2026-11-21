@@ -1,3 +1,7 @@
+---
+description: How Marcan fetches, parses and stores DMARC aggregate reports, decides alignment itself, sorts mail into four outcomes and names senders from reverse DNS.
+---
+
 # How it works
 
 ## The pipeline

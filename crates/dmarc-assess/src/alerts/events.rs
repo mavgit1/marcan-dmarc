@@ -20,7 +20,6 @@ use ts_rs::TS;
 /// numbers it is based on included; the UI and the alert email word them,
 /// one table per side.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-#[ts(export)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AlertKind {
     /// A domain issue (as the attention list shows it) opened. Delivered

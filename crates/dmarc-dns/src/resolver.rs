@@ -191,12 +191,6 @@ impl TableResolver {
         self
     }
 
-    /// Answer `name` with `lookup` (a timeout for one name, say).
-    pub fn with_answer(mut self, name: &str, lookup: TxtLookup) -> Self {
-        self.txt.insert(normalize_name(name), lookup);
-        self
-    }
-
     /// Answer A/AAAA lookups of `name` with `addresses`.
     pub fn with_addresses(mut self, name: &str, addresses: &[IpAddr]) -> Self {
         self.forward

@@ -116,13 +116,6 @@ pub struct FetchSummary {
     pub yielded: bool,
 }
 
-impl FetchSummary {
-    /// Whether this pass moved the cursor forward.
-    pub fn advanced(&self) -> bool {
-        self.progressed
-    }
-}
-
 impl fmt::Display for FetchSummary {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -187,7 +180,7 @@ impl FetchError {
     }
 
     fn write_progress(&self, f: &mut impl fmt::Write) -> fmt::Result {
-        if self.summary.advanced() {
+        if self.summary.progressed {
             write!(
                 f,
                 " (progress saved: {} messages processed, {} reports imported; the next pass continues from there)",
@@ -1277,7 +1270,7 @@ mod tests {
         assert_eq!(s.messages_seen, 0);
         assert_eq!(s.start_position, None);
         assert_eq!(s.end_position, None);
-        assert!(!s.advanced());
+        assert!(!s.progressed);
         assert_eq!(
             s.to_string(),
             "messages_seen=0, reports_ingested=0, reports_duplicate=0, errors=0, messages_quarantined=0, progressed=false, interrupted=false, yielded=false"
@@ -1292,7 +1285,6 @@ mod tests {
             progressed: true,
             ..FetchSummary::default()
         };
-        assert!(s.advanced());
         assert!(s.to_string().contains("reports_ingested=1"));
         assert!(s.to_string().contains("start_position=10, end_position=20"));
     }
@@ -1524,7 +1516,7 @@ mod tests {
         assert!(err.message.contains("timed out"), "{err}");
         assert!(err.message.contains("UIDs 3–4"), "{err}");
         assert_eq!(run.summary.end_position, Some(2));
-        assert!(run.summary.advanced());
+        assert!(run.summary.progressed);
         assert_eq!(cursor(&backend), Some((1, 2)));
         assert_eq!(backend.report_count(), 2);
 

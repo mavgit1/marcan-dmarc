@@ -1,6 +1,10 @@
+---
+description: Start Marcan with Docker, connect a report mailbox over IMAP or Microsoft 365, point your domains' DMARC rua= at it and follow the first-start setup.
+---
+
 # Getting started
 
-Marcan reads DMARC aggregate reports from one or more mailboxes (over IMAP, or Microsoft Graph for Microsoft 365), checks your domains' SPF, DKIM and DMARC records live, and shows the results in a web dashboard. It is one Rust binary with the UI built in, and it keeps everything in one SQLite file.
+Marcan reads DMARC aggregate reports from one or more mailboxes (over IMAP, or Microsoft Graph for Microsoft 365), checks your domains' DMARC, SPF, DKIM, MTA-STS, TLS-RPT and BIMI records live, and shows the results in a web dashboard. It is one Rust binary with the UI built in, and it keeps everything in one SQLite file.
 
 <Screenshot name="dashboard" alt="The Marcan dashboard: message counts, delivered compliance, senders and messages per day by outcome" />
 
@@ -52,7 +56,7 @@ Until the setup is finished or skipped, Marcan opens it at **/setup**. It shows 
 <Screenshot name="setup" alt="The setup at its Accounts step: the steps from Organization to Done along the top, then the account form with provider, email address, login, the folder, the servers under Advanced, Test and Save and start import" />
 
 1. **Organization**: the group new domains land in. Rename it, or keep "Default" and add one organization per client later.
-2. **Accounts**: the mailboxes the reports arrive in, one or more, in the same form as **Settings → Accounts** ([Accounts](./accounts)): provider (Microsoft 365, or any IMAP/SMTP provider), email address, login, and the servers under **Advanced** for a provider without a preset (a Microsoft 365 account has none). **Test** logs in and lists the folders; pick the one the reports land in, which shows how many messages it holds. **Save and start import** tests the login, saves the account and starts importing the reports already in its folder; nothing is imported before. **Add another account** adds the next one.
+2. **Accounts**: the mailboxes the reports arrive in, one or more, in the same form as **Settings → Accounts** ([Accounts](./accounts)): provider (IMAP/SMTP for any mail provider, Google, or Microsoft 365), email address, login, and the servers under **Advanced** for a provider without a preset (a Microsoft 365 account has none). **Test** logs in and lists the folders; pick the one the reports land in, which shows how many messages it holds. **Save and start import** tests the login, saves the account and starts importing the reports already in its folder; nothing is imported before. **Add another account** adds the next one.
 3. **Import**: how far the import is, for example "Importing: 1,204 reports from 14 domains so far, checking DNS", then one line per account: the one being read with a progress bar, the others with their last check or error. You can continue at once: the import keeps running behind the next steps, and the header shows it too.
 4. **Domains**: the domains the import found, a list that grows while it runs, and a box to add more. Optional: domains also appear on their own when their first report arrives.
 5. **Report addresses**: every address reports reach Marcan at (each account's, and the ones forwarded to it), the one new DMARC records name, and the authorization record each address domain still needs, with the real addresses. Nothing to type: an address is changed on its account.

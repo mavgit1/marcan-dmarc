@@ -89,7 +89,7 @@
 	{:else if pillar === 'dkim'}
 		<DkimDetails check={dns?.dkim} {onRefresh} />
 	{:else if pillar === 'transport'}
-		<TransportDetails {dns} domain={overview.domain} />
+		<TransportDetails {dns} />
 	{:else}
 		<TelemetryDetails
 			failuresHref={`${resolve(`/domains/${overview.id}`)}?tab=failures&outcome=${outcomeParam(DELIVERED_FAILURE_FILTER.outcome)}`}

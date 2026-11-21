@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://marcan.kaitiaki.tech/sitemap.xml

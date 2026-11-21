@@ -1,3 +1,7 @@
+---
+description: Free for your own domains; for running Marcan for clients, Operator 60 at USD 20 a month or Operator Unlimited at USD 50 a month, each with a 30-day trial.
+---
+
 # Pricing
 
 Marcan is free software. An operator license is for those who run it for clients and want the free-software notice out of their client emails.

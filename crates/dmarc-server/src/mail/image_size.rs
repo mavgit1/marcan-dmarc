@@ -8,19 +8,29 @@
 //! read (PNG, JPEG, WebP; [`dmarc_store::LogoType`]), and only as far as the
 //! header that states the size: no image library.
 
-use dmarc_store::PixelSize;
+use dmarc_store::{LogoType, PixelSize};
+
+/// The image format of `bytes`, from its first bytes (its signature): the
+/// formats a logo may have, and the ones [`pixel_size`] reads.
+pub fn sniff_logo(bytes: &[u8]) -> Option<LogoType> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some(LogoType::Png)
+    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some(LogoType::Jpeg)
+    } else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        Some(LogoType::Webp)
+    } else {
+        None
+    }
+}
 
 /// The size of the PNG, JPEG or WebP image in `bytes`; `None` for another
 /// format or a header that does not state one.
 pub fn pixel_size(bytes: &[u8]) -> Option<PixelSize> {
-    let size = if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        png(bytes)
-    } else if bytes.starts_with(&[0xFF, 0xD8]) {
-        jpeg(bytes)
-    } else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
-        webp(bytes)
-    } else {
-        None
+    let size = match sniff_logo(bytes)? {
+        LogoType::Png => png(bytes),
+        LogoType::Jpeg => jpeg(bytes),
+        LogoType::Webp => webp(bytes),
     }?;
     (size.width > 0 && size.height > 0).then_some(size)
 }
@@ -136,6 +146,24 @@ pub fn fit(natural: PixelSize, max_width: u32, max_height: u32) -> PixelSize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_logo_is_known_by_its_bytes() {
+        assert_eq!(
+            sniff_logo(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"),
+            Some(LogoType::Png)
+        );
+        assert_eq!(sniff_logo(&[0xFF, 0xD8, 0xFF, 0xE0]), Some(LogoType::Jpeg));
+        assert_eq!(sniff_logo(b"RIFF\x24\0\0\0WEBPVP8 "), Some(LogoType::Webp));
+        // GIF, SVG, a RIFF that is a WAV, and a short PNG prefix are not.
+        assert_eq!(sniff_logo(b"GIF89a"), None);
+        assert_eq!(
+            sniff_logo(b"<svg xmlns=\"http://www.w3.org/2000/svg\">"),
+            None
+        );
+        assert_eq!(sniff_logo(b"RIFF\x24\0\0\0WAVEfmt "), None);
+        assert_eq!(sniff_logo(b"\x89PNG"), None);
+    }
 
     fn size(width: u32, height: u32) -> PixelSize {
         PixelSize { width, height }

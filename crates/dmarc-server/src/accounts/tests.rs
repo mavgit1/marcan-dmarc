@@ -409,12 +409,12 @@ fn the_account_s_address_is_the_sender() {
         test_recipient: "me@example.org".into(),
         ..SendingSettings::default()
     };
-    assert_eq!(test_recipient(&to_me, Some(&sender())), "me@example.org");
+    assert_eq!(test_recipient(&to_me, &sender().address), "me@example.org");
     assert_eq!(
-        test_recipient(&SendingSettings::default(), Some(&sender())),
+        test_recipient(&SendingSettings::default(), &sender().address),
         "dmarc@example.com"
     );
-    assert_eq!(test_recipient(&SendingSettings::default(), None), "");
+    assert_eq!(test_recipient(&SendingSettings::default(), ""), "");
 }
 
 /// Without an operator key the From name says Marcan too; with one the

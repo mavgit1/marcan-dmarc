@@ -37,7 +37,7 @@ use dmarc_assess::{
 use dmarc_dns::DnsReport;
 use dmarc_identity::SenderIdentity;
 use dmarc_store::{
-    list_domain_summaries, readiness_mail, sender_export_ips, stream_auth_issue_export,
+    list_domain_summaries, readiness_mail, source_ips_in_scope, stream_auth_issue_export,
     stream_dns_snapshot_export, stream_sender_export, unix_now, AuthIssueExportRow, Scope,
     SenderExportRow, StoreError,
 };
@@ -552,7 +552,7 @@ pub async fn export_senders_csv(
 ) -> AppResult<Response> {
     let scope = q.scope()?;
     // Named up front from stored evidence (never live DNS), like every page.
-    let ips = sender_export_ips(&state.pool, scope).await?;
+    let ips = source_ips_in_scope(&state.pool, scope).await?;
     let names = identities(&state, ips.iter().map(String::as_str)).await?;
     let pool = state.pool.clone();
     Ok(csv_download(

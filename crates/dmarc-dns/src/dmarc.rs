@@ -208,6 +208,32 @@ fn parse_uri_list(raw: &str) -> Vec<ReportUri> {
         .collect()
 }
 
+/// `text` with its `%XX` escapes decoded (a `mailto:` address may encode
+/// what would otherwise end the URI or the tag, RFC 6068 §2); as written
+/// when an escape is malformed or the result is not UTF-8.
+fn percent_decoded(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let escape = (bytes[i] == b'%')
+            .then(|| text.get(i + 1..i + 3))
+            .flatten()
+            .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+        match escape {
+            Some(byte) => {
+                out.push(byte);
+                i += 3;
+            }
+            None => {
+                out.push(bytes[i]);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).unwrap_or_else(|_| text.to_owned())
+}
+
 fn parse_report_uri(raw: &str) -> ReportUri {
     let (uri_part, size_limit) = match raw.rsplit_once('!') {
         Some((uri, limit)) if !limit.is_empty() && !limit.contains('@') => {
@@ -218,8 +244,8 @@ fn parse_report_uri(raw: &str) -> ReportUri {
 
     let lower = uri_part.to_ascii_lowercase();
     if let Some(rest) = uri_part.get(7..).filter(|_| lower.starts_with("mailto:")) {
-        let addr = rest.to_string();
-        let host = addr.split('@').nth(1).map(str::to_ascii_lowercase);
+        let addr = percent_decoded(rest);
+        let host = addr.rsplit_once('@').map(|(_, h)| h.to_ascii_lowercase());
         let valid = addr.contains('@')
             && host
                 .as_ref()
@@ -314,20 +340,6 @@ fn dmarc_records_from(lookup: &TxtLookup) -> Vec<String> {
             .collect();
     }
     records
-}
-
-/// Minimal shape check for a report mailbox address (`rua=mailto:`):
-/// `local@domain` with a valid hostname, no whitespace, and nothing that would
-/// break a `mailto:` URI inside a DMARC record (`;`, `,`, `!`).
-pub fn is_valid_report_address(addr: &str) -> bool {
-    let Some((local, domain)) = addr.rsplit_once('@') else {
-        return false;
-    };
-    !local.is_empty()
-        && !addr
-            .chars()
-            .any(|c| c.is_whitespace() || matches!(c, ';' | ',' | '!' | '<' | '>'))
-        && dmarc_domain::normalize_domain(domain).is_ok()
 }
 
 /// Evaluate a DMARC TXT lookup. `auth_lookups` is keyed by authorization record name.
@@ -1337,16 +1349,5 @@ mod tests {
             .findings
             .iter()
             .any(|f| f.code == "dmarc_missing" && f.severity == Severity::Critical));
-    }
-
-    #[test]
-    fn report_address_shape() {
-        assert!(is_valid_report_address("dmarc@example.com"));
-        assert!(is_valid_report_address("dmarc+reports@sub.example.org"));
-        assert!(!is_valid_report_address("example.com"));
-        assert!(!is_valid_report_address("@example.com"));
-        assert!(!is_valid_report_address("a b@example.com"));
-        assert!(!is_valid_report_address("a;b@example.com"));
-        assert!(!is_valid_report_address("a@not a host"));
     }
 }

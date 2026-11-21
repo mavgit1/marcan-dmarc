@@ -8,7 +8,30 @@
 /// A monitoring record for a domain without DMARC: `p=none` only asks for
 /// reports and does not affect delivery.
 pub fn new_record(report_address: &str) -> String {
-    format!("v=DMARC1; p=none; rua=mailto:{report_address}")
+    format!("v=DMARC1; p=none; rua={}", mailto(report_address))
+}
+
+/// `address` as a `mailto:` URI that can stand in a DMARC record. A local
+/// part may hold characters that mean something there (`;` ends a tag, `,`
+/// the URI, `!` starts a size limit, a quoted one may hold spaces), so all
+/// but letters, digits and `-._~+` are percent-encoded (RFC 6068 §2, RFC
+/// 7489 §6.2); [`parse_dmarc_record`](crate::dmarc::parse_dmarc_record)
+/// decodes them again. The domain stays as it is.
+fn mailto(address: &str) -> String {
+    let (local, domain) = address.rsplit_once('@').unwrap_or((address, ""));
+    let mut uri = String::from("mailto:");
+    for byte in local.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-._~+".contains(&byte) {
+            uri.push(char::from(byte));
+        } else {
+            uri.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    if !domain.is_empty() {
+        uri.push('@');
+        uri.push_str(domain);
+    }
+    uri
 }
 
 /// Whether `part` (one `;`-separated piece of a record) is the tag `name`.
@@ -35,7 +58,7 @@ fn split_trailing(part: &str) -> (&str, &str) {
 /// new `rua=` tag when it has none, or fills an empty one). Every other tag,
 /// `p=` included, is left as published.
 pub fn with_report_address(record: &str, report_address: &str) -> String {
-    let uri = format!("mailto:{report_address}");
+    let uri = mailto(report_address);
     let mut parts: Vec<String> = record.split(';').map(str::to_owned).collect();
     // The parser reads the last `rua=` when a record repeats it.
     let Some(i) = parts.iter().rposition(|p| is_tag(p, "rua")) else {
@@ -114,6 +137,34 @@ mod tests {
         let parsed = parse_dmarc_record(&record);
         assert_eq!(parsed.p.as_deref(), Some("none"));
         assert_eq!(rua(&record), [format!("mailto:{ADDR}")]);
+    }
+
+    #[test]
+    fn an_address_that_would_break_the_record_is_encoded_and_read_back() {
+        for (address, uri) in [
+            ("a!b@example.com", "mailto:a%21b@example.com"),
+            ("\"a;b\"@example.com", "mailto:%22a%3Bb%22@example.com"),
+            ("\"a, b\"@example.com", "mailto:%22a%2C%20b%22@example.com"),
+            ("a%b@example.com", "mailto:a%25b@example.com"),
+            ("ä@example.com", "mailto:%C3%A4@example.com"),
+            (
+                "dmarc+client@example.com",
+                "mailto:dmarc+client@example.com",
+            ),
+        ] {
+            for record in [
+                new_record(address),
+                with_report_address("v=DMARC1; p=reject; rua=mailto:a@example.com", address),
+            ] {
+                let parsed = parse_dmarc_record(&record);
+                assert!(parsed.p.is_some(), "{record}");
+                let named = parsed.rua.last().expect("a rua");
+                assert_eq!(named.raw, uri, "{record}");
+                assert_eq!(named.address.as_deref(), Some(address), "{record}");
+                assert_eq!(named.size_limit, None, "{record}");
+                assert!(named.valid, "{record}");
+            }
+        }
     }
 
     #[test]

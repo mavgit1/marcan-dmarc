@@ -296,7 +296,8 @@ impl SendingSettingsResponse {
         Self {
             group: sending.clone(),
             effective_test_recipient: mail::parse_address(accounts::test_recipient(
-                sending, account,
+                sending,
+                account.map_or("", |a| a.address.as_str()),
             ))
             .map(|a| a.to_string())
             .unwrap_or_default(),

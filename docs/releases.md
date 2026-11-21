@@ -1,3 +1,7 @@
+---
+description: Release notes for every Marcan version, with the changes to the app, API, CSV exports and Compose stacks, and what to do before upgrading to each one.
+---
+
 <!--
   For maintainers: in each entry, the "before upgrading" sentence first, then one bullet per
   product change (the app, the API, the exports, the stack files), most important first, and
@@ -8,6 +12,16 @@
 # Releases
 
 Newest first. Each release is tagged `vX.Y.Z` and the image `ghcr.io/mavgit1/marcan` carries the same tag; how to move to a new one is in [Upgrade](./upgrade). An entry says what changed and what, if anything, to do before upgrading.
+
+## 0.4.1
+
+Nothing to do before upgrading: the database does not change, so going back to 0.4.0 needs no backup.
+
+- **Security**: the mail library Marcan sends with (lettre 0.11.24) fixes six advisories published on 17 November, among them SMTP command injection through a crafted message body, injected STARTTLS responses, and mail for an unusual quoted address going to another recipient. They concern the mail Marcan sends (alerts, digests, client reports), not the reading of reports.
+- **Suggested DMARC records** write an unusual report address safely: a `!`, a comma, a semicolon or a space in the part before the `@` is percent-encoded, as a DMARC record requires, so the record pasted into DNS is not cut short or misread. A record that names the address this way is recognized as naming it. Ordinary addresses are written as before.
+- **The DNS inspector** shows SPF, MTA-STS, TLS-RPT and BIMI exactly as a domain's DNS checks do, and now also BIMI's logo and certificate. A domain's DNS checks show the queried name with its raw DNS answer on every transport check and how the MTA-STS policy fetch went; SPF shows no lookup counts while the include tree could not be read completely.
+- New versions now get an entry under [Releases](https://github.com/mavgit1/marcan-dmarc/releases) on GitHub, so watching the repository's releases tells you about them.
+- Docs: every page has its own description and link preview, the site has a sitemap, and `llms.txt` and `llms-full.txt` give language models the docs as plain text; the roadmap no longer lists a public demo.
 
 ## 0.4.0
 

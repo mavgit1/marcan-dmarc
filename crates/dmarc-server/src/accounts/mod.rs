@@ -44,7 +44,8 @@ pub mod test;
 pub use secrets::{SecretChange, SecretKey, SecretKeys};
 
 use crate::mail::{
-    check_port, parse_address, Letterhead, SendConfig, SendError, SmtpServer, Transport,
+    check_port, parse_address, parse_reply_to, Letterhead, SendConfig, SendError, SmtpServer,
+    Transport,
 };
 use crate::wording::accounts::{
     invalid_sender_address, locked_sentence, no_sender_address, NO_SENDING_ACCOUNT,
@@ -344,22 +345,10 @@ impl Accounts {
         }
     }
 
-    /// These accounts with Microsoft logins' tokens from `tokens` (a fake
-    /// token endpoint in tests, or the source of the accounts replaced).
-    #[must_use]
-    pub fn with_tokens(self, tokens: Arc<TokenSource>) -> Self {
-        Self { tokens, ..self }
-    }
-
-    /// These accounts with Microsoft logins reading Graph at `graph` (a
-    /// fake one in tests, or the endpoint of the accounts replaced).
-    #[must_use]
-    pub fn with_graph(self, graph: GraphApi) -> Self {
-        Self { graph, ..self }
-    }
-
     /// The same accounts and key with Microsoft logins' tokens from
-    /// `tokens` (nothing cached, no draft kept).
+    /// `tokens` (a fake token endpoint in tests, or the source of the
+    /// accounts replaced; nothing cached, no draft kept).
+    #[must_use]
     pub fn with_token_source(&self, tokens: Arc<TokenSource>) -> Self {
         Self {
             pool: self.pool.clone(),
@@ -373,7 +362,9 @@ impl Accounts {
     }
 
     /// The same accounts, key and tokens with Microsoft logins reading
-    /// Graph at `graph` (nothing cached, no draft kept).
+    /// Graph at `graph` (a fake one in tests, or the endpoint of the
+    /// accounts replaced; nothing cached, no draft kept).
+    #[must_use]
     pub fn with_graph_api(&self, graph: GraphApi) -> Self {
         Self {
             graph,
@@ -781,14 +772,7 @@ pub fn send_config_for(
         from => parse_address(from)
             .ok_or_else(|| SendError::Incomplete(invalid_sender_address(&account.name, from)))?,
     };
-    let reply_to = match Some(&sending.reply_to).filter(|r| !r.is_empty()) {
-        None => None,
-        Some(raw) => Some(parse_address(raw).ok_or_else(|| {
-            SendError::Incomplete(format!(
-                "The Reply-To address {raw} is not a valid email address."
-            ))
-        })?),
-    };
+    let reply_to = parse_reply_to(&sending.reply_to).map_err(SendError::Incomplete)?;
     Ok(SendConfig {
         transport,
         sender,
@@ -797,14 +781,11 @@ pub fn send_config_for(
     })
 }
 
-/// Where test emails and previews go: the stored test recipient, else the
-/// sending account's address; empty when neither (not validated here).
-pub fn test_recipient<'a>(
-    sending: &'a SendingSettings,
-    account: Option<&'a AccountFields>,
-) -> &'a str {
+/// Where test emails and previews go: the stored test recipient, else
+/// `sender`, the sending account's address (not validated here).
+pub fn test_recipient<'a>(sending: &'a SendingSettings, sender: &'a str) -> &'a str {
     match sending.test_recipient.as_str() {
-        "" => account.map_or("", |a| a.address.as_str()),
+        "" => sender,
         to => to,
     }
 }

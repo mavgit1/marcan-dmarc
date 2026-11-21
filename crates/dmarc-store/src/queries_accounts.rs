@@ -21,8 +21,7 @@ use ts_rs::TS;
 
 /// Which provider an account was set up for: its servers' presets and its
 /// login choices.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AccountProvider {
     Microsoft365,
@@ -362,6 +361,7 @@ fn bind_fields<'q>(
 
 /// Add an account (as `id` when given, else the next id) with its secrets,
 /// in one transaction; its id.
+#[cfg(any(test, feature = "test-support"))]
 pub async fn insert_account(
     pool: &SqlitePool,
     id: Option<i64>,
@@ -545,6 +545,7 @@ async fn write_secrets(
 }
 
 /// Set account `id`'s address alone (empty: none).
+#[cfg(any(test, feature = "test-support"))]
 pub async fn set_account_address(
     pool: &SqlitePool,
     id: i64,

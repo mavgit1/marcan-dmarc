@@ -122,6 +122,7 @@ pub enum TokenErrorKind {
 }
 
 impl TokenErrorKind {
+    #[cfg(test)]
     pub const ALL: [Self; 7] = [
         Self::WrongTenant,
         Self::UnknownClient,

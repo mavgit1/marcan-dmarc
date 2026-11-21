@@ -1,3 +1,7 @@
+---
+description: What is planned for Marcan and what has shipped, without dates, from alerts, client reports and accounts to TLS-RPT reports and a stable 1.0.
+---
+
 # Roadmap
 
 Ideas and plans, not promises. Nothing here has a date. If one of them matters to you, say so in an [issue](https://github.com/mavgit1/marcan-dmarc/issues): that decides the order.
@@ -24,10 +28,6 @@ Ideas and plans, not promises. Nothing here has a date. If one of them matters t
 ## Retention
 
 **Shipped.** Reports and alerts older than the retention period (12 months by default, **Settings → Data → Retention**) are deleted once a day. See [Retention](./backup#retention).
-
-## Trying it
-
-- **A public demo**: a read-only instance with the demo data, to look around without installing anything.
 
 ## Stability
 

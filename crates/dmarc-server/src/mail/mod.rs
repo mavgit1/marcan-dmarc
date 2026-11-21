@@ -35,6 +35,8 @@ mod error;
 pub mod frame;
 pub(crate) mod graph;
 pub mod image_size;
+#[cfg(any(test, feature = "test-support"))]
+mod memory_sender;
 mod message;
 pub(crate) mod mime;
 mod sender;
@@ -43,12 +45,15 @@ mod text;
 
 pub(crate) use config::check_port;
 pub use config::{
-    default_port, parse_address, SendConfig, SmtpServer, Transport, STARTTLS_PORT, TLS_PORT,
+    default_port, parse_address, parse_reply_to, SendConfig, SmtpServer, Transport, STARTTLS_PORT,
+    TLS_PORT,
 };
 pub use error::{GraphRefusal, SendError, Stage};
 pub use frame::Content;
+#[cfg(any(test, feature = "test-support"))]
+pub use memory_sender::MemorySender;
 pub use message::{InlineImage, Message, LOGO_CID, MARK_CID};
-pub use sender::{MailSender, MemorySender, NetworkSender, PacedSender, SEND_MIN_INTERVAL};
+pub use sender::{MailSender, NetworkSender, PacedSender, SEND_MIN_INTERVAL};
 pub use text::{email_top, footer, from_name, possessive, sign_off, Footer, Letterhead};
 
 use std::time::Duration;

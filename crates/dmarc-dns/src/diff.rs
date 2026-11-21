@@ -4,7 +4,7 @@
 //! records ([`DnsRecords`], in `dmarc_assess`'s vocabulary), so a record
 //! written with other whitespace, other case or its terms in another order is
 //! the same record. [`diff_records`] compares two of those and says what
-//! changed per check; [`diff_reports`] does both. Nothing here judges:
+//! changed per check. Nothing here judges:
 //! `dmarc_assess::alert_events` decides which change is worth an event and
 //! its colour.
 //!
@@ -51,13 +51,9 @@ pub fn record_facts(report: &DnsReport) -> DnsRecords {
     }
 }
 
-/// What changed from `previous` to `current`, check by check (DMARC, SPF,
-/// DKIM by selector, MTA-STS, TLS-RPT, BIMI).
-pub fn diff_reports(previous: &DnsReport, current: &DnsReport) -> Vec<RecordChange> {
-    diff_records(&record_facts(previous), &record_facts(current))
-}
-
-/// [`diff_reports`] over facts already taken (as alerts store them).
+/// What changed from `previous` to `current` (facts as [`record_facts`]
+/// takes them and alerts store them), check by check (DMARC, SPF, DKIM by
+/// selector, MTA-STS, TLS-RPT, BIMI).
 pub fn diff_records(previous: &DnsRecords, current: &DnsRecords) -> Vec<RecordChange> {
     let mut changes = Vec::new();
     let mut push = |check: CheckKind, change: Option<RecordDelta>| {
@@ -471,7 +467,7 @@ mod tests {
     }
 
     fn diff(a: &Spec, b: &Spec) -> Vec<RecordChange> {
-        diff_reports(&build(a), &build(b))
+        diff_records(&record_facts(&build(a)), &record_facts(&build(b)))
     }
 
     fn one(check: CheckKind, change: RecordDelta) -> Vec<RecordChange> {

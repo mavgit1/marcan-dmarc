@@ -24,7 +24,8 @@ pub struct ObservedSelector {
 }
 
 impl ObservedSelector {
-    /// An observation without volume (tests, callers without report data).
+    /// An observation without volume (tests).
+    #[cfg(test)]
     pub fn named(selector: impl Into<String>) -> Self {
         Self {
             selector: selector.into(),

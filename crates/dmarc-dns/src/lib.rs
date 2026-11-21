@@ -23,7 +23,7 @@ pub mod policy;
 pub mod spf;
 
 pub use checker::{assemble_report, CheckBudget, DnsChecker, DnsReport};
-pub use diff::{diff_records, diff_reports, dns_state, record_facts};
+pub use diff::{diff_records, dns_state, record_facts};
 pub use dns::{parse_ip, DnsError, ForwardLookup, IpError, PtrLookup};
 pub use lookup::{LookupStatus, TxtAnswer, TxtLookup};
 pub use resolver::{default_resolver, Resolver, TableResolver};

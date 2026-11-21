@@ -33,8 +33,7 @@ use crate::imap::config::ImapConfig;
 use crate::imap::Transport;
 use crate::pass::{default_parser, FetchSummary, Pass, YieldPoint};
 use crate::progress::{PassProgress, SharedProgress};
-use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex, MutexGuard};
 use std::time::Duration;
 use tokio::sync::{Mutex, Notify, OwnedMutexGuard};
@@ -191,22 +190,15 @@ impl Slot {
     }
 }
 
-/// Re-imports asked for before the next listing.
-#[derive(Debug, Default)]
-struct PendingReimport {
-    /// Every mailbox (kept until a listing has one).
-    all: bool,
-    /// These mailboxes (each kept until it is listed).
-    ids: HashSet<String>,
-}
-
 #[derive(Debug, Default)]
 struct Schedule {
     /// The mailboxes of the last listing, in its order.
     slots: Vec<Slot>,
     /// Turns taken since startup.
     turns: u64,
-    pending: PendingReimport,
+    /// A re-import of every mailbox was asked for before the next listing
+    /// (kept until a listing has one).
+    pending_reimport: bool,
     /// The running pass's mailbox and cancellation, so a settings change
     /// stops it between batches (shutdown cancels the loop's own token).
     current: Option<(String, CancellationToken)>,
@@ -244,17 +236,13 @@ impl Schedule {
                 slot
             })
             .collect();
-        let PendingReimport { all, mut ids } = std::mem::take(&mut self.pending);
-        for slot in &mut self.slots {
-            if ids.remove(&slot.id) || all {
+        if self.pending_reimport {
+            for slot in &mut self.slots {
                 slot.reimport = true;
                 slot.ask();
             }
+            self.pending_reimport = self.slots.is_empty();
         }
-        self.pending = PendingReimport {
-            all: all && self.slots.is_empty(),
-            ids,
-        };
         self.check_round();
     }
 
@@ -338,8 +326,9 @@ struct Inner {
     wake: Notify,
     progress: SharedProgress,
     schedule: StdMutex<Schedule>,
-    /// How many times the settings changed; diagnostics and tests.
-    generation: AtomicU64,
+    /// How many times the settings changed; for tests.
+    #[cfg(any(test, feature = "test-support"))]
+    generation: std::sync::atomic::AtomicU64,
     limits: Limits,
     #[cfg(any(test, feature = "test-support"))]
     fakes: StdMutex<Option<FakeServers>>,
@@ -373,7 +362,8 @@ impl MailboxWorker {
                 wake: Notify::new(),
                 progress: SharedProgress::default(),
                 schedule: StdMutex::new(Schedule::default()),
-                generation: AtomicU64::new(0),
+                #[cfg(any(test, feature = "test-support"))]
+                generation: std::sync::atomic::AtomicU64::new(0),
                 limits,
                 #[cfg(any(test, feature = "test-support"))]
                 fakes: StdMutex::new(None),
@@ -398,13 +388,7 @@ impl MailboxWorker {
     /// after the running one: nothing is lost to a pass in progress. Without a
     /// mailbox there is nothing to read, and the first pass reads everything.
     pub fn request_reimport(&self) {
-        self.schedule().pending.all = true;
-        self.wake();
-    }
-
-    /// Re-import mailbox `id` with its next pass, like [`Self::request_reimport`].
-    pub fn request_mailbox_reimport(&self, id: &str) {
-        self.schedule().pending.ids.insert(id.to_owned());
+        self.schedule().pending_reimport = true;
         self.wake();
     }
 
@@ -430,7 +414,8 @@ impl MailboxWorker {
         self.wake();
     }
 
-    /// Failed passes in a row of mailbox `id`; diagnostics and tests.
+    /// Failed passes in a row of mailbox `id`; for tests.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn failures(&self, id: &str) -> u32 {
         self.schedule().slot_mut(id).map_or(0, |s| s.failures)
     }
@@ -441,7 +426,10 @@ impl MailboxWorker {
     /// writes) and it is due at once with the new settings. Another
     /// mailbox's pass is left alone.
     pub fn settings_changed(&self, id: &str) {
-        self.inner.generation.fetch_add(1, Ordering::SeqCst);
+        #[cfg(any(test, feature = "test-support"))]
+        self.inner
+            .generation
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         {
             let mut schedule = self.schedule();
             if let Some(slot) = schedule.slot_mut(id) {
@@ -456,17 +444,19 @@ impl MailboxWorker {
         self.wake();
     }
 
-    /// Whether a re-import waits for a pass; diagnostics and tests.
+    /// Whether a re-import waits for a pass; for tests.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn reimport_requested(&self) -> bool {
         let schedule = self.schedule();
-        schedule.pending.all
-            || !schedule.pending.ids.is_empty()
-            || schedule.slots.iter().any(|s| s.reimport)
+        schedule.pending_reimport || schedule.slots.iter().any(|s| s.reimport)
     }
 
-    /// How many times [`Self::settings_changed`] was called; diagnostics and tests.
+    /// How many times [`Self::settings_changed`] was called; for tests.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn settings_generation(&self) -> u64 {
-        self.inner.generation.load(Ordering::SeqCst)
+        self.inner
+            .generation
+            .load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Progress of the running pass, or of the one a manual start announced;
@@ -540,7 +530,7 @@ impl MailboxWorker {
             // Marked whatever the answer: asked while a pass runs, it is
             // not lost but runs right after it (like [`Self::poll_now`]).
             if from_start {
-                schedule.pending.all = true;
+                schedule.pending_reimport = true;
             }
             schedule.update(&listing);
             for slot in &mut schedule.slots {
@@ -790,7 +780,7 @@ impl MailboxWorker {
         let (summary, error, error_detail, mut next) = match &outcome {
             Ok(summary) => (*summary, None, None, Next::Interval),
             Err(e) => {
-                let next = if e.summary.advanced() {
+                let next = if e.summary.progressed {
                     Next::Continue
                 } else {
                     Next::Failed
@@ -1380,7 +1370,7 @@ mod tests {
     async fn a_reimport_asked_with_the_replacement_reads_the_new_mailbox() {
         let (worker, backend) = replaceable();
         let saved = replace_at_10s(&worker, &backend, |w| {
-            w.request_mailbox_reimport("a");
+            w.request_reimport();
             w.settings_changed("a");
         });
         run_until(&worker, &backend, |b| !b.state().passes.is_empty()).await;
@@ -1636,15 +1626,17 @@ mod tests {
         worker.schedule().finish("a", Next::Failed, now);
         assert!(!worker.import_unfinished(), "a failure without progress");
 
-        worker.request_mailbox_reimport("b");
+        worker.request_reimport();
         worker.refresh(&backend).await.unwrap();
         assert!(worker.import_unfinished(), "a re-import waits");
         worker.set_current(Some(("b".into(), CancellationToken::new())));
-        let reimport = worker
-            .schedule()
-            .slot_mut("b")
-            .is_some_and(|s| std::mem::take(&mut s.reimport));
-        assert!(reimport);
+        let reimport = ["a", "b"].map(|id| {
+            worker
+                .schedule()
+                .slot_mut(id)
+                .is_some_and(|s| std::mem::take(&mut s.reimport))
+        });
+        assert_eq!(reimport, [true, true]);
         assert!(worker.import_unfinished(), "a pass runs");
         worker.set_current(None);
         assert!(!worker.import_unfinished());
@@ -1741,7 +1733,7 @@ mod tests {
         worker.poll_now("a");
         assert_eq!(worker.failures("a"), 0);
         failing(&worker);
-        worker.request_mailbox_reimport("a");
+        worker.request_reimport();
         worker.refresh(&backend).await.unwrap();
         assert_eq!(worker.failures("a"), 0);
         failing(&worker);

@@ -34,6 +34,11 @@ ignore = [
     # flaw). It comes in through async-imap 0.11, which has no release
     # without it yet.
     { id = "RUSTSEC-2026-0441", reason = "via async-imap; no release without it yet" },
+    # chrono 0.4 is unmaintained (an informational notice, no known flaw).
+    # async-imap 0.11 needs it in the release build and has no release
+    # without it, so it stays in the tree whatever Marcan's own code uses;
+    # moving that code (dmarc-server, dmarc-dns) to `time` is in the backlog.
+    { id = "RUSTSEC-2026-0543", reason = "via async-imap; no release without it yet; own use to move to time" },
 ]
 
 [licenses]

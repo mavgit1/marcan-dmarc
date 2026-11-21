@@ -154,7 +154,6 @@ pub enum IssueSeverity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
-#[ts(export)]
 pub struct Issue {
     pub kind: IssueKind,
     pub severity: IssueSeverity,

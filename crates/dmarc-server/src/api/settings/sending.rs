@@ -11,10 +11,10 @@
 
 use super::settings_response;
 use crate::accounts::save::valid_address;
-use crate::accounts::sends_mail;
+use crate::accounts::{self, sends_mail};
 use crate::error::{AppError, AppResult};
 use crate::extract::Json;
-use crate::mail::{parse_address, Address, Message, SendConfig, SendError};
+use crate::mail::{parse_address, parse_reply_to, Address, Message, SendConfig, SendError};
 use crate::view::settings::SettingsResponse;
 use crate::wording::accounts::NO_SENDING_ACCOUNT;
 use crate::AppState;
@@ -60,13 +60,9 @@ async fn checked(state: &AppState, payload: &SendingSettings) -> AppResult<Sendi
         reply_to: payload.reply_to.trim().to_owned(),
         test_recipient: payload.test_recipient.trim().to_owned(),
     };
-    for (raw, what) in [
-        (&group.reply_to, "Reply-To address"),
-        (&group.test_recipient, "test recipient"),
-    ] {
-        if !raw.is_empty() {
-            valid_address(raw, what)?;
-        }
+    parse_reply_to(&group.reply_to).map_err(AppError::unprocessable)?;
+    if !group.test_recipient.is_empty() {
+        valid_address(&group.test_recipient, "test recipient")?;
     }
     if let Some(id) = group.account_id {
         let account = get_account(&state.pool, id)
@@ -82,17 +78,16 @@ async fn checked(state: &AppState, payload: &SendingSettings) -> AppResult<Sendi
     Ok(group)
 }
 
-/// Where tests and previews go: the test recipient of `sending`, else the
+/// Where tests and previews go ([`accounts::test_recipient`]), from the
 /// address `config` sends from.
 pub(super) fn test_recipient(sending: &SendingSettings, config: &SendConfig) -> AppResult<Address> {
-    match sending.test_recipient.as_str() {
-        "" => Ok(config.sender.clone()),
-        raw => parse_address(raw).ok_or_else(|| {
-            AppError::unprocessable(format!(
-                "The test recipient {raw} is not a valid email address."
-            ))
-        }),
-    }
+    let sender = config.sender.to_string();
+    let raw = accounts::test_recipient(sending, &sender);
+    parse_address(raw).ok_or_else(|| {
+        AppError::unprocessable(format!(
+            "The test recipient {raw} is not a valid email address."
+        ))
+    })
 }
 
 /// `PUT /api/settings/sending`: the whole group; switched on, its account

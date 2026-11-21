@@ -1,3 +1,7 @@
+---
+description: Group domains into organizations per client, add domains before their first report, park or ignore a domain, and edit the whole domain list as CSV text.
+---
+
 # Domains & organizations
 
 Domains are grouped into **organizations**, for example one per customer or business unit. Every domain belongs to exactly one organization. Filters, pages and exports can be narrowed to an organization or a single domain.

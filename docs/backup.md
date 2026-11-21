@@ -1,3 +1,7 @@
+---
+description: Why the report mailboxes already are a backup, which lists to keep, how to back up and restore the SQLite database file, and how long reports are retained.
+---
+
 # Backup
 
 Marcan only reads the accounts' mailboxes. As long as the reports stay there, the database is a cache: every report can be imported again. You may not need a backup.

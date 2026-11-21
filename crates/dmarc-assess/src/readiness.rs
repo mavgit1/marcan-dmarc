@@ -197,7 +197,6 @@ pub struct PolicyTarget {
 /// first" (worth fixing); `neutral` for not ready and not applicable (not
 /// ready yet is not a fault: the compliance figure carries its own colour).
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
-#[ts(export)]
 pub struct PolicyReadiness {
     pub state: ReadinessState,
     pub status: Status,
@@ -249,15 +248,6 @@ impl PolicyReadiness {
             self.state,
             ReadinessState::Ready { .. } | ReadinessState::RaisePct { .. }
         )
-    }
-
-    /// The policy the domain moves to next, ready or not; `None` while
-    /// `pct` is to be raised first, when enforced and with nothing to judge.
-    pub fn next_step(&self) -> Option<PolicyStep> {
-        match self.state {
-            ReadinessState::Ready { next } | ReadinessState::NotReady { next, .. } => Some(next),
-            _ => None,
-        }
     }
 }
 

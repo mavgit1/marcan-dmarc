@@ -26,8 +26,8 @@ use axum::extract::State;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use dmarc_store::{
-    get_logo, get_logo_info, save_settings, set_logo, AppSettings, BrandingSettings, LogoType,
-    PixelSize, StoredLogo,
+    get_logo, get_logo_info, save_settings, set_logo, AppSettings, BrandingSettings, PixelSize,
+    StoredLogo,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -54,20 +54,6 @@ pub(crate) fn operator_name(raw: &str) -> AppResult<Option<String>> {
     Ok((!name.is_empty()).then(|| name.to_owned()))
 }
 
-/// The image format of `bytes`, from its first bytes (its signature).
-pub(crate) fn sniff_logo(bytes: &[u8]) -> Option<LogoType> {
-    const PNG: &[u8] = b"\x89PNG\r\n\x1a\n";
-    if bytes.starts_with(PNG) {
-        Some(LogoType::Png)
-    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        Some(LogoType::Jpeg)
-    } else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
-        Some(LogoType::Webp)
-    } else {
-        None
-    }
-}
-
 /// `n` bytes in whole kilobytes, rounded up ("1 KB" for anything below).
 fn kilobytes(n: usize) -> usize {
     n.div_ceil(1024).max(1)
@@ -85,7 +71,7 @@ pub(crate) fn stored_logo(bytes: &[u8]) -> AppResult<StoredLogo> {
             LOGO_MAX_BYTES / 1024
         )));
     }
-    let logo_type = sniff_logo(bytes)
+    let logo_type = mail::image_size::sniff_logo(bytes)
         .ok_or_else(|| AppError::unprocessable("The logo must be a PNG, JPEG or WebP image."))?;
     let size = mail::image_size::pixel_size(bytes).ok_or_else(|| {
         AppError::unprocessable("The logo's size could not be read. Save it again as a PNG.")
@@ -275,24 +261,6 @@ mod tests {
     }
 
     #[test]
-    fn a_logo_is_known_by_its_bytes() {
-        assert_eq!(
-            sniff_logo(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"),
-            Some(LogoType::Png)
-        );
-        assert_eq!(sniff_logo(&[0xFF, 0xD8, 0xFF, 0xE0]), Some(LogoType::Jpeg));
-        assert_eq!(sniff_logo(b"RIFF\x24\0\0\0WEBPVP8 "), Some(LogoType::Webp));
-        // GIF, SVG, a RIFF that is a WAV, and a short PNG prefix are not.
-        assert_eq!(sniff_logo(b"GIF89a"), None);
-        assert_eq!(
-            sniff_logo(b"<svg xmlns=\"http://www.w3.org/2000/svg\">"),
-            None
-        );
-        assert_eq!(sniff_logo(b"RIFF\x24\0\0\0WAVEfmt "), None);
-        assert_eq!(sniff_logo(b"\x89PNG"), None);
-    }
-
-    #[test]
     fn refused_logos_say_why() {
         let err = |b: &[u8]| stored_logo(b).unwrap_err();
         let e = err(b"<svg/>");
@@ -320,7 +288,7 @@ mod tests {
     #[test]
     fn a_stored_logo_is_its_bytes_with_its_size() {
         let logo = stored_logo(PNG).unwrap();
-        assert_eq!(logo.logo_type, LogoType::Png);
+        assert_eq!(logo.logo_type, dmarc_store::LogoType::Png);
         assert_eq!(logo.bytes, PNG);
         assert_eq!(
             logo.size,

@@ -1,3 +1,7 @@
+---
+description: Run Marcan with Docker Compose behind a reverse proxy for HTTPS and the login, with the image tags, server options, secret key, data volume and network access.
+---
+
 # Deploying Marcan
 
 A permanent Marcan is always two parts: Marcan itself, and a reverse proxy in front of it that handles HTTPS and the login. Marcan has no accounts of its own, so you choose how strong the login is, from one shared password to single sign-on with two-factor authentication (see [Security model](./security)).

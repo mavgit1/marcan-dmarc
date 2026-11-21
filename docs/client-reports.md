@@ -1,3 +1,7 @@
+---
+description: A monthly DMARC email report per organization for MSPs and agencies, with what it contains, its recipients and schedule, the preview, branding and the notice.
+---
+
 # Client reports
 
 If you look after domains for others, Marcan can send each [organization](./domains) a short email once a month about its domains: whether they are protected, how their mail fared, what to do next, and what changed. Your clients never need to open Marcan for it, and they see only their own domains.

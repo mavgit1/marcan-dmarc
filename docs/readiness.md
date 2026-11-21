@@ -1,3 +1,7 @@
+---
+description: When a domain can move from DMARC p=none to p=quarantine and p=reject, judged on 30 days of reports, how pct= and t=y count, and what parked domains publish.
+---
+
 # Policy readiness
 
 Marcan tells you when a domain can move to the next DMARC policy, from `p=none` to `p=quarantine`, then to `p=reject`, and what to publish when it can. The verdict is decided on the server from the last 30 days of reports and the latest DNS check; the domain's page, the [client reports](./client-reports), the `readiness` column of [`domains.csv`](./exports#columns) and the [**Ready for the next policy step**](./alerts#what-is-alerted) alert all use the same one.

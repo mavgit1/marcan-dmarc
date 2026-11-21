@@ -1,3 +1,7 @@
+---
+description: How Marcan names the operator behind a sending IP from reverse DNS with the bundled parsedmarc map, and how to rename operators or name your own servers.
+---
+
 # Sender names
 
 Reports identify senders only by IP address. Marcan works out the **operator domain** behind an IP (see [Sender identity](./how-it-works#sender-identity)), for example `amazonses.com` or `hostpoint.ch`, and turns it into a display name with the [parsedmarc](https://github.com/domainaware/parsedmarc) reverse-DNS map that is bundled into the binary.

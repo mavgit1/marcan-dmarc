@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { defineConfig, type DefaultTheme } from 'vitepress'
+import { collectPage, hostname, pageHead, sitemapItems, writeLlmsFiles } from './site-files'
 
 // Version label for the nav, read from the workspace Cargo.toml at build time.
 const cargoToml = readFileSync(new URL('../../Cargo.toml', import.meta.url), 'utf8')
@@ -80,6 +81,14 @@ export default defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }],
     ['meta', { name: 'theme-color', content: '#155dfc' }]
   ],
+
+  // For search engines, link previews and language models (site-files.ts): the sitemap, each
+  // page's canonical link and preview tags, and llms.txt / llms-full.txt. buildEnd also fails
+  // the build when a page lacks a description or a place in the sidebar.
+  sitemap: { hostname, transformItems: sitemapItems },
+  transformPageData: collectPage,
+  transformHead: pageHead,
+  buildEnd: (siteConfig) => writeLlmsFiles(siteConfig, sidebar),
 
   themeConfig: {
     logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: '' },

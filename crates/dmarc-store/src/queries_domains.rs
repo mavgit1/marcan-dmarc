@@ -15,6 +15,7 @@ pub struct Domain {
 }
 
 /// Look up a domain by name across all organizations. `domain` is normalized first.
+#[cfg(any(test, feature = "test-support"))]
 pub async fn find_domain_by_name(
     pool: &SqlitePool,
     domain: &str,
@@ -32,6 +33,7 @@ pub async fn find_domain_by_name(
 /// `organization_id` only when no organization has it yet. Domain names are unique
 /// across organizations, so the returned row may belong to another organization, and it
 /// may be ignored: ingest drops its reports.
+#[cfg(any(test, feature = "test-support"))]
 pub async fn get_or_create_domain(
     pool: &SqlitePool,
     organization_id: i64,

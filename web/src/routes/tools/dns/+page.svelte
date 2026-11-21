@@ -4,7 +4,6 @@
 	import { page } from '$app/state';
 	import { getDnsBimi, getDnsDkim, getDnsDmarc, getDnsMtaSts, getDnsPtr, getDnsSpf, getDnsTlsRpt } from '$lib/api';
 	import { apiErrorMessage } from '$lib/http';
-	import type { LookupStatus } from '$lib/types/LookupStatus';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import DnsCheckPanel from '$lib/components/dns-check-panel.svelte';
 	import DnsFindingsList from '$lib/components/dns-findings-list.svelte';
@@ -13,26 +12,23 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import { DOCS_URL } from '$lib/nav';
 	import Skeleton from '$lib/components/skeleton.svelte';
-	import SpfIncludeTree from '$lib/components/spf-include-tree.svelte';
 	import StatusBadge from '$lib/components/status-badge.svelte';
-	import DetailHeading from '$lib/components/dns/detail-heading.svelte';
 	import DmarcDetails from '$lib/components/dns/dmarc-details.svelte';
+	import SpfDetails from '$lib/components/dns/spf-details.svelte';
+	import { bimiDetails, mtaStsDetails, tlsRptDetails } from '$lib/components/dns/transport-details.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import {
 		CHECK_FAILED,
 		bimiStatus,
 		dkimKey,
-		dnsLookupMeasured,
 		findingsVerdict,
 		mtaStsStatus,
-		policyFetchLabel,
 		dmarcRecordStatus,
 		recordStatus,
 		selectorVerdict,
 		spfLookupsLabel,
 		spfTrailing,
-		spfVoidLookupsLabel,
 		worstVerdict,
 		type Verdict
 	} from '$lib/dns';
@@ -176,13 +172,6 @@
 	<StatusBadge tone={v.tone} class={cn(v.mono && 'font-mono')}>{v.label}</StatusBadge>
 {/snippet}
 
-{#snippet nameLine(name: string, lookup: LookupStatus)}
-	<div class="flex flex-wrap items-center gap-2 text-xs">
-		<span class="font-mono font-medium">{name}</span>
-		<LookupBadge {lookup} />
-	</div>
-{/snippet}
-
 <PageHeader
 	title="DNS inspector"
 	description="Live check of SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI records for any domain, including ones Marcan doesn't monitor."
@@ -233,71 +222,9 @@
 				{@render verdictBadge(CHECK_FAILED)}
 			{/if}
 		{/snippet}
-		{#if spf.data && !dnsLookupMeasured(spf.data.lookup)}
-			<p class="text-muted-foreground text-sm">
-				The TXT lookup for <span class="font-mono">{spf.data.domain}</span> returned
-				<span class="font-mono">{spf.data.lookup}</span>.
-			</p>
-		{:else if spf.data && !spf.data.complete}
-			<p class="text-muted-foreground text-sm">
-				Some include targets did not answer, so the lookup count is unknown. Inspect again to retry.
-			</p>
-			<div>
-				<DetailHeading class="mb-1">Include tree</DetailHeading>
-				<SpfIncludeTree node={spf.data.include_tree} />
-			</div>
+		{#if spf.data}
+			<SpfDetails check={spf.data} domain={spf.data.domain} />
 			<DnsFindingsList findings={spf.data.findings} />
-		{:else if spf.data}
-			{@const s = spf.data}
-			{@const trailing = spfTrailing(s)}
-			<div class="grid gap-3 sm:grid-cols-3">
-				<div class="rounded-md border border-border px-3 py-2">
-					<p class="text-muted-foreground text-xs">DNS lookups</p>
-					<p class={cn('text-lg font-semibold tabular-nums', s.exceeds_lookup_limit && statusFg.fail)}>
-						{spfLookupsLabel(s)}
-					</p>
-					<p class="text-muted-foreground mt-1 text-xs">
-						{#if s.exceeds_lookup_limit}
-							Above the RFC 7208 limit.
-						{:else}
-							Within the RFC 7208 limit.
-						{/if}
-					</p>
-				</div>
-				<div class="rounded-md border border-border px-3 py-2">
-					<p class="text-muted-foreground text-xs">Void lookups</p>
-					<p class="text-lg font-semibold tabular-nums">{spfVoidLookupsLabel(s)}</p>
-					<p class="text-muted-foreground mt-1 text-xs">NXDOMAIN or empty answers while walking includes.</p>
-				</div>
-				<div class="rounded-md border border-border px-3 py-2">
-					<p class="text-muted-foreground text-xs">SPF ending</p>
-					<p
-						class={cn(
-							'text-lg font-semibold [overflow-wrap:anywhere]',
-							trailing.mono && 'font-mono',
-							statusFg[trailing.tone]
-						)}
-					>
-						{trailing.label}
-					</p>
-					<p class="text-muted-foreground mt-1 text-xs">Applies to every sender not listed.</p>
-				</div>
-			</div>
-
-			<!-- eslint-disable-next-line svelte/require-each-key -- a TXT answer is not deduplicated, so the record text can repeat -->
-			{#each s.records as record}
-				<DnsRawRecord value={record} label="Published SPF record" />
-			{/each}
-
-			<div>
-				<DetailHeading class="mb-1">Include tree</DetailHeading>
-				<p class="text-muted-foreground mb-3 text-xs">
-					Own = lookups for that node; subtree = own plus all descendants.
-				</p>
-				<SpfIncludeTree node={s.include_tree} />
-			</div>
-
-			<DnsFindingsList findings={s.findings} />
 		{/if}
 	</DnsCheckPanel>
 
@@ -375,28 +302,18 @@
 		<DnsCheckPanel title="MTA-STS" {...panel(mtaSts)} onRetry={retryDomain} open={false}>
 			{#snippet header()}
 				{#if mtaSts.data}
-					{@render verdictBadge(worstVerdict(mtaStsStatus(mtaSts.data), findingsVerdict(mtaSts.data.findings)))}
+					{@const status = mtaStsStatus(mtaSts.data)}
+					{@const verdict = worstVerdict(status, findingsVerdict(mtaSts.data.findings))}
+					<!-- The mode lives in the badge; a worse finding takes the badge, so it moves beside it. -->
+					{#if verdict !== status && mtaSts.data.policy?.mode}
+						<span class="font-mono">mode={mtaSts.data.policy.mode}</span>
+					{/if}
+					{@render verdictBadge(verdict)}
 				{/if}
 			{/snippet}
 			{#if mtaSts.data}
-				{@const m = mtaSts.data}
-				{@render nameLine(m.txt_name, m.txt_lookup)}
-				{#if m.txt_record}
-					<DnsRawRecord value={m.txt_record} label="MTA-STS record" />
-				{/if}
-				<div class="flex flex-wrap items-center gap-2 text-xs">
-					<span class="text-muted-foreground">Policy URL:</span>
-					<span class="font-mono break-all">{m.policy_url}</span>
-					<span class="text-muted-foreground text-[11px]">
-						Fetch: <span class="font-mono">{policyFetchLabel(m.fetch)}</span>
-					</span>
-				</div>
-				{#if m.policy}
-					<p class="font-mono text-xs">
-						mode={m.policy.mode ?? '—'} max_age={m.policy.max_age ?? '—'} mx={m.policy.mx.join(', ') || '—'}
-					</p>
-				{/if}
-				<DnsFindingsList findings={m.findings} />
+				{@render mtaStsDetails(mtaSts.data)}
+				<DnsFindingsList findings={mtaSts.data.findings} />
 			{/if}
 		</DnsCheckPanel>
 
@@ -408,13 +325,8 @@
 				{/if}
 			{/snippet}
 			{#if tlsRpt.data}
-				{@const t = tlsRpt.data}
-				{@render nameLine(t.name, t.lookup)}
-				<!-- eslint-disable-next-line svelte/require-each-key -- a TXT answer is not deduplicated, so the record text can repeat -->
-				{#each t.records as record}
-					<DnsRawRecord value={record} label="TLS-RPT record" />
-				{/each}
-				<DnsFindingsList findings={t.findings} />
+				{@render tlsRptDetails(tlsRpt.data)}
+				<DnsFindingsList findings={tlsRpt.data.findings} />
 			{/if}
 		</DnsCheckPanel>
 
@@ -426,13 +338,8 @@
 				{/if}
 			{/snippet}
 			{#if bimi.data}
-				{@const b = bimi.data}
-				{@render nameLine(b.name, b.lookup)}
-				<!-- eslint-disable-next-line svelte/require-each-key -- a TXT answer is not deduplicated, so the record text can repeat -->
-				{#each b.records as record}
-					<DnsRawRecord value={record} label="BIMI record" />
-				{/each}
-				<DnsFindingsList findings={b.findings} />
+				{@render bimiDetails(bimi.data)}
+				<DnsFindingsList findings={bimi.data.findings} />
 			{/if}
 		</DnsCheckPanel>
 	</div>

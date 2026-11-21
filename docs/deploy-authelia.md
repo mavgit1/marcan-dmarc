@@ -1,3 +1,7 @@
+---
+description: Deploy Marcan with Docker Compose behind Caddy and Authelia, a login page with separate users and two-factor authentication (TOTP or WebAuthn), step by step.
+---
+
 # Caddy with Authelia
 
 [Authelia](https://www.authelia.com/) runs next to Caddy: a login page with its own user file and two-factor authentication (TOTP or WebAuthn), no external identity provider needed. Marcan is only reachable after Authelia has accepted the session.

@@ -98,16 +98,11 @@ pub fn next_slot(reports: &ClientReportSettings, now: i64) -> Option<i64> {
     .find(|&slot| slot > now)
 }
 
-/// The report time (the set day at the set hour, UTC) that `now` is at or
-/// less than [`LATE_SEND_SECS`] after; `None` between them. Last month's
-/// counts too, for a slot late on the 28th that runs into the 1st.
-pub fn report_slot(reports: &ClientReportSettings, now: i64) -> Option<i64> {
-    last_slot(reports, now).filter(|&slot| now < slot + LATE_SEND_SECS)
-}
-
-/// The report time due at `now`: [`report_slot`], or the latest one after
-/// its day while its month is under way, until the next report time comes:
-/// the reports were held since it came (`held_at`), so a held month goes out
+/// The report time due at `now`: the latest (the set day at the set hour,
+/// UTC; last month's too, for a slot late on the 28th that runs into the
+/// 1st) while `now` is less than [`LATE_SEND_SECS`] after it, or after its
+/// day while its month is under way, until the next report time comes: the
+/// reports were held since it came (`held_at`), so a held month goes out
 /// once the hold ends, or some of them went out (`started`), so the rest
 /// follow once their servers accept.
 pub fn due_slot(
@@ -530,6 +525,12 @@ pub async fn run(state: AppState, token: CancellationToken) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The report time that `now` is at or less than [`LATE_SEND_SECS`]
+    /// after; `None` between them.
+    fn report_slot(reports: &ClientReportSettings, now: i64) -> Option<i64> {
+        last_slot(reports, now).filter(|&slot| now < slot + LATE_SEND_SECS)
+    }
 
     const HOUR: i64 = 3600;
     /// 2026-10-01 07:00 UTC.

@@ -1,3 +1,7 @@
+---
+description: Upgrade Marcan with docker compose pull, recover or go back to an older version with a database backup, the daily version check and reprocessing old reports.
+---
+
 # Upgrade
 
 Read the [release notes](./releases), then, in your stack's directory:

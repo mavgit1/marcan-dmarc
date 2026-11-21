@@ -1,3 +1,7 @@
+---
+description: Live checks of DMARC, SPF, DKIM, MTA-STS, TLS-RPT and BIMI records, which DKIM selectors are tried, the DNS score, when checks run and which resolvers they use.
+---
+
 # DNS checks
 
 Marcan checks each monitored domain's mail DNS records live, and the **DNS inspector** checks any other domain on demand.

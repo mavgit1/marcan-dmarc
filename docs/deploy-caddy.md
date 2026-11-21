@@ -1,3 +1,7 @@
+---
+description: Deploy Marcan with Docker Compose behind Caddy with basic auth, automatic HTTPS and one shared login, with every file, the .env values and a first-start check.
+---
+
 # Caddy with basic auth
 
 The default setup: [Caddy](https://caddyserver.com/) in front of Marcan, with one shared user name and password. Caddy listens on ports 80 and 443, gets and renews HTTPS certificates on its own, and asks for the login. Marcan's port is not published: it is reachable only on the internal Compose network.

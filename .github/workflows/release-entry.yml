@@ -1,0 +1,37 @@
+# Creates the GitHub release entry of version tags that have none, by hand: the tags
+# older than the release workflow's own entry job, or one whose entry was deleted.
+# A tag that already has an entry is left alone.
+name: release entry
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: Version tags, separated by spaces
+        required: true
+        default: v0.2.1 v0.3.0 v0.3.1 v0.3.2 v0.4.0
+
+permissions:
+  contents: read
+
+jobs:
+  entry:
+    if: github.repository == 'mavgit1/marcan-dmarc'
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # The input reaches the shell as a variable, never as script text; the script
+      # refuses anything that is not vX.Y.Z.
+      - run: |
+          for tag in $TAGS; do
+            scripts/github-release.sh "$tag"
+          done
+        env:
+          TAGS: ${{ inputs.tags }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

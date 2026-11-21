@@ -1,3 +1,7 @@
+---
+description: Build and run Marcan from source, with the Rust workspace and SvelteKit UI, dev servers, demo data, release builds, checks, fuzzing, API types and migrations.
+---
+
 # Development
 
 Marcan is a Rust workspace with a SvelteKit UI that is built into the binary.
@@ -107,3 +111,5 @@ cd docs && pnpm install && pnpm dev
 ```
 
 Pages are Markdown files in `docs/`. The site is published to GitHub Pages with each release.
+
+Each page needs a `description` in its front matter (one sentence, 70 to 160 characters) and an entry in the sidebar in `docs/.vitepress/config.ts`; the build fails without them. From them the build makes `sitemap.xml`, each page's preview tags, and `llms.txt` and `llms-full.txt` (`docs/.vitepress/site-files.ts`). The preview image `docs/public/og.png` is made by `scripts/screenshots/og-image.mjs`.

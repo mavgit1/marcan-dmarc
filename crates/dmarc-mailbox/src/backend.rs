@@ -154,7 +154,8 @@ impl MailboxConfig {
         }
     }
 
-    /// The IMAP settings, when the pass reads over IMAP.
+    /// The IMAP settings, when the pass reads over IMAP (tests).
+    #[cfg(any(test, feature = "test-support"))]
     pub fn as_imap(&self) -> Option<&ImapConfig> {
         match self {
             Self::Imap(cfg) => Some(cfg),
@@ -162,7 +163,8 @@ impl MailboxConfig {
         }
     }
 
-    /// The Graph settings, when the pass reads over Graph.
+    /// The Graph settings, when the pass reads over Graph (tests).
+    #[cfg(any(test, feature = "test-support"))]
     pub fn as_graph(&self) -> Option<&GraphConfig> {
         match self {
             Self::Graph(cfg) => Some(cfg),
@@ -299,19 +301,10 @@ pub trait Backend: Clone + Send + Sync + 'static {
     /// (the server: one database transaction), and store nothing of them on
     /// an `Err`; the pass then stores the batch's messages one by one through
     /// [`Self::ingest`], so each failure is counted against its own message.
-    /// The default stores them one by one.
     fn ingest_batch(
         &self,
         reports: &[&Report],
-    ) -> impl Future<Output = Result<Vec<Ingested>, Self::Error>> + Send {
-        async move {
-            let mut answers = Vec::with_capacity(reports.len());
-            for report in reports {
-                answers.push(self.ingest(report).await?);
-            }
-            Ok(answers)
-        }
-    }
+    ) -> impl Future<Output = Result<Vec<Ingested>, Self::Error>> + Send;
 
     /// Record how a pass ended.
     fn record_pass(

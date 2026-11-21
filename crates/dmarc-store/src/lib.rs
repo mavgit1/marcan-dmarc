@@ -56,9 +56,9 @@ pub use outcome::MailCounts;
 pub use queries::Scope;
 pub use queries_accounts::{
     account_with_address, create_account, delete_account, get_account, get_account_secret,
-    insert_account, list_account_secrets, list_accounts, reseal_secrets, set_account_address,
-    update_account, update_account_receiving, AccountFields, AccountProvider, AccountRow,
-    LoginKind, MicrosoftLogin, ReceiveChange, SecretKind, SecretRow, SecretWrite,
+    list_account_secrets, list_accounts, reseal_secrets, update_account, update_account_receiving,
+    AccountFields, AccountProvider, AccountRow, LoginKind, MicrosoftLogin, ReceiveChange,
+    SecretKind, SecretRow, SecretWrite,
 };
 pub use queries_alerts::{
     alert_events_in, count_alert_events, delete_alert_events_older_than,
@@ -95,12 +95,12 @@ pub use queries_domain_stats::{
     ReadinessMailRow, StoredDnsGrade,
 };
 pub use queries_domains::{
-    create_domain, find_domain_by_name, get_or_create_domain, ignore_domain, move_domain,
-    set_domain_parked, CreateDomainResult, Domain, MoveDomain,
+    create_domain, ignore_domain, move_domain, set_domain_parked, CreateDomainResult, Domain,
+    MoveDomain,
 };
 pub use queries_export::{
-    sender_export_ips, stream_auth_issue_export, stream_dns_snapshot_export, stream_sender_export,
-    AuthIssueExportRow, DnsSnapshotExportRow, SenderExportRow,
+    stream_auth_issue_export, stream_dns_snapshot_export, stream_sender_export, AuthIssueExportRow,
+    DnsSnapshotExportRow, SenderExportRow,
 };
 pub use queries_identity::{
     delete_unused_identity_snapshots, get_identity_snapshots, identity_snapshot_is_fresh,
@@ -112,10 +112,9 @@ pub use queries_mapping::{
     MappingChanges, MappingEntry, MappingIgnore, MappingMove, MappingPlacement, MappingPlan,
 };
 pub use queries_organizations::{
-    create_organization, delete_organization, get_default_organization, get_or_create_organization,
-    get_organization_summary, list_organization_summaries, rename_organization, scope_options,
-    DeleteOrganization, Organization, OrganizationSummary, OrganizationWrite, ScopeDomain,
-    ScopeOrganization,
+    create_organization, delete_organization, get_organization_summary,
+    list_organization_summaries, rename_organization, scope_options, DeleteOrganization,
+    Organization, OrganizationSummary, OrganizationWrite, ScopeDomain, ScopeOrganization,
 };
 pub use queries_receive::{
     clear_receive_attempts, count_receive_quarantine, get_cursor, get_receive_attempts,
@@ -124,8 +123,8 @@ pub use queries_receive::{
     RECEIVE_PASSES_KEPT,
 };
 pub use queries_reports::{
-    find_report_by_report_id, get_report_summary, list_records_for_report, list_reports, RecordRow,
-    ReportListQuery, ReportSort, ReportSummaryRow, StoredReport,
+    get_report_summary, list_records_for_report, list_reports, RecordRow, ReportListQuery,
+    ReportSort, ReportSummaryRow, StoredReport,
 };
 pub use queries_senders::{
     list_senders, new_failing_senders, source_ips_before, source_ips_in_scope, NewSenderRow,
@@ -152,6 +151,17 @@ pub use settings::{
     MIN_POLL_INTERVAL_SECS, REPORT_FRESHNESS_WARNING_HOURS_RANGE, REPORT_RETENTION_MONTHS_RANGE,
 };
 pub use sort::{Sort, SortDir, SortKey};
+
+/// For tests and the demo examples only: no production path looks a domain
+/// or a report up by name, adds an account with a chosen id or sets an
+/// address alone.
+#[cfg(any(test, feature = "test-support"))]
+pub use {
+    queries_accounts::{insert_account, set_account_address},
+    queries_domains::{find_domain_by_name, get_or_create_domain},
+    queries_organizations::{get_default_organization, get_or_create_organization},
+    queries_reports::find_report_by_report_id,
+};
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
 use std::path::Path;

@@ -1,3 +1,7 @@
+---
+description: Email alerts when a domain's DNS records, DMARC policy, health or report flow change or a new sender fails DMARC, plus the daily or weekly digest and settings.
+---
+
 # Alerts
 
 Marcan already decides what needs attention. Alerts tell you when that **changes**, and only in the ways you act on: a record in DNS is edited, the DMARC policy in DNS changes, a domain's health changes, delivered failures open or clear, reports stop or resume, a domain becomes ready for its next policy step, you mark a domain as parked, or a sender new to a domain fails DMARC as it. Three are about Marcan itself: a newer release, a mail account's Microsoft 365 certificate about to expire, and a receiving account that has not been read for 3 days.

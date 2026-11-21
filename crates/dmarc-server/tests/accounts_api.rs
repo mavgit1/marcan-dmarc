@@ -13,7 +13,7 @@ use dmarc_server::accounts::connection::ImapProber;
 use dmarc_server::mail::MemorySender;
 use dmarc_server::wording::accounts::MICROSOFT_LOGIN_ONLY;
 use dmarc_server::wording::microsoft::TENANT_NOT_GUID;
-use dmarc_server::{AppState, SecretKey};
+use dmarc_server::{AppState, SecretKey, SecretKeys};
 use dmarc_store::{
     get_account, get_account_secret, get_cursor, insert_account, list_accounts,
     receive_pass_status, record_receive_pass, set_cursor, AccountFields, AccountProvider,
@@ -403,7 +403,10 @@ async fn with_fakes(
     let (p, mail) = (prober.clone(), sender.clone());
     let t = TestApp::with_state(move |pool| {
         AppState::new(pool)
-            .with_secret_key(key)
+            .with_secret_keys(SecretKeys {
+                current: key,
+                previous: None,
+            })
             .with_mail_sender(mail)
             .with_imap_prober(p)
     })

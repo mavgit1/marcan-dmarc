@@ -16,6 +16,7 @@ pub struct Organization {
 }
 
 /// Ensure an organization named `name` exists (`INSERT OR IGNORE`) and return it.
+#[cfg(any(test, feature = "test-support"))]
 pub async fn get_or_create_organization(
     pool: &SqlitePool,
     name: &str,
@@ -36,6 +37,7 @@ pub async fn get_or_create_organization(
 
 /// The default organization: where domains first seen in reports are created.
 /// Seeded by the initial migration, so it always exists.
+#[cfg(any(test, feature = "test-support"))]
 pub async fn get_default_organization(pool: &SqlitePool) -> Result<Organization, StoreError> {
     let organization = sqlx::query_as::<_, Organization>(
         "SELECT id, name, is_default FROM organizations WHERE is_default = 1",

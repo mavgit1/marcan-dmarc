@@ -1,3 +1,7 @@
+---
+description: CSV exports of domains, senders, authentication issues and DNS findings for the current scope, their columns and format, scripted downloads, and the JSON API.
+---
+
 # Exports & API
 
 ## CSV exports

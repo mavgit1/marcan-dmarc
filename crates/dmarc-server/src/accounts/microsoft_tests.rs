@@ -188,8 +188,8 @@ async fn a_microsoft_account_sends_over_graph_with_its_token() {
     let endpoint = FakeTokenEndpoint::start(vec![registration()]).await;
     let graph = graph_with_a_report(&[&token(1)]).await;
     let accounts = Accounts::new(pool.clone(), None)
-        .with_tokens(Arc::new(endpoint.source()))
-        .with_graph(graph_api(&graph));
+        .with_token_source(Arc::new(endpoint.source()))
+        .with_graph_api(graph_api(&graph));
     let id = add(&pool, &microsoft_account(), private_key()).await;
     let config = accounts.send_config(&sending_through(id)).await.unwrap();
     let mailbox = config.graph().expect("sent over Graph");
@@ -216,8 +216,8 @@ async fn a_microsoft_account_sends_over_graph_with_its_token() {
     // words.
     let endpoint = FakeTokenEndpoint::start(vec![registration_with(other_certificate())]).await;
     let accounts = Accounts::new(pool.clone(), None)
-        .with_tokens(Arc::new(endpoint.source()))
-        .with_graph(graph_api(&graph));
+        .with_token_source(Arc::new(endpoint.source()))
+        .with_graph_api(graph_api(&graph));
     let config = accounts.send_config(&sending_through(id)).await.unwrap();
     graph.clear_log();
     let err = crate::mail::send(&config, &message()).await.unwrap_err();
@@ -237,7 +237,7 @@ async fn a_certificate_account_gets_its_token_with_an_assertion() {
     let (_dir, pool) = pool().await;
     let endpoint = FakeTokenEndpoint::start(vec![registration()]).await;
     let accounts =
-        Accounts::new(pool.clone(), Some(key(1))).with_tokens(Arc::new(endpoint.source()));
+        Accounts::new(pool.clone(), Some(key(1))).with_token_source(Arc::new(endpoint.source()));
     let fields = microsoft_account();
     let row = accounts.store(
         1,
@@ -254,7 +254,7 @@ async fn a_certificate_account_gets_its_token_with_an_assertion() {
     assert!(endpoint.requests()[0].contains_key("client_assertion"));
 
     // Without the key, the certificate's key is locked: no pass, no send.
-    let keyless = Accounts::new(pool.clone(), None).with_tokens(Arc::new(endpoint.source()));
+    let keyless = Accounts::new(pool.clone(), None).with_token_source(Arc::new(endpoint.source()));
     assert!(keyless.mailbox_config(id, POLL).await.unwrap().is_none());
     assert!(matches!(
         keyless.send_config(&sending_through(id)).await,
@@ -268,7 +268,7 @@ async fn a_certificate_account_gets_its_token_with_an_assertion() {
 async fn a_microsoft_login_receives_and_sends_without_servers() {
     let (_dir, pool) = pool().await;
     let endpoint = FakeTokenEndpoint::start(vec![registration()]).await;
-    let accounts = Accounts::new(pool.clone(), None).with_tokens(Arc::new(endpoint.source()));
+    let accounts = Accounts::new(pool.clone(), None).with_token_source(Arc::new(endpoint.source()));
     for receive_enabled in [true, false] {
         let fields = AccountFields {
             address: format!("{receive_enabled}@example.com"),
@@ -511,7 +511,7 @@ async fn saving_a_microsoft_login_checks_and_keeps_its_certificate() {
 async fn the_token_step_asks_for_a_fresh_graph_token() {
     let (_dir, pool) = pool().await;
     let endpoint = FakeTokenEndpoint::start(vec![registration()]).await;
-    let accounts = Accounts::new(pool.clone(), None).with_tokens(Arc::new(endpoint.source()));
+    let accounts = Accounts::new(pool.clone(), None).with_token_source(Arc::new(endpoint.source()));
 
     // An unsaved form with a draft certificate.
     let draft = accounts.drafts().insert(test_certificate().clone());
@@ -554,7 +554,7 @@ async fn the_token_step_asks_for_a_fresh_graph_token() {
 async fn an_accounts_token_is_forgotten_on_request() {
     let (_dir, pool) = pool().await;
     let endpoint = FakeTokenEndpoint::start(vec![registration()]).await;
-    let accounts = Accounts::new(pool.clone(), None).with_tokens(Arc::new(endpoint.source()));
+    let accounts = Accounts::new(pool.clone(), None).with_token_source(Arc::new(endpoint.source()));
     let id = add(&pool, &microsoft_account(), private_key()).await;
     accounts.mailbox_config(id, POLL).await.unwrap().unwrap();
     accounts.mailbox_config(id, POLL).await.unwrap().unwrap();

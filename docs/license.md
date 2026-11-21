@@ -1,3 +1,7 @@
+---
+description: The Beneficiary Copyleft License (AGPLv3 plus a duty to tell clients) in practice, free for your own domains, and what MSPs owe when running Marcan for clients.
+---
+
 # License
 
 All of Marcan's code is public, and nothing is held back for a paid edition. What you owe depends only on whose domains you monitor.

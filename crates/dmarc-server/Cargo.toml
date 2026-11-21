@@ -53,11 +53,15 @@ tokio-native-tls = "0.3"
 # Trust the test keypair in `license::test_keys` instead of the steward's key.
 # Only the tests enable it (the dev-dependency on this crate below).
 test-keys = []
+# MemorySender and the AppState hooks that put fakes in place of the
+# network, for the integration tests (the dev-dependency below).
+test-support = []
 
 [dev-dependencies]
 ts-rs = { workspace = true, features = ["format"] }
-dmarc-server = { path = ".", features = ["test-keys"] }
+dmarc-server = { path = ".", features = ["test-keys", "test-support"] }
 dmarc-mailbox = { path = "../dmarc-mailbox", features = ["test-support"] }
+dmarc-store = { path = "../dmarc-store", features = ["test-support"] }
 tokio = { workspace = true, features = ["test-util"] }
 tempfile = { workspace = true }
 tower = { workspace = true }

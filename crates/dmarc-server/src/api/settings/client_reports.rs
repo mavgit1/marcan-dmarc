@@ -10,7 +10,7 @@ use super::settings_response;
 use crate::client_reports::report::{organization_report, report_config};
 use crate::error::{AppError, AppResult};
 use crate::extract::{Json, Query};
-use crate::mail::{parse_address, possessive, Letterhead};
+use crate::mail::{parse_reply_to, possessive, Letterhead};
 use crate::view::settings::SettingsResponse;
 use crate::AppState;
 use axum::extract::State;
@@ -49,11 +49,7 @@ pub async fn send_email(
     let mut settings = AppSettings::load(&state.pool).await?;
     if let Some(raw) = &req.reply_to {
         let reply_to = raw.trim();
-        if !reply_to.is_empty() && parse_address(reply_to).is_none() {
-            return Err(AppError::unprocessable(format!(
-                "The Reply-To address {reply_to} is not a valid email address."
-            )));
-        }
+        parse_reply_to(reply_to).map_err(AppError::unprocessable)?;
         settings.client_reports.reply_to = reply_to.to_owned();
     }
     let config = report_config(&state.accounts, &settings)
@@ -155,16 +151,10 @@ pub(crate) fn client_report_settings(
     let hour_utc = Some(payload.hour_utc)
         .filter(|&h| h < 24)
         .ok_or_else(|| AppError::unprocessable("The hour must be between 0 and 23."))?;
-    let reply_to = match payload.reply_to.trim() {
-        "" => String::new(),
-        raw => parse_address(raw)
-            .ok_or_else(|| {
-                AppError::unprocessable(format!(
-                    "The Reply-To address {raw} is not a valid email address."
-                ))
-            })?
-            .to_string(),
-    };
+    let reply_to = parse_reply_to(payload.reply_to.trim())
+        .map_err(AppError::unprocessable)?
+        .map(|a| a.to_string())
+        .unwrap_or_default();
     Ok(ClientReportSettings {
         enabled: payload.enabled,
         day_of_month,

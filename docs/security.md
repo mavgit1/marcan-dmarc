@@ -1,3 +1,7 @@
+---
+description: Marcan has no login of its own and relies on your reverse proxy; host name checks, credentials encrypted with MARCAN_SECRET_KEY, sending and mailbox access.
+---
+
 # Security model
 
 ## Bring your own login

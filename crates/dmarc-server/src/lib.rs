@@ -135,15 +135,6 @@ impl AppState {
         }
     }
 
-    /// State whose account secrets are sealed with `key` (`None`: stored
-    /// plain), as `MARCAN_SECRET_KEY` gives it.
-    pub fn with_secret_key(self, key: Option<SecretKey>) -> Self {
-        self.with_secret_keys(SecretKeys {
-            current: key,
-            previous: None,
-        })
-    }
-
     /// State whose account secrets are sealed with `keys.current`, and
     /// whose start moves the values of `keys.previous` to it.
     pub fn with_secret_keys(self, keys: SecretKeys) -> Self {
@@ -151,8 +142,8 @@ impl AppState {
             accounts: Arc::new(
                 Accounts::new(self.pool.clone(), keys.current)
                     .with_previous_key(keys.previous)
-                    .with_tokens(self.accounts.tokens().clone())
-                    .with_graph(self.accounts.graph().clone()),
+                    .with_token_source(self.accounts.tokens().clone())
+                    .with_graph_api(self.accounts.graph().clone()),
             ),
             ..self
         }
@@ -160,6 +151,7 @@ impl AppState {
 
     /// State whose Microsoft logins get their tokens from `tokens` (tests:
     /// a fake token endpoint) instead of Microsoft's identity platform.
+    #[cfg(test)]
     pub fn with_token_source(self, tokens: accounts::oauth::TokenSource) -> Self {
         Self {
             accounts: Arc::new(self.accounts.with_token_source(Arc::new(tokens))),
@@ -169,6 +161,7 @@ impl AppState {
 
     /// State whose Microsoft logins read Graph at `graph` (tests: a fake
     /// Graph) instead of Microsoft Graph.
+    #[cfg(test)]
     pub fn with_graph_api(self, graph: dmarc_mailbox::GraphApi) -> Self {
         Self {
             accounts: Arc::new(self.accounts.with_graph_api(graph)),
@@ -177,6 +170,7 @@ impl AppState {
     }
 
     /// State that sends mail through `sender` instead of the network (tests).
+    #[cfg(any(test, feature = "test-support"))]
     pub fn with_mail_sender(self, sender: Arc<dyn MailSender>) -> Self {
         Self {
             mail: sender,
@@ -184,8 +178,9 @@ impl AppState {
         }
     }
 
-    /// State whose DNS checks look everything up through `resolver` instead
-    /// of the stored resolvers (tests: a stub that answers at once).
+    /// State whose connection tests reach IMAP servers through `prober`
+    /// instead of the network (tests).
+    #[cfg(any(test, feature = "test-support"))]
     pub fn with_imap_prober(self, prober: Arc<dyn accounts::connection::ImapProber>) -> Self {
         Self {
             imap_prober: prober,
@@ -193,6 +188,8 @@ impl AppState {
         }
     }
 
+    /// State whose DNS checks look everything up through `resolver` instead
+    /// of the stored resolvers (tests: a stub that answers at once).
     pub fn with_dns_resolver(self, resolver: Arc<dyn dmarc_dns::Resolver>) -> Self {
         Self {
             dns: Arc::new(DnsService::with_resolver(resolver)),

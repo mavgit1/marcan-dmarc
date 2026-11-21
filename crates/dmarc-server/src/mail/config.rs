@@ -32,6 +32,17 @@ pub fn parse_address(raw: &str) -> Option<Address> {
     Some(address)
 }
 
+/// A Reply-To as entered or stored: `None` when empty, else `raw` as an
+/// address ([`parse_address`]) or the sentence that says it is none.
+pub fn parse_reply_to(raw: &str) -> Result<Option<Address>, String> {
+    if raw.is_empty() {
+        return Ok(None);
+    }
+    parse_address(raw)
+        .map(Some)
+        .ok_or_else(|| format!("The Reply-To address {raw} is not a valid email address."))
+}
+
 /// The submission server a password login sends through, logged in as
 /// `username`. The password is never printed by [`Debug`](fmt::Debug).
 #[derive(Clone, PartialEq, Eq)]

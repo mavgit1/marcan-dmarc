@@ -1,3 +1,7 @@
+---
+description: Connect report mailboxes over IMAP, Gmail or Microsoft 365 over Graph, set the DMARC report address and its authorization, and choose the sending account.
+---
+
 # Accounts
 
 An **account** is one login at one mail provider: an address, the credential Marcan logs in with, and how it reaches the mailbox: the provider's IMAP and SMTP servers, or Microsoft Graph for Microsoft 365. Marcan reads DMARC reports from **any number of accounts** and sends its mail (alerts, digests, client reports) **through one of them**, the one chosen under **Settings → Sending**. An account can receive, send or both.

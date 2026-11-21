@@ -19,7 +19,13 @@ thiserror = { workspace = true }
 ts-rs = { workspace = true }
 tracing = { workspace = true }
 
+[features]
+# The lookups and inserts only tests and the demo examples use; enabled by
+# the dev-dependency on this crate below (and by the server's tests).
+test-support = []
+
 [dev-dependencies]
+dmarc-store = { path = ".", features = ["test-support"] }
 ts-rs = { workspace = true, features = ["format"] }
 tokio = { workspace = true }
 tempfile = { workspace = true }

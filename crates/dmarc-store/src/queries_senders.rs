@@ -144,7 +144,8 @@ pub async fn list_senders(
 }
 
 /// Every source IP with records in `scope`, once each: what a sender search
-/// is matched against.
+/// is matched against, and the IPs of `stream_sender_export` for the same
+/// scope, so the caller can name them before streaming.
 pub async fn source_ips_in_scope(
     pool: &SqlitePool,
     scope: Scope,
