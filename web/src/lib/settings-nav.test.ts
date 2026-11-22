@@ -11,7 +11,7 @@ import {
 	type SettingsSectionId
 } from './settings-nav';
 
-vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
+vi.mock('$app/paths', () => ({ resolve: (path: string) => (path.startsWith('/') ? path : `/${path}`) }));
 
 describe('pageFromPath', () => {
 	it('names the page of each Settings path', () => {

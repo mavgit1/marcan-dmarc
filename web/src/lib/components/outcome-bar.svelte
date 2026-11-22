@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { formatInt } from '$lib/format';
-	import { outcomeCounts, type MailFigures, type OutcomeCounts } from '$lib/health';
-	import { cn } from '$lib/utils.js';
-	import { OUTCOMES } from '$lib/wording/outcome';
+	import { formatInt } from '#lib/format.ts';
+	import { outcomeCounts, type MailFigures, type OutcomeCounts } from '#lib/health.ts';
+	import { cn } from '#lib/utils.ts';
+	import { OUTCOMES } from '#lib/wording/outcome.ts';
 
 	/**
 	 * A proportion bar of the four outcomes, for a list row without room for numbers (the

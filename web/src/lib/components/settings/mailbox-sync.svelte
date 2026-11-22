@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
-	import ImportProgress from '$lib/components/import-progress.svelte';
-	import { relativeTime } from '$lib/format';
-	import { lastErrorText, lastPollText } from '$lib/pipeline';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
+	import ImportProgress from '#lib/components/import-progress.svelte';
+	import { relativeTime } from '#lib/format.ts';
+	import { lastErrorText, lastPollText } from '#lib/pipeline.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { Snippet } from 'svelte';
 	import { Action } from '../action.svelte';

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import CopyButton from '$lib/components/copy-button.svelte';
-	import { cn } from '$lib/utils.js';
+	import CopyButton from '#lib/components/copy-button.svelte';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Selectable, wrapping monospace DNS record text with an optional copy control.

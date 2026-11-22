@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { AlertsModel } from '$lib/components/settings/alerts-draft.svelte';
-	import AlertsSettingsForm from '$lib/components/settings/alerts-settings-form.svelte';
-	import SendingOffLine from '$lib/components/settings/sending-off-line.svelte';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
-	import { settings } from '$lib/state/settings.svelte';
+	import { AlertsModel } from '#lib/components/settings/alerts-draft.svelte.ts';
+	import AlertsSettingsForm from '#lib/components/settings/alerts-settings-form.svelte';
+	import SendingOffLine from '#lib/components/settings/sending-off-line.svelte';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
+	import { settings } from '#lib/state/settings.svelte.ts';
 
 	const m = new AlertsModel({ source: { shared: settings } });
 </script>

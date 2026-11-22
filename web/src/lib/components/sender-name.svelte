@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { SenderIdentity } from '$lib/types/SenderIdentity';
-	import { displayName, identityEvidence, isUnconfirmedOperatorName, UNCONFIRMED_PTR_HINT } from '$lib/identity';
-	import { cn } from '$lib/utils.js';
+	import type { SenderIdentity } from '#lib/types/SenderIdentity.ts';
+	import { displayName, identityEvidence, isUnconfirmedOperatorName, UNCONFIRMED_PTR_HINT } from '#lib/identity.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Neutral sender caption. Marks unconfirmed operator names only - never a behaviour verdict.

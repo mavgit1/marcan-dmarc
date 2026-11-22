@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { joinPageForm } from '$lib/components/settings/page-form.svelte';
-	import SettingsPart from '$lib/components/settings/settings-part.svelte';
-	import SwitchInput from '$lib/components/settings/switch-input.svelte';
-	import type { UpdatesModel } from '$lib/components/settings/updates-draft.svelte';
-	import { DOCS_URL, ISSUES_URL } from '$lib/nav';
-	import { meta } from '$lib/state/meta.svelte';
+	import { joinPageForm } from '#lib/components/settings/page-form.svelte.ts';
+	import SettingsPart from '#lib/components/settings/settings-part.svelte';
+	import SwitchInput from '#lib/components/settings/switch-input.svelte';
+	import type { UpdatesModel } from '#lib/components/settings/updates-draft.svelte.ts';
+	import { DOCS_URL, ISSUES_URL } from '#lib/nav.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
 
 	/**
 	 * The foot of the License page, neutral text from `meta`: the version with a link to report a

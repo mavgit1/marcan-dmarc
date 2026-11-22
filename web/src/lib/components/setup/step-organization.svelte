@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { updateOrganization } from '$lib/api';
-	import type { OrganizationSummary } from '$lib/types/OrganizationSummary';
-	import { Action } from '$lib/components/action.svelte';
-	import FeedbackAlert from '$lib/components/settings/feedback-alert.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { updateOrganization } from '#lib/api.ts';
+	import type { OrganizationSummary } from '#lib/types/OrganizationSummary.ts';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import FeedbackAlert from '#lib/components/settings/feedback-alert.svelte';
+	import { Input } from '#lib/components/ui/input/index.ts';
 	import { untrack } from 'svelte';
 	import StepNav from './step-nav.svelte';
 

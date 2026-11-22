@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
-	import MailboxSync from '$lib/components/settings/mailbox-sync.svelte';
+	import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
+	import MailboxSync from '#lib/components/settings/mailbox-sync.svelte';
 	import { resolve } from '$app/paths';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { FIRST_REPORT_ETA } from '$lib/report-address';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { FIRST_REPORT_ETA } from '#lib/report-address.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 	import HourglassIcon from '@lucide/svelte/icons/hourglass';
 
 	/** Slim dashboard notice while domains exist but no report has arrived yet. */

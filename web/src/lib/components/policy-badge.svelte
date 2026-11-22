@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { PolicySource } from '$lib/types/PolicySource';
-	import { POLICY_SOURCE_TEXT } from '$lib/wording/policy-source';
-	import type { Enforcement } from '$lib/types/Enforcement';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { enforcementLabel } from '$lib/health';
+	import type { PolicySource } from '#lib/types/PolicySource.ts';
+	import { POLICY_SOURCE_TEXT } from '#lib/wording/policy-source.ts';
+	import type { Enforcement } from '#lib/types/Enforcement.ts';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { enforcementLabel } from '#lib/health.ts';
 
 	/**
 	 * The enforcement axis: what receivers are asked to do with failing mail (the server's verdict).

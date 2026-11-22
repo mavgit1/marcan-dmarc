@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { createDomain } from '$lib/api';
-	import { apiErrorMessage, conflictOrganizationName, isConflict } from '$lib/http';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { scopeOptions } from '$lib/state/scope.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import * as Select from '$lib/components/ui/select/index.js';
-	import { listTokens, normalizeDomain, unique } from '$lib/text';
-	import type { StatusTone } from '$lib/tokens';
+	import { createDomain } from '#lib/api.ts';
+	import { apiErrorMessage, conflictOrganizationName, isConflict } from '#lib/http.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { scopeOptions } from '#lib/state/scope.svelte.ts';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import * as Select from '#lib/components/ui/select/index.ts';
+	import { listTokens, normalizeDomain, unique } from '#lib/text.ts';
+	import type { StatusTone } from '#lib/tokens.ts';
 
 	/**
 	 * Multi-domain add form with per-domain results. With `organizationId` the target is fixed;

@@ -1,8 +1,8 @@
-import { saveUpdates } from '$lib/api';
-import { meta } from '$lib/state/meta.svelte';
-import { settings } from '$lib/state/settings.svelte';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import type { UpdateSettings } from '$lib/types/UpdateSettings';
+import { saveUpdates } from '#lib/api.ts';
+import { meta } from '#lib/state/meta.svelte.ts';
+import { settings } from '#lib/state/settings.svelte.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import type { UpdateSettings } from '#lib/types/UpdateSettings.ts';
 import { SettingsForm, type SettingsFormSource, type Writes } from './settings-form.svelte';
 
 /**

@@ -2,15 +2,15 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import AddDomains from '$lib/components/add-domains.svelte';
-	import BackgroundActivity from '$lib/components/background-activity.svelte';
-	import DomainPortfolio from '$lib/components/domain-portfolio.svelte';
-	import ExportDialog from '$lib/components/export-dialog.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import { filters } from '$lib/state/filters.svelte';
-	import { refresh } from '$lib/state/refresh.svelte';
+	import AddDomains from '#lib/components/add-domains.svelte';
+	import BackgroundActivity from '#lib/components/background-activity.svelte';
+	import DomainPortfolio from '#lib/components/domain-portfolio.svelte';
+	import ExportDialog from '#lib/components/export-dialog.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 
@@ -21,10 +21,10 @@
 
 	/** Back to the plain list, keeping the other parameters (the scope). */
 	function clearAttention() {
-		const search = new URLSearchParams(page.url.searchParams);
+		const search = new URLSearchParams(page.url.search);
 		search.delete('attention');
 		const query = search.toString();
-		void goto(resolve(`/domains${query ? `?${query}` : ''}` as '/domains'), { keepFocus: true, noScroll: true });
+		void goto(resolve(`domains${query ? `?${query}` : ''}` as '/domains'), { reset: false });
 	}
 </script>
 

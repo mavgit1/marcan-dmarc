@@ -1,9 +1,9 @@
-import { saveSending, sendTestMail } from '$lib/api';
-import { emailDomain, looksLikeEmail } from '$lib/report-address';
-import { settings } from '$lib/state/settings.svelte';
-import type { AccountView } from '$lib/types/AccountView';
-import type { SendingSettings } from '$lib/types/SendingSettings';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { saveSending, sendTestMail } from '#lib/api.ts';
+import { emailDomain, looksLikeEmail } from '#lib/report-address.ts';
+import { settings } from '#lib/state/settings.svelte.ts';
+import type { AccountView } from '#lib/types/AccountView.ts';
+import type { SendingSettings } from '#lib/types/SendingSettings.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import {
 	invalid,
 	NO_TEST_RECIPIENT,

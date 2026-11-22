@@ -1,9 +1,9 @@
 // The legend's layout decisions: which cells, a zero kept in place and muted, a trend only
 // where the server sent one, the share and meaning in the title.
 import { describe, expect, it } from 'vitest';
-import type { MailFigures } from '$lib/health';
-import type { Statistics } from '$lib/types/Statistics';
-import type { Trend } from '$lib/types/Trend';
+import type { MailFigures } from '#lib/health.ts';
+import type { Statistics } from '#lib/types/Statistics.ts';
+import type { Trend } from '#lib/types/Trend.ts';
 import { legendCells, legendTotal, statisticsTrends, type OutcomeTrends } from './outcome-legend';
 
 const mail: MailFigures = {

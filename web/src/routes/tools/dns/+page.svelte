@@ -2,22 +2,22 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { getDnsBimi, getDnsDkim, getDnsDmarc, getDnsMtaSts, getDnsPtr, getDnsSpf, getDnsTlsRpt } from '$lib/api';
-	import { apiErrorMessage } from '$lib/http';
+	import { getDnsBimi, getDnsDkim, getDnsDmarc, getDnsMtaSts, getDnsPtr, getDnsSpf, getDnsTlsRpt } from '#lib/api.ts';
+	import { apiErrorMessage } from '#lib/http.ts';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
-	import DnsCheckPanel from '$lib/components/dns-check-panel.svelte';
-	import DnsFindingsList from '$lib/components/dns-findings-list.svelte';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
-	import LookupBadge from '$lib/components/dns/lookup-badge.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import { DOCS_URL } from '$lib/nav';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import DmarcDetails from '$lib/components/dns/dmarc-details.svelte';
-	import SpfDetails from '$lib/components/dns/spf-details.svelte';
-	import { bimiDetails, mtaStsDetails, tlsRptDetails } from '$lib/components/dns/transport-details.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import DnsCheckPanel from '#lib/components/dns-check-panel.svelte';
+	import DnsFindingsList from '#lib/components/dns-findings-list.svelte';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
+	import LookupBadge from '#lib/components/dns/lookup-badge.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import { DOCS_URL } from '#lib/nav.ts';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import DmarcDetails from '#lib/components/dns/dmarc-details.svelte';
+	import SpfDetails from '#lib/components/dns/spf-details.svelte';
+	import { bimiDetails, mtaStsDetails, tlsRptDetails } from '#lib/components/dns/transport-details.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
 	import {
 		CHECK_FAILED,
 		bimiStatus,
@@ -31,13 +31,13 @@
 		spfTrailing,
 		worstVerdict,
 		type Verdict
-	} from '$lib/dns';
-	import { enforcementLabel } from '$lib/health';
-	import { plural } from '$lib/format';
-	import { resource, type Resource } from '$lib/state/resource.svelte';
-	import { listTokens, normalizeDomain } from '$lib/text';
-	import { statusFg } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	} from '#lib/dns.ts';
+	import { enforcementLabel } from '#lib/health.ts';
+	import { plural } from '#lib/format.ts';
+	import { resource, type Resource } from '#lib/state/resource.svelte.ts';
+	import { listTokens, normalizeDomain } from '#lib/text.ts';
+	import { statusFg } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Status, error and refreshing props for a `DnsCheckPanel`: idle before a domain is
@@ -110,7 +110,7 @@
 	}
 
 	function syncUrl(domain: string, selectors: string[] | null) {
-		const url = new URL(page.url);
+		const url = new URL(page.url.href);
 		if (domain) url.searchParams.set('domain', domain);
 		else url.searchParams.delete('domain');
 		if (selectors && selectors.length > 0) {
@@ -119,7 +119,7 @@
 			url.searchParams.delete('selectors');
 		}
 		const href = `${url.pathname}${url.search}${url.hash}`;
-		void goto(resolve(href as '/'), { replaceState: true, keepFocus: true, noScroll: true });
+		void goto(resolve(href as '/'), { replace: true, reset: false });
 	}
 
 	function onInspectDomain(event: Event) {

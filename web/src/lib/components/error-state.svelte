@@ -1,8 +1,8 @@
 <script lang="ts">
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
-	import { apiErrorMessage } from '$lib/http';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { cn } from '$lib/utils.js';
+	import { apiErrorMessage } from '#lib/http.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Inline error with an optional retry action. Pass what was thrown as `error` (it is

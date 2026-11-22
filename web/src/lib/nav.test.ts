@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NAV_GROUPS, crumbsForPath, isNavActive, titleForPath } from './nav';
 
-vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
+vi.mock('$app/paths', () => ({ resolve: (path: string) => (path.startsWith('/') ? path : `/${path}`) }));
 
 describe('NAV_GROUPS', () => {
 	it('orders the sidebar groups and their pages', () => {

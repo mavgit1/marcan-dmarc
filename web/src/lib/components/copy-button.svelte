@@ -1,8 +1,8 @@
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CopyIcon from '@lucide/svelte/icons/copy';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { cn } from '$lib/utils.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Copy an IP, DNS record, or other identifier to the clipboard.

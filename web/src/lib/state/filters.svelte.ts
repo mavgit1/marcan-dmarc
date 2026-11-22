@@ -44,9 +44,9 @@ export function adoptScopeUrl(url: URL, mode: 'reset' | 'carry') {
 export async function syncScopeUrl(): Promise<void> {
 	const params = scopeParamsFor(page.url.pathname);
 	if (params.length === 0) return;
-	const search = writeScope(page.url.searchParams, filters, params);
+	const search = writeScope(new URLSearchParams(page.url.search), filters, params);
 	if (search.toString() === page.url.searchParams.toString()) return;
 	const query = search.toString();
 	const href = `${page.url.pathname}${query ? `?${query}` : ''}${page.url.hash}`;
-	await goto(resolve(href as '/'), { replaceState: true, keepFocus: true, noScroll: true });
+	await goto(resolve(href as '/'), { replace: true, reset: false });
 }

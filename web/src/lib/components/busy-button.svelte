@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, type ButtonProps } from '$lib/components/ui/button/index.js';
+	import { Button, type ButtonProps } from '#lib/components/ui/button/index.ts';
 	import Loader2Icon from '@lucide/svelte/icons/loader-2';
 
 	/** Button that swaps its label for a spinner and `busyLabel` while `busy`. */

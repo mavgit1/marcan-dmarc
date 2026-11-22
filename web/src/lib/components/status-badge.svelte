@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { statusSurface, type StatusTone } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import { Badge } from '#lib/components/ui/badge/index.ts';
+	import { statusSurface, type StatusTone } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 	import type { Snippet } from 'svelte';
 
 	/** Outline badge tinted with a status tone. Keep a text label: colour alone is not a status. */

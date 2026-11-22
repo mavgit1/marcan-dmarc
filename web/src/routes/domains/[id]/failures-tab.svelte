@@ -2,13 +2,13 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { getDomainFailures, type DomainFailureFilters } from '$lib/api';
-	import type { WithIdentity } from '$lib/types/WithIdentity';
-	import type { DomainFailureRow } from '$lib/types/DomainFailureRow';
-	import type { DomainOverview } from '$lib/types/DomainOverview';
-	import type { FailureOutcome } from '$lib/types/FailureOutcome';
-	import type { Page } from '$lib/types/Page';
-	import { outcomeDisplay } from '$lib/auth-display';
+	import { getDomainFailures, type DomainFailureFilters } from '#lib/api.ts';
+	import type { WithIdentity } from '#lib/types/WithIdentity.ts';
+	import type { DomainFailureRow } from '#lib/types/DomainFailureRow.ts';
+	import type { DomainOverview } from '#lib/types/DomainOverview.ts';
+	import type { FailureOutcome } from '#lib/types/FailureOutcome.ts';
+	import type { Page } from '#lib/types/Page.ts';
+	import { outcomeDisplay } from '#lib/auth-display.ts';
 	import {
 		DEFAULT_FAILURE_KINDS,
 		FAILURE_KINDS,
@@ -19,26 +19,26 @@
 		failureKinds,
 		failureKindsSummary,
 		type FailureKind
-	} from '$lib/wording/outcome';
-	import AuthChecks from '$lib/components/auth-checks.svelte';
-	import DataTable from '$lib/components/data-table.svelte';
-	import { defaultCellText, type ColumnDef } from '$lib/components/data-table';
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import SenderCell from '$lib/components/sender-cell.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { formatDateSpan, formatInt, plural } from '$lib/format';
-	import { filters, sincePhrase } from '$lib/state/filters.svelte';
-	import { resource } from '$lib/state/resource.svelte';
-	import { ServerList } from '$lib/state/server-list.svelte';
+	} from '#lib/wording/outcome.ts';
+	import AuthChecks from '#lib/components/auth-checks.svelte';
+	import DataTable from '#lib/components/data-table.svelte';
+	import { defaultCellText, type ColumnDef } from '#lib/components/data-table.ts';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import SenderCell from '#lib/components/sender-cell.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { Button, buttonVariants } from '#lib/components/ui/button/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { formatDateSpan, formatInt, plural } from '#lib/format.ts';
+	import { filters, sincePhrase } from '#lib/state/filters.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { ServerList } from '#lib/state/server-list.svelte.ts';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import { cn } from '$lib/utils.js';
+	import { cn } from '#lib/utils.ts';
 	type DomainFailureItem = WithIdentity<DomainFailureRow>;
 
 	const PAGE_SIZE = 50;
@@ -48,7 +48,7 @@
 	let {
 		domainId,
 		overview,
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-useless-assignment -- written for the parent's bind:exportFilters
+		// eslint-disable-next-line no-useless-assignment -- written for the parent's bind:exportFilters
 		exportFilters = $bindable(null)
 	}: {
 		domainId: number;
@@ -99,7 +99,7 @@
 	$effect(() => {
 		const ip = sourceIpFilter.trim();
 		const outcome = defaultKinds ? null : allKinds ? 'all' : kinds.join(',');
-		const url = new URL(page.url);
+		const url = new URL(page.url.href);
 		const params = url.searchParams;
 		if (ip) params.set('ip', ip);
 		else params.delete('ip');
@@ -109,9 +109,8 @@
 		const search = url.search.replaceAll('%2C', ',');
 		if (search === page.url.search) return;
 		void goto(resolve(`${url.pathname}${search}${url.hash}` as '/'), {
-			replaceState: true,
-			keepFocus: true,
-			noScroll: true
+			replace: true,
+			reset: false
 		});
 	});
 
@@ -328,7 +327,7 @@
 				<span class="whitespace-nowrap text-xs tabular-nums">{formatDateSpan(row.first_seen, row.last_seen)}</span>
 			{:else if column.id === 'report'}
 				<a
-					href={resolve(`/reports/${row.newest_report_id}`)}
+					href={resolve(`reports/${row.newest_report_id}`)}
 					class="text-muted-foreground hover:text-foreground whitespace-nowrap text-xs underline underline-offset-2"
 					title="The newest report with these records">Newest</a
 				>

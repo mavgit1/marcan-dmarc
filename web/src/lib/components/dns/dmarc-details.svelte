@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { DmarcCheckResult } from '$lib/types/DmarcCheckResult';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { authVerdict, CHECK_FAILED, dnsLookupMeasured } from '$lib/dns';
-	import { statusFg } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import type { DmarcCheckResult } from '#lib/types/DmarcCheckResult.ts';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { authVerdict, CHECK_FAILED, dnsLookupMeasured } from '#lib/dns.ts';
+	import { statusFg } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import DetailHeading from './detail-heading.svelte';
 

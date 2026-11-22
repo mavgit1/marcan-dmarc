@@ -1,7 +1,7 @@
 <script lang="ts">
-	import InlineCode from '$lib/components/inline-code.svelte';
-	import ReportingSetup from '$lib/components/reporting-setup/reporting-setup.svelte';
-	import type { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
+	import InlineCode from '#lib/components/inline-code.svelte';
+	import ReportingSetup from '#lib/components/reporting-setup/reporting-setup.svelte';
+	import type { ReportingSetupState } from '#lib/components/reporting-setup/reporting-setup-state.svelte.ts';
 	import { importing, type SetupData } from './setup-steps';
 	import StepNav from './step-nav.svelte';
 

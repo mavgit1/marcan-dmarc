@@ -1,4 +1,4 @@
-import { apiErrorMessage, errorBody } from '$lib/http';
+import { apiErrorMessage, errorBody } from '#lib/http.ts';
 
 /** `docs`: a failure's docs section on the fix, as the server's error answer names it (`ErrorBody.docs`). */
 export type Feedback = { ok: boolean; message: string; docs?: string | null };

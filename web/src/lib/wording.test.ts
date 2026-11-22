@@ -1,7 +1,7 @@
 // The UI words the server's verdicts; these pin the words to the states they stand for.
 import { describe, expect, it } from 'vitest';
-import type { Enforcement } from '$lib/types/Enforcement';
-import type { Rate } from '$lib/types/Rate';
+import type { Enforcement } from '#lib/types/Enforcement.ts';
+import type { Rate } from '#lib/types/Rate.ts';
 import { enforcementLabel, formatRate, TREND_LABEL, trendWords } from './health';
 
 const enforcement = (state: Enforcement['state']) => ({ state }) as Enforcement;

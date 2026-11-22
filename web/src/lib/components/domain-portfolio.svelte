@@ -1,16 +1,16 @@
 <script lang="ts">
-	import { getStatistics } from '$lib/api';
-	import type { Statistics } from '$lib/types/Statistics';
-	import DomainsTable from '$lib/components/domains-table.svelte';
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import { resource } from '$lib/state/resource.svelte';
-	import StatCard from '$lib/components/stat-card.svelte';
-	import { formatInt } from '$lib/format';
-	import { formatRate } from '$lib/health';
-	import { outcomeCountLine } from '$lib/wording/outcome';
-	import { filters } from '$lib/state/filters.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import { getStatistics } from '#lib/api.ts';
+	import type { Statistics } from '#lib/types/Statistics.ts';
+	import DomainsTable from '#lib/components/domains-table.svelte';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import StatCard from '#lib/components/stat-card.svelte';
+	import { formatInt } from '#lib/format.ts';
+	import { formatRate } from '#lib/health.ts';
+	import { outcomeCountLine } from '#lib/wording/outcome.ts';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import MailsIcon from '@lucide/svelte/icons/mails';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';

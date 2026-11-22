@@ -1,11 +1,11 @@
 // The version check's switch: on by default, saved as the whole group; a save reloads meta, which
 // carries the newer version the server found.
 import { describe, expect, it, vi } from 'vitest';
-import { settingsFixture } from '$lib/test/settings-fixture';
-import * as api from '$lib/api';
+import { settingsFixture } from '#lib/test/settings-fixture.ts';
+import * as api from '#lib/api.ts';
 import { UpdatesModel } from './updates-draft.svelte';
 
-vi.mock('$lib/api', () => ({ getSettings: vi.fn(), getMeta: vi.fn(), saveUpdates: vi.fn() }));
+vi.mock('#lib/api.ts', () => ({ getSettings: vi.fn(), getMeta: vi.fn(), saveUpdates: vi.fn() }));
 
 const settle = () => new Promise<void>((done) => setTimeout(done));
 

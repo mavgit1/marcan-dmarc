@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { formatPoints, SEVERITY_LABEL, type ListedFinding } from '$lib/dns';
-	import { SEVERITY_TONE, statusRow, type StatusTone } from '$lib/tokens';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import CodeText from '$lib/components/code-text.svelte';
-	import { cn } from '$lib/utils.js';
+	import { formatPoints, SEVERITY_LABEL, type ListedFinding } from '#lib/dns.ts';
+	import { SEVERITY_TONE, statusRow, type StatusTone } from '#lib/tokens.ts';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import CodeText from '#lib/components/code-text.svelte';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Findings list for DNS check panels and the domain overview.

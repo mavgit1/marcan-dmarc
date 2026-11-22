@@ -1,8 +1,8 @@
 // The scorecard's five pillars from a live check and an overview: every card's verdict,
 // rows, points and findings come from here (`pillarModels`).
 import { describe, expect, it } from 'vitest';
-import type { DnsCheckResponse } from '$lib/types/DnsCheckResponse';
-import type { DomainOverview } from '$lib/types/DomainOverview';
+import type { DnsCheckResponse } from '#lib/types/DnsCheckResponse.ts';
+import type { DomainOverview } from '#lib/types/DomainOverview.ts';
 import { CHECK_FAILED, pillarModels } from './dns';
 
 /** Enough of a domain overview for the report-data pillar. */

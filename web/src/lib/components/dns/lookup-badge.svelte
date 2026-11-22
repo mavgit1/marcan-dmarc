@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { LookupStatus } from '$lib/types/LookupStatus';
+	import type { LookupStatus } from '#lib/types/LookupStatus.ts';
 
 	/** Raw outcome of one DNS or HTTP fetch as plain text, e.g. `DNS: NXDOMAIN`. Not a verdict. */
 	let { lookup, prefix = 'DNS' }: { lookup: LookupStatus; prefix?: string } = $props();

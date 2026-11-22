@@ -1,5 +1,5 @@
-import type { ImapSecurity } from '$lib/types/ImapSecurity';
-import type { SmtpSecurity } from '$lib/types/SmtpSecurity';
+import type { ImapSecurity } from '#lib/types/ImapSecurity.ts';
+import type { SmtpSecurity } from '#lib/types/SmtpSecurity.ts';
 
 /**
  * What the mailbox (IMAP) and the sending account (SMTP) share: a host, a port, a login and the

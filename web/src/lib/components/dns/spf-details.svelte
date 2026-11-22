@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { SpfCheckResult } from '$lib/types/SpfCheckResult';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
-	import SpfIncludeTree from '$lib/components/spf-include-tree.svelte';
-	import { dnsLookupMeasured, spfLookupsLabel, spfTrailing, spfVoidLookupsLabel } from '$lib/dns';
-	import { statusFg } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import type { SpfCheckResult } from '#lib/types/SpfCheckResult.ts';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
+	import SpfIncludeTree from '#lib/components/spf-include-tree.svelte';
+	import { dnsLookupMeasured, spfLookupsLabel, spfTrailing, spfVoidLookupsLabel } from '#lib/dns.ts';
+	import { statusFg } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 	import DetailHeading from './detail-heading.svelte';
 
 	/**

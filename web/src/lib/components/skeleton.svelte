@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Skeleton as UiSkeleton } from '$lib/components/ui/skeleton/index.js';
-	import { cn } from '$lib/utils.js';
+	import { Skeleton as UiSkeleton } from '#lib/components/ui/skeleton/index.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Loading placeholder. Prefer this over the ui/ primitive so pages share one import path.

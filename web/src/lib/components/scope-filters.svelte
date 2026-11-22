@@ -2,13 +2,13 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import * as Select from '$lib/components/ui/select/index.js';
-	import { filters, SINCE_OPTIONS, sinceLabel, syncScopeUrl } from '$lib/state/filters.svelte';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { scopeOptions } from '$lib/state/scope.svelte';
-	import { scopeParamsFor } from '$lib/state/scope-url';
-	import { cn } from '$lib/utils.js';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import * as Select from '#lib/components/ui/select/index.ts';
+	import { filters, SINCE_OPTIONS, sinceLabel, syncScopeUrl } from '#lib/state/filters.svelte.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { scopeOptions } from '#lib/state/scope.svelte.ts';
+	import { scopeParamsFor } from '#lib/state/scope-url.ts';
+	import { cn } from '#lib/utils.ts';
 
 	let {
 		class: className,
@@ -62,7 +62,7 @@
 		const next = value === 'all' ? null : Number(value);
 		filters.domainId = next;
 		await syncScopeUrl();
-		if (next !== null && !pathname.startsWith('/alerts')) await goto(resolve(`/domains/${next}`));
+		if (next !== null && !pathname.startsWith('/alerts')) await goto(resolve(`domains/${next}`));
 	}
 
 	function onSinceChange(value: string) {

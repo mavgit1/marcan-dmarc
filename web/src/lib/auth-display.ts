@@ -1,18 +1,18 @@
 /**
  * How SPF, DKIM, DMARC and row outcomes read in the UI: Failures tab, report records, the
  * domain overview and the export dialog. The words per server state are the tables below
- * (`CHECK_STATE_LABEL`, `DMARC_VERDICT_LABEL`) and `$lib/wording/outcome`; this composes them.
+ * (`CHECK_STATE_LABEL`, `DMARC_VERDICT_LABEL`) and `#lib/wording/outcome.ts`; this composes them.
  *
  * DMARC only counts an *aligned* pass. SPF or DKIM can pass for another domain
  * (forwarding: SPF pass for gmail.com, DKIM pass for a list's domain) and still not
  * count, so a check is never shown as "failed" just because it did not carry DMARC.
  */
-import type { CheckState } from '$lib/types/CheckState';
-import type { DmarcVerdict } from '$lib/types/DmarcVerdict';
-import type { Outcome } from '$lib/types/Outcome';
-import type { OverrideReason } from '$lib/types/OverrideReason';
-import type { StatusTone } from '$lib/tokens';
-import { OUTCOME_LABEL, OUTCOME_STATUS, OUTCOME_TITLE } from '$lib/wording/outcome';
+import type { CheckState } from '#lib/types/CheckState.ts';
+import type { DmarcVerdict } from '#lib/types/DmarcVerdict.ts';
+import type { Outcome } from '#lib/types/Outcome.ts';
+import type { OverrideReason } from '#lib/types/OverrideReason.ts';
+import type { StatusTone } from '#lib/tokens.ts';
+import { OUTCOME_LABEL, OUTCOME_STATUS, OUTCOME_TITLE } from '#lib/wording/outcome.ts';
 
 /**
  * One SPF or DKIM check of a record: the stored result and alignment, and the server's

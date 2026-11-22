@@ -1,5 +1,5 @@
-import { getSystemHealth, syncAll } from '$lib/api';
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
+import { getSystemHealth, syncAll } from '#lib/api.ts';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
 import { refresh } from './refresh.svelte';
 
 /** Health poll while no mailbox pass is running. */

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { formatDay, plural } from '$lib/format';
-	import { settings } from '$lib/state/settings.svelte';
-	import { statusText } from '$lib/tokens';
+	import { formatDay, plural } from '#lib/format.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import { statusText } from '#lib/tokens.ts';
 
 	/**
 	 * The send line under the Client reports switch, from the saved settings: when the reports

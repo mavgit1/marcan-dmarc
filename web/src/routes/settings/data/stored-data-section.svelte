@@ -1,8 +1,8 @@
 <script lang="ts">
-	import SettingRow from '$lib/components/settings/setting-row.svelte';
-	import SettingsSection from '$lib/components/settings/settings-section.svelte';
-	import { formatInt, formatMegabytes } from '$lib/format';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import SettingRow from '#lib/components/settings/setting-row.svelte';
+	import SettingsSection from '#lib/components/settings/settings-section.svelte';
+	import { formatInt, formatMegabytes } from '#lib/format.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 
 	/** The Data page's Stored data section: what the database holds, read-only. */
 	const health = $derived(systemHealth.current);

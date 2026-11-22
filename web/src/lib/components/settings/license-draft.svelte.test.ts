@@ -1,14 +1,14 @@
 // The operator license section's draft: the key is never shown back, a typed key replaces the
 // stored one, Remove clears it, and every save reloads `meta`. There is no notice switch.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { settingsFixture } from '$lib/test/settings-fixture';
-import type { LicenseSettingsResponse } from '$lib/types/LicenseSettingsResponse';
-import type { Meta } from '$lib/types/Meta';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import * as api from '$lib/api';
+import { settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { LicenseSettingsResponse } from '#lib/types/LicenseSettingsResponse.ts';
+import type { Meta } from '#lib/types/Meta.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import * as api from '#lib/api.ts';
 import { BLANK, LICENSE_STATE, LicenseModel, toRequest, type LicenseDraft } from './license-draft.svelte';
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
 	getSettings: vi.fn(),
 	getMeta: vi.fn(),
 	saveLicense: vi.fn()

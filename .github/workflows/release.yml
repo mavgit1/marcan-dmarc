@@ -147,7 +147,7 @@ jobs:
         run: docker buildx imagetools inspect ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
 
   # The release entry, once the image it names exists: title and text from the tag's
-  # message. release-entry.yml runs the same script by hand for a tag that has none.
+  # message.
   entry:
     needs: merge
     permissions:

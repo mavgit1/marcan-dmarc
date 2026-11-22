@@ -1,10 +1,10 @@
 import { untrack } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
-import { apiErrorMessage } from '$lib/http';
-import { refresh } from '$lib/state/refresh.svelte';
-import { resource, type Resource } from '$lib/state/resource.svelte';
-import type { SettingsPageId } from '$lib/settings-nav';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { apiErrorMessage } from '#lib/http.ts';
+import { refresh } from '#lib/state/refresh.svelte.ts';
+import { resource, type Resource } from '#lib/state/resource.svelte.ts';
+import type { SettingsPageId } from '#lib/settings-nav.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { Action, type Feedback } from '../action.svelte';
 import type { PagePart } from './page-form.svelte';
 

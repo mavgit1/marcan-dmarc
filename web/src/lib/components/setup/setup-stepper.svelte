@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { getOrganizations, getScope } from '$lib/api';
-	import type { OrganizationSummary } from '$lib/types/OrganizationSummary';
-	import Loaded from '$lib/components/loaded.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
-	import { reportAddressKey } from '$lib/report-address';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import { resource, type Resource } from '$lib/state/resource.svelte';
-	import { settings } from '$lib/state/settings.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import { getOrganizations, getScope } from '#lib/api.ts';
+	import type { OrganizationSummary } from '#lib/types/OrganizationSummary.ts';
+	import Loaded from '#lib/components/loaded.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { ReportingSetupState } from '#lib/components/reporting-setup/reporting-setup-state.svelte.ts';
+	import { reportAddressKey } from '#lib/report-address.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import { resource, type Resource } from '#lib/state/resource.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 	import type { Snippet } from 'svelte';
 	import { firstOpenStep, linkedStep as linkedIndex, SETUP_STEPS, type SetupData } from './setup-steps';
 	import StepAccounts from './step-accounts.svelte';

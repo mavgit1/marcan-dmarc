@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { findingsWorstFirst, type ListedFinding } from '$lib/dns';
-	import DnsFindingsList from '$lib/components/dns-findings-list.svelte';
+	import { findingsWorstFirst, type ListedFinding } from '#lib/dns.ts';
+	import DnsFindingsList from '#lib/components/dns-findings-list.svelte';
 	import DetailHeading from './detail-heading.svelte';
 
 	/** What is wrong, worst first: the top of every inspection drawer. */

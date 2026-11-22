@@ -1,10 +1,10 @@
 <script lang="ts">
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { storedLogo } from '$lib/state/logo.svelte';
-	import { meta } from '$lib/state/meta.svelte';
-	import { statusText } from '$lib/tokens';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { storedLogo } from '#lib/state/logo.svelte.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { statusText } from '#lib/tokens.ts';
 	import { type BrandingModel, LOGO_ACCEPT, LOGO_TYPE_LABEL, kilobytes, previewNote } from './branding-draft.svelte';
 	import EmailLookCard from './email-look-card.svelte';
 	import { joinPageForm } from './page-form.svelte';

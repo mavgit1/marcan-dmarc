@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import InlineCode from '$lib/components/inline-code.svelte';
-	import type { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
-	import SettingsLink from '$lib/components/settings/settings-link.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { plural } from '$lib/format';
-	import { FORWARDED_NAMED, MAILBOX_AUTHORIZATION_LABEL, REPORTING_STATUS_LABEL } from '$lib/report-address';
-	import { statusDot, TONE_RANK } from '$lib/tokens';
-	import type { ReportingDomain } from '$lib/types/ReportingDomain';
-	import type { Status } from '$lib/types/Status';
-	import { cn } from '$lib/utils.js';
+	import InlineCode from '#lib/components/inline-code.svelte';
+	import type { ReportingSetupState } from '#lib/components/reporting-setup/reporting-setup-state.svelte.ts';
+	import SettingsLink from '#lib/components/settings/settings-link.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { plural } from '#lib/format.ts';
+	import { FORWARDED_NAMED, MAILBOX_AUTHORIZATION_LABEL, REPORTING_STATUS_LABEL } from '#lib/report-address.ts';
+	import { statusDot, TONE_RANK } from '#lib/tokens.ts';
+	import type { ReportingDomain } from '#lib/types/ReportingDomain.ts';
+	import type { Status } from '#lib/types/Status.ts';
+	import { cn } from '#lib/utils.ts';
 	import DocsLink from './docs-link.svelte';
 	import GuideBlock from './guide-block.svelte';
 
@@ -114,7 +114,7 @@
 			<span class="text-muted-foreground">
 				Not yet:
 				{#each missing.slice(0, NAMED_MAX) as d, i (d.id)}{#if i > 0},{/if}
-					<a href={resolve(`/domains/${d.id}`)} class="text-foreground underline underline-offset-2">{d.domain}</a>
+					<a href={resolve(`domains/${d.id}`)} class="text-foreground underline underline-offset-2">{d.domain}</a>
 					({midSentence(REPORTING_STATUS_LABEL[d.state])}){/each}{more > 0 ? `, and ${more} more` : ''}.
 			</span>
 			{#if missing.some((d) => !d.set_up)}

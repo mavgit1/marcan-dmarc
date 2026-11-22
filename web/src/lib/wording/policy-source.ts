@@ -1,5 +1,5 @@
-import type { PolicySource } from '$lib/types/PolicySource';
-import { CHECK_FAILED } from '$lib/dns';
+import type { PolicySource } from '#lib/types/PolicySource.ts';
+import { CHECK_FAILED } from '#lib/dns.ts';
 
 /**
  * Where a domain's policy comes from (`policy_source`): its DMARC record in DNS (`dns`); without

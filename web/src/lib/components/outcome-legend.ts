@@ -1,8 +1,8 @@
-import type { Statistics } from '$lib/types/Statistics';
-import type { Trend } from '$lib/types/Trend';
-import { formatInt, formatPct, percent } from '$lib/format';
-import { outcomeCounts, trendWords, type MailFigures, type OutcomeCounts, type StatTrend } from '$lib/health';
-import { OUTCOME_EXPLANATION, OUTCOMES } from '$lib/wording/outcome';
+import type { Statistics } from '#lib/types/Statistics.ts';
+import type { Trend } from '#lib/types/Trend.ts';
+import { formatInt, formatPct, percent } from '#lib/format.ts';
+import { outcomeCounts, trendWords, type MailFigures, type OutcomeCounts, type StatTrend } from '#lib/health.ts';
+import { OUTCOME_EXPLANATION, OUTCOMES } from '#lib/wording/outcome.ts';
 
 /** The server's trend of each outcome count against the previous window (`Statistics`). */
 export type OutcomeTrends = Record<keyof OutcomeCounts, Trend | null>;

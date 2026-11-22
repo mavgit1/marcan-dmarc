@@ -1,7 +1,7 @@
 <script lang="ts">
-	import CopyButton from '$lib/components/copy-button.svelte';
-	import SenderName from '$lib/components/sender-name.svelte';
-	import type { SenderIdentity } from '$lib/types/SenderIdentity';
+	import CopyButton from '#lib/components/copy-button.svelte';
+	import SenderName from '#lib/components/sender-name.svelte';
+	import type { SenderIdentity } from '#lib/types/SenderIdentity.ts';
 	import type { Snippet } from 'svelte';
 
 	/**

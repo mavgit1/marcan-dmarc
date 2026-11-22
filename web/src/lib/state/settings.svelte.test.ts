@@ -1,11 +1,11 @@
 // The shared settings: fetched once per app session, replaced by every save's answer, and never
 // overwritten by a load that started before a save.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { settingsFixture } from '$lib/test/settings-fixture';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import * as api from '$lib/api';
+import { settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import * as api from '#lib/api.ts';
 
-vi.mock('$lib/api', () => ({ getSettings: vi.fn() }));
+vi.mock('#lib/api.ts', () => ({ getSettings: vi.fn() }));
 const getSettings = vi.mocked(api.getSettings);
 
 function answer(folder: string): SettingsResponse {

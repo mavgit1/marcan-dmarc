@@ -1,14 +1,14 @@
-import { deleteLogo, previewBranding, saveBranding, uploadLogo } from '$lib/api';
-import { formatInt } from '$lib/format';
-import { storedLogo } from '$lib/state/logo.svelte';
-import { meta } from '$lib/state/meta.svelte';
-import { settings } from '$lib/state/settings.svelte';
-import type { BrandingPreviewRequest } from '$lib/types/BrandingPreviewRequest';
-import type { BrandingSettings } from '$lib/types/BrandingSettings';
-import type { EmailPreview } from '$lib/types/EmailPreview';
-import type { LogoType } from '$lib/types/LogoType';
-import type { PixelSize } from '$lib/types/PixelSize';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { deleteLogo, previewBranding, saveBranding, uploadLogo } from '#lib/api.ts';
+import { formatInt } from '#lib/format.ts';
+import { storedLogo } from '#lib/state/logo.svelte.ts';
+import { meta } from '#lib/state/meta.svelte.ts';
+import { settings } from '#lib/state/settings.svelte.ts';
+import type { BrandingPreviewRequest } from '#lib/types/BrandingPreviewRequest.ts';
+import type { BrandingSettings } from '#lib/types/BrandingSettings.ts';
+import type { EmailPreview } from '#lib/types/EmailPreview.ts';
+import type { LogoType } from '#lib/types/LogoType.ts';
+import type { PixelSize } from '#lib/types/PixelSize.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { invalid, SettingsForm, type Invalid, type SettingsFormSource, type Writes } from './settings-form.svelte';
 
 /**

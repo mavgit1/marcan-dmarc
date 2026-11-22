@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import { CHECK_PILLAR, PILLAR_IDS, PILLAR_LABEL, type PillarId } from '$lib/dns';
+	import { CHECK_PILLAR, PILLAR_IDS, PILLAR_LABEL, type PillarId } from '#lib/dns.ts';
 
 	/**
 	 * The pillar each attention-list kind opens (`?focus=<kind>`); `worst` opens the pillar of
@@ -30,20 +30,20 @@
 </script>
 
 <script lang="ts">
-	import type { DnsCheckResponse } from '$lib/types/DnsCheckResponse';
-	import type { DomainOverview } from '$lib/types/DomainOverview';
-	import PillarCard from '$lib/components/dns/pillar-card.svelte';
-	import ScorecardDrawer from '$lib/components/dns/scorecard-drawer.svelte';
-	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { DELIVERED_FAILURE_FILTER, getDomainFailures } from '$lib/api';
-	import { pillarModels } from '$lib/dns';
-	import { filters } from '$lib/state/filters.svelte';
-	import { resource } from '$lib/state/resource.svelte';
-	import { formatCheckedAge } from '$lib/format';
-	import { capitalize } from '$lib/text';
-	import { statusSurface } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import type { DnsCheckResponse } from '#lib/types/DnsCheckResponse.ts';
+	import type { DomainOverview } from '#lib/types/DomainOverview.ts';
+	import PillarCard from '#lib/components/dns/pillar-card.svelte';
+	import ScorecardDrawer from '#lib/components/dns/scorecard-drawer.svelte';
+	import { Badge } from '#lib/components/ui/badge/index.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { DELIVERED_FAILURE_FILTER, getDomainFailures } from '#lib/api.ts';
+	import { pillarModels } from '#lib/dns.ts';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { formatCheckedAge } from '#lib/format.ts';
+	import { capitalize } from '#lib/text.ts';
+	import { statusSurface } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 	import Loader2Icon from '@lucide/svelte/icons/loader-2';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
@@ -99,7 +99,7 @@
 		activePillar = activePillar === pillar ? null : pillar;
 	}
 
-	/** Every card and drawer, from the check and the overview (`$lib/dns`). */
+	/** Every card and drawer, from the check and the overview (`#lib/dns.ts`). */
 	const pillars = $derived(pillarModels(dns, overview));
 
 	/** No answer yet: the DNS cards show skeletons. A failed check reads "Check failed". */

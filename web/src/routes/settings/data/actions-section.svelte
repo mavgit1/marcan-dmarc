@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { saveOnboarding } from '$lib/api';
-	import { Action } from '$lib/components/action.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import FeedbackAlert from '$lib/components/settings/feedback-alert.svelte';
-	import ReimportButton from '$lib/components/settings/reimport-button.svelte';
-	import SettingRow from '$lib/components/settings/setting-row.svelte';
-	import SettingsSection from '$lib/components/settings/settings-section.svelte';
-	import { settings } from '$lib/state/settings.svelte';
+	import { saveOnboarding } from '#lib/api.ts';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import FeedbackAlert from '#lib/components/settings/feedback-alert.svelte';
+	import ReimportButton from '#lib/components/settings/reimport-button.svelte';
+	import SettingRow from '#lib/components/settings/setting-row.svelte';
+	import SettingsSection from '#lib/components/settings/settings-section.svelte';
+	import { settings } from '#lib/state/settings.svelte.ts';
 
 	/**
 	 * The Data page's Actions, outside its form: each acts at once with its own feedback

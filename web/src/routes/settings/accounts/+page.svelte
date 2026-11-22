@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import AccountCard from '$lib/components/settings/account-card.svelte';
-	import { ReceivingModel } from '$lib/components/settings/receiving-draft.svelte';
-	import ReceivingSettingsForm from '$lib/components/settings/receiving-settings-form.svelte';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
-	import SettingsPart from '$lib/components/settings/settings-part.svelte';
-	import SettingsSection from '$lib/components/settings/settings-section.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { settings } from '$lib/state/settings.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import AccountCard from '#lib/components/settings/account-card.svelte';
+	import { ReceivingModel } from '#lib/components/settings/receiving-draft.svelte.ts';
+	import ReceivingSettingsForm from '#lib/components/settings/receiving-settings-form.svelte';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
+	import SettingsPart from '#lib/components/settings/settings-part.svelte';
+	import SettingsSection from '#lib/components/settings/settings-section.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
 	const m = new ReceivingModel({ source: { shared: settings } });

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { reimportMailbox } from '$lib/api';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import { reimportMailbox } from '#lib/api.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import { Action } from '../action.svelte';
 	import BusyButton from '../busy-button.svelte';

@@ -1,10 +1,10 @@
-import { saveLicense } from '$lib/api';
-import { meta } from '$lib/state/meta.svelte';
-import { settings } from '$lib/state/settings.svelte';
-import type { StatusTone } from '$lib/tokens';
-import type { LicenseState } from '$lib/types/LicenseState';
-import type { SaveLicenseRequest } from '$lib/types/SaveLicenseRequest';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { saveLicense } from '#lib/api.ts';
+import { meta } from '#lib/state/meta.svelte.ts';
+import { settings } from '#lib/state/settings.svelte.ts';
+import type { StatusTone } from '#lib/tokens.ts';
+import type { LicenseState } from '#lib/types/LicenseState.ts';
+import type { SaveLicenseRequest } from '#lib/types/SaveLicenseRequest.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { SettingsForm, type SettingsFormSource, type Writes } from './settings-form.svelte';
 
 /** The editable fields of the license group. The stored key is never sent back, so `key` starts empty. */

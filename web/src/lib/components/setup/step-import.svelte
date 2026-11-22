@@ -1,12 +1,12 @@
 <script lang="ts">
-	import ImportProgress from '$lib/components/import-progress.svelte';
-	import MailboxSync from '$lib/components/settings/mailbox-sync.svelte';
-	import { relativeTime } from '$lib/format';
-	import { FIRST_REPORT_ETA } from '$lib/report-address';
-	import { importSummary } from '$lib/pass-progress';
-	import { MAILBOX_LABEL } from '$lib/pipeline';
-	import { systemHealth } from '$lib/state/system-health.svelte';
-	import { statusDot, statusText } from '$lib/tokens';
+	import ImportProgress from '#lib/components/import-progress.svelte';
+	import MailboxSync from '#lib/components/settings/mailbox-sync.svelte';
+	import { relativeTime } from '#lib/format.ts';
+	import { FIRST_REPORT_ETA } from '#lib/report-address.ts';
+	import { importSummary } from '#lib/pass-progress.ts';
+	import { MAILBOX_LABEL } from '#lib/pipeline.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
+	import { statusDot, statusText } from '#lib/tokens.ts';
 	import { onMount } from 'svelte';
 	import { accountReady, importing, type SetupData } from './setup-steps';
 	import StepNav from './step-nav.svelte';

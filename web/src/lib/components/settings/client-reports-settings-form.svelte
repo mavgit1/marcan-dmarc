@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { meta } from '$lib/state/meta.svelte';
-	import { statusText } from '$lib/tokens';
-	import type { RecipientsSummary } from '$lib/types/RecipientsSummary';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { statusText } from '#lib/tokens.ts';
+	import type { RecipientsSummary } from '#lib/types/RecipientsSummary.ts';
 	import { ClientReportsModel, dayRange } from './client-reports-draft.svelte';
 	import HourInput from './hour-input.svelte';
 	import type { ListDraft } from './list-draft.svelte';

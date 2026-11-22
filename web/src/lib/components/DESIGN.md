@@ -15,7 +15,7 @@ record reaches the same conclusion about it.
 - Sentences that judge (alert events, issues, policy readiness, client reports, the letterhead
   preview) arrive worded from the server's `wording/`; the UI shows them as they are.
 - The UI keeps two orders as presentation: `TONE_RANK` (the worst of a card's tones) and
-  `SEVERITY_RANK` in `$lib/dns`. Any other order arrives with the data (`outcome_rank`,
+  `SEVERITY_RANK` in `#lib/dns`. Any other order arrives with the data (`outcome_rank`,
   `attention_rank`, the pipeline's `headline`).
 - Numbers in help text and the ranges a field checks come from `GET /api/meta` (`meta`) or a
   group's `defaults`, never a literal.
@@ -37,9 +37,9 @@ record reaches the same conclusion about it.
    `capitalize` on data.
 6. **Monospace only for literal DNS/record/tag text, IPs and selectors** (`InlineCode` inside
    a sentence). Numbers use the sans font with `tabular-nums`.
-7. **Numbers and dates go through `$lib/format`**; counts with nouns through `plural` /
+7. **Numbers and dates go through `#lib/format`**; counts with nouns through `plural` /
    `pluralNoun`, shares through `percent`. Fractions read "x of y". No `toLocaleString` at call
-   sites. Typed lists are split by `$lib/text`.
+   sites. Typed lists are split by `#lib/text`.
 8. **A badge is a row's verdict only; cards have none.** Never label and value in one badge
    ("MTA-STS: Missing"); never show a default (`pct=100%`).
 9. **Every tinted chip is `StatusBadge`.** No hand-built `Badge` + `statusSurface`.
@@ -47,8 +47,8 @@ record reaches the same conclusion about it.
     or drawer h3 `text-sm font-semibold`; small-caps label `DetailHeading`.
 11. **No text that repeats its own badge or the number next to it.**
 12. **One wording table per server enum** (`Record<Enum, …>`, so the compiler keeps it
-    complete; `wording/tables` tests the shared ones), next to its only user, or in `$lib/wording` when shared; never a `switch` over
-    an enum in a component. Tone maps live in `$lib/tokens`. No cutoff appears in the UI.
+    complete; `wording/tables` tests the shared ones), next to its only user, or in `#lib/wording` when shared; never a `switch` over
+    an enum in a component. Tone maps live in `#lib/tokens`. No cutoff appears in the UI.
 13. **No "Loading…" text and no inline spinner;** skeletons only.
 14. **Tables scroll with the page.** No table has a scroll box or fixed height of its own; a
     long list is paged (50 rows on a server list). Where the table fits its column the header
@@ -77,7 +77,7 @@ record reaches the same conclusion about it.
   confirmed by `ConfirmDialog`, never `window.confirm`.
 - Every internal `href` and `goto` goes through `resolve()`. One Export button per page
   (`ExportDialog`), never a separate export link. No `layerchart` import in pages; use
-  `$lib/components/charts/`. Import each component by its path; there is no barrel file.
+  `#lib/components/charts/`. Import each component by its path; there is no barrel file.
 
 ## Location and scope
 
@@ -92,7 +92,7 @@ record reaches the same conclusion about it.
 
 ## Settings pages
 
-- One page per topic in four groups (`$lib/settings-nav`); no tabs. One form per page with one
+- One page per topic in four groups (`#lib/settings-nav`); no tabs. One form per page with one
   sticky `SaveBar`; nothing saves on its own. Actions that act at once go after the form.
 - A feature's switch is the form's first row and a draft field: a flipped switch is an unsaved
   change saved with the rest (tested per model). Off disables and dims the rows below (one fieldset) and keeps their values; the save
@@ -144,7 +144,7 @@ record reaches the same conclusion about it.
 ## Colour tokens
 
 Defined in `src/routes/layout.css` (both themes) and exposed as Tailwind colours; the class
-helpers are in `$lib/tokens` (`statusSurface`, `statusRow`, `statusFg`, `statusBorderL`,
+helpers are in `#lib/tokens` (`statusSurface`, `statusRow`, `statusFg`, `statusBorderL`,
 `statusDot`, `statusText*`, `statusFigure`). Never hardcode `red-*` / `emerald-*`.
 
 | Token            | Means                                                    |
@@ -157,7 +157,7 @@ helpers are in `$lib/tokens` (`statusSurface`, `statusRow`, `statusFg`, `statusB
 | `status-neutral` | No verdict: inventory, unknown, no data, minor findings  |
 
 - DNS severities map through `SEVERITY_TONE`: `info` and `notice` are neutral, not blue.
-- Outcome colours come from `OUTCOMES` in `$lib/wording/outcome`; other chart series cycle
+- Outcome colours come from `OUTCOMES` in `#lib/wording/outcome`; other chart series cycle
   `--chart-1` … `--chart-5`.
 - Never convey pass/fail with colour alone; keep a label or icon.
 

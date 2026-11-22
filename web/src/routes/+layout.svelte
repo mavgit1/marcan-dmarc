@@ -3,21 +3,21 @@
 	import { afterNavigate, onNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { ModeWatcher } from 'mode-watcher';
-	import AppHeader from '$lib/components/app-header.svelte';
-	import AppSidebar from '$lib/components/app-sidebar.svelte';
-	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import favicon from '$lib/assets/favicon.svg';
-	import faviconLight from '$lib/assets/favicon-light.svg';
-	import faviconDark from '$lib/assets/favicon-dark.svg';
-	import { adoptScopeUrl, syncScopeUrl } from '$lib/state/filters.svelte';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import AppHeader from '#lib/components/app-header.svelte';
+	import AppSidebar from '#lib/components/app-sidebar.svelte';
+	import * as Sidebar from '#lib/components/ui/sidebar/index.ts';
+	import favicon from '#lib/assets/favicon.svg';
+	import faviconLight from '#lib/assets/favicon-light.svg';
+	import faviconDark from '#lib/assets/favicon-dark.svg';
+	import { adoptScopeUrl, syncScopeUrl } from '#lib/state/filters.svelte.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 
 	let { children } = $props();
 
 	// The scope filter lives in the URL: read before the first page renders and on back /
 	// forward; carried over by in-app links (which do not name it); written after each navigation.
-	adoptScopeUrl(page.url, 'reset');
+	adoptScopeUrl(new URL(page.url.href), 'reset');
 	onNavigate(({ to, type }) => {
 		if (to) adoptScopeUrl(to.url, type === 'popstate' ? 'reset' : 'carry');
 	});

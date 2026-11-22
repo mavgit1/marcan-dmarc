@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { checkDisplay, noCheckDisplay, type AuthCheck } from '$lib/auth-display';
-	import { statusTextStrong } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import { checkDisplay, noCheckDisplay, type AuthCheck } from '#lib/auth-display.ts';
+	import { statusTextStrong } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * SPF or DKIM checks of one record in plain words: "Pass", "Pass for <domain>", "Fail"
 	 * or "None". The most relevant check leads (the server sends them in that order); any
-	 * others follow as a muted "+N" whose title lists them. Labels from `$lib/auth-display`.
+	 * others follow as a muted "+N" whose title lists them. Labels from `#lib/auth-display.ts`.
 	 */
 	let { checks, kind, class: className }: { checks: AuthCheck[]; kind: 'spf' | 'dkim'; class?: string } = $props();
 

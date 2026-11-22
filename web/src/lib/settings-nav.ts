@@ -79,5 +79,5 @@ export function settingsTitle(target: SettingsTarget): string {
 export function settingsHref(target: SettingsTarget): string {
 	const page = isSection(target) ? SETTINGS_SECTIONS[target].page : target;
 	const anchor = settingsAnchor(target);
-	return `${resolve(`/settings/${page}`)}${anchor ? `#${anchor}` : ''}`;
+	return `${resolve(`settings/${page}`)}${anchor ? `#${anchor}` : ''}`;
 }

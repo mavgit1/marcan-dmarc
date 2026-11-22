@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { SettingsPageId } from '$lib/settings-nav';
+	import type { SettingsPageId } from '#lib/settings-nav.ts';
 	import type { Snippet } from 'svelte';
 	import type { Feature } from './settings-form.svelte';
 	import { PageForm, setPageForm } from './page-form.svelte';

@@ -2,14 +2,14 @@
 // back, what counts as a change, why a draft cannot be saved, and what the save and the preview
 // send.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SENDING_ON, settingsFixture } from '$lib/test/settings-fixture';
-import type { ClientReportSettingsResponse } from '$lib/types/ClientReportSettingsResponse';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import * as api from '$lib/api';
-import type { ClientReportSettings } from '$lib/types/ClientReportSettings';
+import { SENDING_ON, settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { ClientReportSettingsResponse } from '#lib/types/ClientReportSettingsResponse.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import * as api from '#lib/api.ts';
+import type { ClientReportSettings } from '#lib/types/ClientReportSettings.ts';
 import { ClientReportsModel, dayProblem, replyToProblem } from './client-reports-draft.svelte';
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
 	getSettings: vi.fn(),
 	saveClientReports: vi.fn(),
 	sendClientReportEmail: vi.fn()
@@ -17,7 +17,7 @@ vi.mock('$lib/api', () => ({
 
 /** The server's day range, as `GET /api/meta` serves it. */
 const RANGE = { min: 1, max: 28 };
-vi.mock('$lib/state/meta.svelte', () => ({
+vi.mock('#lib/state/meta.svelte.ts', () => ({
 	meta: { current: { client_report_day_min: 1, client_report_day_max: 28 }, load: vi.fn() }
 }));
 

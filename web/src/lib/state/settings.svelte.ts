@@ -1,6 +1,6 @@
 import { untrack } from 'svelte';
-import { getSettings } from '$lib/api';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { getSettings } from '#lib/api.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { refresh } from './refresh.svelte';
 
 /**
@@ -48,7 +48,7 @@ class SettingsState {
 	}
 
 	/**
-	 * One save (a `save*` request of `$lib/api`, which answers every setting): its answer becomes
+	 * One save (a `save*` request of `#lib/api.ts`, which answers every setting): its answer becomes
 	 * `current`. Returns it; a rejected save leaves `current` as it was.
 	 */
 	async save(request: Promise<SettingsResponse>): Promise<SettingsResponse> {

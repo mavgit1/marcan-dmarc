@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { DomainSummary } from '$lib/types/DomainSummary';
-	import DataTable from '$lib/components/data-table.svelte';
-	import type { ColumnDef } from '$lib/components/data-table';
-	import IssueBadges from '$lib/components/issue-badges.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import type { WordedIssue } from '$lib/types/WordedIssue';
-	import { formatInt, plural } from '$lib/format';
+	import type { DomainSummary } from '#lib/types/DomainSummary.ts';
+	import DataTable from '#lib/components/data-table.svelte';
+	import type { ColumnDef } from '#lib/components/data-table.ts';
+	import IssueBadges from '#lib/components/issue-badges.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import type { WordedIssue } from '#lib/types/WordedIssue.ts';
+	import { formatInt, plural } from '#lib/format.ts';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 
 	type AttentionRow = {
@@ -99,7 +99,7 @@
 					<span class="tabular-nums">{formatInt(row.messages)}</span>
 				{:else}
 					<a
-						href={resolve(`/domains/${row.domainId}`)}
+						href={resolve(`domains/${row.domainId}`)}
 						class="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 text-xs whitespace-nowrap"
 					>
 						Open

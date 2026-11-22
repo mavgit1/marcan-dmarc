@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { getClientReportEmail } from '$lib/api';
-	import ErrorState from '$lib/components/error-state.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import type { ClientReportEmail } from '$lib/types/ClientReportEmail';
+	import { getClientReportEmail } from '#lib/api.ts';
+	import ErrorState from '#lib/components/error-state.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Sheet from '#lib/components/ui/sheet/index.ts';
+	import type { ClientReportEmail } from '#lib/types/ClientReportEmail.ts';
 	import EyeIcon from '@lucide/svelte/icons/eye';
 
 	/**

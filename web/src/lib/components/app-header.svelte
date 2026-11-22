@@ -4,26 +4,26 @@
 	import { page } from '$app/state';
 	import CircleArrowUpIcon from '@lucide/svelte/icons/circle-arrow-up';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
-	import ImportProgress from '$lib/components/import-progress.svelte';
-	import ModeToggle from '$lib/components/mode-toggle.svelte';
-	import ScopeFilters from '$lib/components/scope-filters.svelte';
-	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
-	import { Separator } from '$lib/components/ui/separator/index.js';
-	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import * as Popover from '$lib/components/ui/popover/index.js';
-	import MailboxSync from '$lib/components/settings/mailbox-sync.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { formatDateTime, formatInt, formatTimeOfDay, plural } from '$lib/format';
-	import { crumbsForPath, titleForPath, type CrumbOrganization } from '$lib/nav';
-	import { meta } from '$lib/state/meta.svelte';
-	import { scopeOptions } from '$lib/state/scope.svelte';
-	import { pageMeta } from '$lib/state/page-meta.svelte';
-	import { progressPercent } from '$lib/pass-progress';
-	import { pipelineStatus } from '$lib/pipeline';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
-	import { statusDot } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import ImportProgress from '#lib/components/import-progress.svelte';
+	import ModeToggle from '#lib/components/mode-toggle.svelte';
+	import ScopeFilters from '#lib/components/scope-filters.svelte';
+	import * as Breadcrumb from '#lib/components/ui/breadcrumb/index.ts';
+	import { Separator } from '#lib/components/ui/separator/index.ts';
+	import * as Sidebar from '#lib/components/ui/sidebar/index.ts';
+	import * as Popover from '#lib/components/ui/popover/index.ts';
+	import MailboxSync from '#lib/components/settings/mailbox-sync.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { formatDateTime, formatInt, formatTimeOfDay, plural } from '#lib/format.ts';
+	import { crumbsForPath, titleForPath, type CrumbOrganization } from '#lib/nav.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { scopeOptions } from '#lib/state/scope.svelte.ts';
+	import { pageMeta } from '#lib/state/page-meta.svelte.ts';
+	import { progressPercent } from '#lib/pass-progress.ts';
+	import { pipelineStatus } from '#lib/pipeline.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
+	import { statusDot } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 
 	const pathname = $derived(page.url.pathname);
 	const title = $derived(titleForPath(pathname));
@@ -52,7 +52,7 @@
 
 	const health = $derived(systemHealth.current);
 	const importing = $derived(health?.pass_progress ?? null);
-	/** Same verdicts as Settings: one definition in `$lib/pipeline`. */
+	/** Same verdicts as Settings: one definition in `#lib/pipeline.ts`. */
 	const status = $derived(health ? pipelineStatus(health) : null);
 	const importPct = $derived(importing ? progressPercent(importing) : null);
 

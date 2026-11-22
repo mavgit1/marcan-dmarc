@@ -11,18 +11,18 @@ import {
 	saveDkimSelectors,
 	saveDomainMapping,
 	saveSenderNames
-} from '$lib/api';
-import { plural } from '$lib/format';
-import { settings } from '$lib/state/settings.svelte';
-import { listTokens } from '$lib/text';
-import type { ClientReportChanges } from '$lib/types/ClientReportChanges';
-import type { DkimSelectorsSummary } from '$lib/types/DkimSelectorsSummary';
-import type { MappingChanges } from '$lib/types/MappingChanges';
-import type { MappingSummary } from '$lib/types/MappingSummary';
-import type { RecipientsSummary } from '$lib/types/RecipientsSummary';
-import type { SenderNameChanges } from '$lib/types/SenderNameChanges';
-import type { SenderNameLine } from '$lib/types/SenderNameLine';
-import type { SenderNamesSummary } from '$lib/types/SenderNamesSummary';
+} from '#lib/api.ts';
+import { plural } from '#lib/format.ts';
+import { settings } from '#lib/state/settings.svelte.ts';
+import { listTokens } from '#lib/text.ts';
+import type { ClientReportChanges } from '#lib/types/ClientReportChanges.ts';
+import type { DkimSelectorsSummary } from '#lib/types/DkimSelectorsSummary.ts';
+import type { MappingChanges } from '#lib/types/MappingChanges.ts';
+import type { MappingSummary } from '#lib/types/MappingSummary.ts';
+import type { RecipientsSummary } from '#lib/types/RecipientsSummary.ts';
+import type { SenderNameChanges } from '#lib/types/SenderNameChanges.ts';
+import type { SenderNameLine } from '#lib/types/SenderNameLine.ts';
+import type { SenderNamesSummary } from '#lib/types/SenderNamesSummary.ts';
 import type { ListSpec } from './list-draft.svelte';
 
 /**

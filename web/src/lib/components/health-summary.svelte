@@ -1,14 +1,14 @@
 <script lang="ts">
-	import type { MailCounts } from '$lib/types/MailCounts';
-	import type { MailVerdicts } from '$lib/types/MailVerdicts';
-	import HealthBadge from '$lib/components/health-badge.svelte';
-	import OutcomeLegend from '$lib/components/outcome-legend.svelte';
-	import type { OutcomeFigures } from '$lib/components/outcome-legend';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { formatInt } from '$lib/format';
-	import { formatRate } from '$lib/health';
-	import { statusFigure } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import type { MailCounts } from '#lib/types/MailCounts.ts';
+	import type { MailVerdicts } from '#lib/types/MailVerdicts.ts';
+	import HealthBadge from '#lib/components/health-badge.svelte';
+	import OutcomeLegend from '#lib/components/outcome-legend.svelte';
+	import type { OutcomeFigures } from '#lib/components/outcome-legend.ts';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { formatInt } from '#lib/format.ts';
+	import { formatRate } from '#lib/health.ts';
+	import { statusFigure } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * A report's posture strip: the server's health verdict for the report as its badge with the

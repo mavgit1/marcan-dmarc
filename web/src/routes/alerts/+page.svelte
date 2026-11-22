@@ -1,24 +1,24 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { settingsHref, settingsTitle } from '$lib/settings-nav';
-	import { getAlerts } from '$lib/api';
-	import type { AlertItem } from '$lib/types/AlertItem';
-	import type { Page } from '$lib/types/Page';
-	import DataTable from '$lib/components/data-table.svelte';
-	import type { ColumnDef } from '$lib/components/data-table';
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { formatDateTime } from '$lib/format';
-	import { meta } from '$lib/state/meta.svelte';
-	import { catalogueTrigger } from '$lib/wording/alert-catalogue';
-	import { filters } from '$lib/state/filters.svelte';
-	import { resource } from '$lib/state/resource.svelte';
-	import { ServerList } from '$lib/state/server-list.svelte';
-	import { settings } from '$lib/state/settings.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { DOCS_URL } from '$lib/nav';
+	import { settingsHref, settingsTitle } from '#lib/settings-nav.ts';
+	import { getAlerts } from '#lib/api.ts';
+	import type { AlertItem } from '#lib/types/AlertItem.ts';
+	import type { Page } from '#lib/types/Page.ts';
+	import DataTable from '#lib/components/data-table.svelte';
+	import type { ColumnDef } from '#lib/components/data-table.ts';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { formatDateTime } from '#lib/format.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { catalogueTrigger } from '#lib/wording/alert-catalogue.ts';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { ServerList } from '#lib/state/server-list.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { DOCS_URL } from '#lib/nav.ts';
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import AlertText from './alert-text.svelte';
@@ -117,7 +117,7 @@
 					{#if row.domain_id === null}
 						<span class="text-muted-foreground">{NO_DOMAIN}</span>
 					{:else}
-						<a href={resolve(`/domains/${row.domain_id}`)} class="hover:underline">{row.domain}</a>
+						<a href={resolve(`domains/${row.domain_id}`)} class="hover:underline">{row.domain}</a>
 					{/if}
 				{:else if column.id === 'severity'}
 					<StatusBadge tone={row.event.severity}>{row.severity_label}</StatusBadge>

@@ -1,5 +1,5 @@
-import type { AccountView } from '$lib/types/AccountView';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import type { AccountView } from '#lib/types/AccountView.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 
 /**
  * The one `SettingsResponse` the tests build on (`GET /api/settings`), so a new server field is

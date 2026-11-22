@@ -1,6 +1,6 @@
 <script lang="ts">
-	import AccountCard from '$lib/components/settings/account-card.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import AccountCard from '#lib/components/settings/account-card.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SetupAccountForm from './setup-account-form.svelte';
 	import type { SetupData } from './setup-steps';

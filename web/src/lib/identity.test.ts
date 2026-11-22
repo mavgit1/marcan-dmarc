@@ -1,6 +1,6 @@
 // A sender's caption and its evidence are neutral words; a PTR that failed forward confirmation says so.
 import { describe, expect, it } from 'vitest';
-import type { SenderIdentity } from '$lib/types/SenderIdentity';
+import type { SenderIdentity } from '#lib/types/SenderIdentity.ts';
 import { displayName, identityEvidence, isUnconfirmedOperatorName } from './identity';
 
 const identity = (over: Partial<SenderIdentity>): SenderIdentity =>

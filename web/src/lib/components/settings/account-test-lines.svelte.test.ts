@@ -3,7 +3,7 @@
 // login, the mailbox for a Microsoft login (read over Microsoft Graph), beside its token line.
 import { render } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
-import type { AccountTestResponse } from '$lib/types/AccountTestResponse';
+import type { AccountTestResponse } from '#lib/types/AccountTestResponse.ts';
 import AccountTestLines from './account-test-lines.svelte';
 
 const mailbox = {

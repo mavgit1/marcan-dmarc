@@ -1,4 +1,4 @@
-import { logoUrl } from '$lib/api';
+import { logoUrl } from '#lib/api.ts';
 
 /**
  * The stored logo's image (`GET /api/settings/branding/logo`), for the Branding page and the

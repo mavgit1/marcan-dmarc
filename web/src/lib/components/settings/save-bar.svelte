@@ -5,7 +5,7 @@
 
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import type { Action } from '../action.svelte';
 	import BusyButton from '../busy-button.svelte';

@@ -1,4 +1,4 @@
-import type { DomainOrganization } from '$lib/types/DomainOrganization';
+import type { DomainOrganization } from '#lib/types/DomainOrganization.ts';
 
 /**
  * Page-level metadata published by route components for global UI like AppHeader: the entity's

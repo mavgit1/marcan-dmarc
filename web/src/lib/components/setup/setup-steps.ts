@@ -3,11 +3,11 @@
  * stored and answers (settings, health, domains, the reporting setup), never kept apart.
  */
 
-import type { OrganizationSummary } from '$lib/types/OrganizationSummary';
-import type { ReportingSetupResponse } from '$lib/types/ReportingSetupResponse';
-import type { ScopeDomain } from '$lib/types/ScopeDomain';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
+import type { OrganizationSummary } from '#lib/types/OrganizationSummary.ts';
+import type { ReportingSetupResponse } from '#lib/types/ReportingSetupResponse.ts';
+import type { ScopeDomain } from '#lib/types/ScopeDomain.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
 
 /** What every step reads. */
 export type SetupData = {

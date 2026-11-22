@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { joinPageForm } from '$lib/components/settings/page-form.svelte';
-	import type { RetentionModel } from '$lib/components/settings/retention-draft.svelte';
-	import SettingRow from '$lib/components/settings/setting-row.svelte';
-	import SettingsPart from '$lib/components/settings/settings-part.svelte';
-	import SettingsSection from '$lib/components/settings/settings-section.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { pluralNoun } from '$lib/format';
-	import { meta } from '$lib/state/meta.svelte';
-	import { statusText } from '$lib/tokens';
+	import { joinPageForm } from '#lib/components/settings/page-form.svelte.ts';
+	import type { RetentionModel } from '#lib/components/settings/retention-draft.svelte.ts';
+	import SettingRow from '#lib/components/settings/setting-row.svelte';
+	import SettingsPart from '#lib/components/settings/settings-part.svelte';
+	import SettingsSection from '#lib/components/settings/settings-section.svelte';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { pluralNoun } from '#lib/format.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { statusText } from '#lib/tokens.ts';
 
 	/** The Data page's Retention section (`model`, the retention group), saved by the page's save bar. */
 	let { model: m }: { model: RetentionModel } = $props();

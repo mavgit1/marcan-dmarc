@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { ClientReportsModel } from '$lib/components/settings/client-reports-draft.svelte';
-	import ClientReportScheduleLine from '$lib/components/settings/client-report-schedule-line.svelte';
-	import ClientReportsPreview from '$lib/components/settings/client-reports-preview.svelte';
-	import ClientReportsSettingsForm from '$lib/components/settings/client-reports-settings-form.svelte';
-	import SendingOffLine from '$lib/components/settings/sending-off-line.svelte';
-	import SettingsLink from '$lib/components/settings/settings-link.svelte';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
-	import { ListDraft } from '$lib/components/settings/list-draft.svelte';
-	import { RECIPIENT_LIST } from '$lib/components/settings/lists';
-	import { settings } from '$lib/state/settings.svelte';
+	import { ClientReportsModel } from '#lib/components/settings/client-reports-draft.svelte.ts';
+	import ClientReportScheduleLine from '#lib/components/settings/client-report-schedule-line.svelte';
+	import ClientReportsPreview from '#lib/components/settings/client-reports-preview.svelte';
+	import ClientReportsSettingsForm from '#lib/components/settings/client-reports-settings-form.svelte';
+	import SendingOffLine from '#lib/components/settings/sending-off-line.svelte';
+	import SettingsLink from '#lib/components/settings/settings-link.svelte';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
+	import { ListDraft } from '#lib/components/settings/list-draft.svelte.ts';
+	import { RECIPIENT_LIST } from '#lib/components/settings/lists.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
 
 	const recipients = new ListDraft(RECIPIENT_LIST);
 	const m = new ClientReportsModel({ source: { shared: settings }, recipientCount: () => recipients.count });

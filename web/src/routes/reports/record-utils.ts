@@ -1,4 +1,4 @@
-import type { ReportRecord } from '$lib/types/ReportRecord';
+import type { ReportRecord } from '#lib/types/ReportRecord.ts';
 
 /** DMARC failed: neither SPF nor DKIM passed for an aligned domain. */
 export function isAuthFailure(rec: ReportRecord): boolean {

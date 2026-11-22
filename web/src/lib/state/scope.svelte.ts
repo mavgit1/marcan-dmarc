@@ -1,6 +1,6 @@
 import { untrack } from 'svelte';
-import { getScope } from '$lib/api';
-import type { ScopeOptions } from '$lib/types/ScopeOptions';
+import { getScope } from '#lib/api.ts';
+import type { ScopeOptions } from '#lib/types/ScopeOptions.ts';
 import { refresh } from './refresh.svelte';
 
 /**

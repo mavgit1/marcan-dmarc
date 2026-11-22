@@ -1,8 +1,8 @@
 <script lang="ts">
-	import ExportDialog from '$lib/components/export-dialog.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import SendersTable from '$lib/components/senders-table.svelte';
-	import { filters } from '$lib/state/filters.svelte';
+	import ExportDialog from '#lib/components/export-dialog.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import SendersTable from '#lib/components/senders-table.svelte';
+	import { filters } from '#lib/state/filters.svelte.ts';
 </script>
 
 <PageHeader title="Senders" description="Source IPs that sent mail as your domains, busiest first.">

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { formatInt, plural } from '$lib/format';
-	import { importActivityLabel } from '$lib/pass-progress';
-	import { systemHealth } from '$lib/state/system-health.svelte';
-	import { cn } from '$lib/utils.js';
+	import { formatInt, plural } from '#lib/format.ts';
+	import { importActivityLabel } from '#lib/pass-progress.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 	import Loader2Icon from '@lucide/svelte/icons/loader-2';
 
 	/**

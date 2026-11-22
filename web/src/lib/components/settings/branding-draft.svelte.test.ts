@@ -2,13 +2,13 @@
 // "Remove logo"), the client-side checks worded like the server's, and the save (the name, then
 // the upload or removal, then the stored logo shown is asked for again).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { settingsFixture } from '$lib/test/settings-fixture';
-import type { Meta } from '$lib/types/Meta';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import * as api from '$lib/api';
-import { storedLogo } from '$lib/state/logo.svelte';
-import { meta } from '$lib/state/meta.svelte';
-import type { EmailPreview } from '$lib/types/EmailPreview';
+import { settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { Meta } from '#lib/types/Meta.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import * as api from '#lib/api.ts';
+import { storedLogo } from '#lib/state/logo.svelte.ts';
+import { meta } from '#lib/state/meta.svelte.ts';
+import type { EmailPreview } from '#lib/types/EmailPreview.ts';
 import {
 	BrandingModel,
 	PREVIEW_DELAY_MS,
@@ -22,7 +22,7 @@ import {
 /** No name, the logo as it is. */
 const KEEP: BrandingDraft = { operator_name: '', logo: { kind: 'keep' } };
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
 	getSettings: vi.fn(),
 	getMeta: vi.fn(),
 	saveBranding: vi.fn(),

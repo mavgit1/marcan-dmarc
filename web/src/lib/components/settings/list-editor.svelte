@@ -1,6 +1,6 @@
 <script lang="ts" generics="S extends ListSummary">
-	import { plural } from '$lib/format';
-	import { DOCS_URL } from '$lib/nav';
+	import { plural } from '#lib/format.ts';
+	import { DOCS_URL } from '#lib/nav.ts';
 	import type { Snippet } from 'svelte';
 	import type { ListDraft, ListSummary } from './list-draft.svelte';
 	import { joinPageForm } from './page-form.svelte';

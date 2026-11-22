@@ -1,8 +1,8 @@
 // The lists edited as text: what saving changes, worded for the "Saving will change" box and the
 // save bar's status line.
 import { describe, expect, it } from 'vitest';
-import type { ClientReportRecipient } from '$lib/types/ClientReportRecipient';
-import type { MappingChanges } from '$lib/types/MappingChanges';
+import type { ClientReportRecipient } from '#lib/types/ClientReportRecipient.ts';
+import type { MappingChanges } from '#lib/types/MappingChanges.ts';
 import {
 	describeMappingChanges,
 	describeRecipientChanges,

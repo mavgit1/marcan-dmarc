@@ -6,7 +6,7 @@
 //! them and the API sends them beside the verdicts they word
 //! (`AlertItem::text`, `WordedIssue::label`, `Readiness::lead`, the
 //! catalogues in `GET /api/meta`), so the UI words none of this itself: it colours and lays out what it is sent. Numbers read like
-//! the UI's `$lib/format`: `12,345`, `99.8%`, `1 day`, `3 days`.
+//! the UI's `#lib/format`: `12,345`, `99.8%`, `1 day`, `3 days`.
 
 pub mod accounts;
 pub mod alerts;

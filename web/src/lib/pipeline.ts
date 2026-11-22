@@ -4,14 +4,14 @@
  * it from here so they cannot disagree.
  */
 
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
-import { formatDateTime, plural, relativeTime } from '$lib/format';
-import { progressLabel } from '$lib/pass-progress';
-import type { MailboxState } from '$lib/types/MailboxState';
-import type { Pipeline } from '$lib/types/Pipeline';
-import type { PipelineHeadline } from '$lib/types/PipelineHeadline';
-import type { ReportsState } from '$lib/types/ReportsState';
-import type { StatusTone } from '$lib/tokens';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
+import { formatDateTime, plural, relativeTime } from '#lib/format.ts';
+import { progressLabel } from '#lib/pass-progress.ts';
+import type { MailboxState } from '#lib/types/MailboxState.ts';
+import type { Pipeline } from '#lib/types/Pipeline.ts';
+import type { PipelineHeadline } from '#lib/types/PipelineHeadline.ts';
+import type { ReportsState } from '#lib/types/ReportsState.ts';
+import type { StatusTone } from '#lib/tokens.ts';
 
 type StatusLine = {
 	/** Short verdict for a badge. */

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { SendingModel } from '$lib/components/settings/sending-draft.svelte';
-	import SendingSettingsForm from '$lib/components/settings/sending-settings-form.svelte';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
-	import { settings } from '$lib/state/settings.svelte';
+	import { SendingModel } from '#lib/components/settings/sending-draft.svelte.ts';
+	import SendingSettingsForm from '#lib/components/settings/sending-settings-form.svelte';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
+	import { settings } from '#lib/state/settings.svelte.ts';
 
 	const m = new SendingModel({ source: { shared: settings } });
 </script>

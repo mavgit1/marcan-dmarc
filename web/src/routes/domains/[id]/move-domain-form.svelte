@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { updateDomain } from '$lib/api';
-	import { Action } from '$lib/components/action.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { scopeOptions } from '$lib/state/scope.svelte';
+	import { updateDomain } from '#lib/api.ts';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { scopeOptions } from '#lib/state/scope.svelte.ts';
 
 	/** The header's inline "Move to organization" picker. */
 	let {

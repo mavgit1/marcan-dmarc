@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { joinPageForm } from '$lib/components/settings/page-form.svelte';
-	import { typed, type ResolversModel } from '$lib/components/settings/resolvers-draft.svelte';
-	import SettingRow from '$lib/components/settings/setting-row.svelte';
-	import SettingsPart from '$lib/components/settings/settings-part.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { joinPageForm } from '#lib/components/settings/page-form.svelte.ts';
+	import { typed, type ResolversModel } from '#lib/components/settings/resolvers-draft.svelte.ts';
+	import SettingRow from '#lib/components/settings/setting-row.svelte';
+	import SettingsPart from '#lib/components/settings/settings-part.svelte';
+	import { Input } from '#lib/components/ui/input/index.ts';
 
 	/**
 	 * The DNS checks page's resolvers (`model`, the dns group), saved by the page's save bar. While

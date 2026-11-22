@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn } from '$lib/utils.js';
+	import { cn } from '#lib/utils.ts';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { SETUP_STEPS } from './setup-steps';
 

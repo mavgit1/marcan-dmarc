@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CONNECTED, settingsFixture, type SettingsOverrides } from '$lib/test/settings-fixture';
-import type { AccountHealth } from '$lib/types/AccountHealth';
-import type { AddressAuthorization } from '$lib/types/AddressAuthorization';
-import type { ReportingDomain } from '$lib/types/ReportingDomain';
-import type { ReportingSetupResponse } from '$lib/types/ReportingSetupResponse';
-import type { ScopeDomain } from '$lib/types/ScopeDomain';
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
+import { CONNECTED, settingsFixture, type SettingsOverrides } from '#lib/test/settings-fixture.ts';
+import type { AccountHealth } from '#lib/types/AccountHealth.ts';
+import type { AddressAuthorization } from '#lib/types/AddressAuthorization.ts';
+import type { ReportingDomain } from '#lib/types/ReportingDomain.ts';
+import type { ReportingSetupResponse } from '#lib/types/ReportingSetupResponse.ts';
+import type { ScopeDomain } from '#lib/types/ScopeDomain.ts';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
 import { firstOpenStep, linkedStep, SETUP_STEPS, type SetupData, type StepId } from './setup-steps';
 
 const account = (over: Partial<AccountHealth> = {}) =>

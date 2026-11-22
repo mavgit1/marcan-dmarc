@@ -1,8 +1,8 @@
 <script lang="ts" generics="T">
-	import ErrorState from '$lib/components/error-state.svelte';
-	import RefreshError from '$lib/components/refresh-error.svelte';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import type { Resource } from '$lib/state/resource.svelte';
+	import ErrorState from '#lib/components/error-state.svelte';
+	import RefreshError from '#lib/components/refresh-error.svelte';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import type { Resource } from '#lib/state/resource.svelte.ts';
 	import type { Snippet } from 'svelte';
 
 	/**

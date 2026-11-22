@@ -1,7 +1,7 @@
-import { apiLineErrors, textSaveError } from '$lib/http';
-import type { LineError } from '$lib/types/LineError';
-import type { ListText } from '$lib/types/ListText';
-import { plural } from '$lib/format';
+import { apiLineErrors, textSaveError } from '#lib/http.ts';
+import type { LineError } from '#lib/types/LineError.ts';
+import type { ListText } from '#lib/types/ListText.ts';
+import { plural } from '#lib/format.ts';
 import { SettingsForm, type Invalid } from './settings-form.svelte';
 import { countEntries } from './text-lines';
 

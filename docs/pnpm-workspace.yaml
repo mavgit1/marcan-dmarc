@@ -4,3 +4,8 @@
 allowBuilds:
   esbuild: true
 minimumReleaseAge: 4320
+# VitePress 1 pins Vite 5 (and with it esbuild 0.21), whose open advisories
+# are fixed only from Vite 6.4.4; Vite 6 builds the site unchanged. Drop this
+# with VitePress 2 (still alpha).
+overrides:
+  vite: ^6.4.4

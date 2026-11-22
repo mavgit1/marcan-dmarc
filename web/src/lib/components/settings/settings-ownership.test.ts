@@ -3,7 +3,7 @@
 // through its one form). Each model declares the page it belongs to and what it writes
 // (`writes`); the setup is a view over the same models.
 import { describe, expect, it, vi } from 'vitest';
-import { SETTINGS_PAGES } from '$lib/settings-nav';
+import { SETTINGS_PAGES } from '#lib/settings-nav.ts';
 import { AccountModel } from './account-draft.svelte';
 import { AlertsModel } from './alerts-draft.svelte';
 import { BrandingModel } from './branding-draft.svelte';
@@ -16,7 +16,7 @@ import { SendingModel } from './sending-draft.svelte';
 import { UpdatesModel } from './updates-draft.svelte';
 import type { Writes } from './settings-form.svelte';
 
-vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
+vi.mock('$app/paths', () => ({ resolve: (path: string) => (path.startsWith('/') ? path : `/${path}`) }));
 
 const MODELS = [
 	AccountModel,

@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { getUpcomingClientReport } from '$lib/api';
-	import ClientReportPreview from '$lib/components/client-report-preview.svelte';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import { formatDay, plural } from '$lib/format';
-	import { meta } from '$lib/state/meta.svelte';
-	import { resource } from '$lib/state/resource.svelte';
+	import { getUpcomingClientReport } from '#lib/api.ts';
+	import ClientReportPreview from '#lib/components/client-report-preview.svelte';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import { formatDay, plural } from '#lib/format.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
 
 	/**
 	 * The organization page's client report line: from `client_report_notice_days` (GET

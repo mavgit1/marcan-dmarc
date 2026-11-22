@@ -4,8 +4,8 @@
 // before the counts.
 import { render } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
-import '$lib/test/component-test.svelte';
-import type { MailFigures } from '$lib/health';
+import '#lib/test/component-test.svelte.ts';
+import type { MailFigures } from '#lib/health.ts';
 import OutcomeLegend from './outcome-legend.svelte';
 
 const mail: MailFigures = {

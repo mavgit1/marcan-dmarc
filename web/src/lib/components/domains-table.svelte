@@ -1,23 +1,23 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { getAttentionDomains, getDomains } from '$lib/api';
-	import type { DomainSummary } from '$lib/types/DomainSummary';
-	import type { Page } from '$lib/types/Page';
-	import DataTable from '$lib/components/data-table.svelte';
-	import type { ColumnDef } from '$lib/components/data-table';
-	import IssueBadges from '$lib/components/issue-badges.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import PolicyBadge from '$lib/components/policy-badge.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { formatCheckedAge, formatDate, formatInt, plural } from '$lib/format';
-	import { CHECK_FAILED } from '$lib/dns';
-	import { formatRate } from '$lib/health';
-	import { filters } from '$lib/state/filters.svelte';
-	import { resource } from '$lib/state/resource.svelte';
-	import { ServerList } from '$lib/state/server-list.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
-	import { statusFg, statusFigure } from '$lib/tokens';
+	import { getAttentionDomains, getDomains } from '#lib/api.ts';
+	import type { DomainSummary } from '#lib/types/DomainSummary.ts';
+	import type { Page } from '#lib/types/Page.ts';
+	import DataTable from '#lib/components/data-table.svelte';
+	import type { ColumnDef } from '#lib/components/data-table.ts';
+	import IssueBadges from '#lib/components/issue-badges.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import PolicyBadge from '#lib/components/policy-badge.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { formatCheckedAge, formatDate, formatInt, plural } from '#lib/format.ts';
+	import { CHECK_FAILED } from '#lib/dns.ts';
+	import { formatRate } from '#lib/health.ts';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { ServerList } from '#lib/state/server-list.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
+	import { statusFg, statusFigure } from '#lib/tokens.ts';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
 
@@ -218,14 +218,14 @@
 	>
 		{#snippet cell({ column, row })}
 			{#if column.id === 'domain'}
-				<a href={resolve(`/domains/${row.id}`)} class="font-medium hover:underline">{row.domain}</a>
+				<a href={resolve(`domains/${row.id}`)} class="font-medium hover:underline">{row.domain}</a>
 				{#if row.parked}
 					<StatusBadge tone="neutral" class="ml-1.5">Parked</StatusBadge>
 				{/if}
 			{:else if column.id === 'issues'}
 				<IssueBadges issues={row.assessment.issues} />
 			{:else if column.id === 'organization'}
-				<a href={resolve(`/organizations/${row.organization.id}`)} class="hover:underline">
+				<a href={resolve(`organizations/${row.organization.id}`)} class="hover:underline">
 					{row.organization.name}
 				</a>
 			{:else if column.id === 'dns'}

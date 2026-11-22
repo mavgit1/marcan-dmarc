@@ -3,14 +3,14 @@
  * lines in counts that add up, and its recipients. The verdict and the colours are the
  * server's (`row.verdict`, `row.spf`, `row.dkim`); this only phrases them.
  */
-import type { OtherDomainPass } from '$lib/types/OtherDomainPass';
-import type { SenderCheck } from '$lib/types/SenderCheck';
-import type { SenderDomainRow } from '$lib/types/SenderDomainRow';
-import type { SenderVerdictKind } from '$lib/types/SenderVerdictKind';
-import type { DkimCoverage } from '$lib/types/DkimCoverage';
-import { formatInt, formatPct, plural } from '$lib/format';
-import { outcomeCounts } from '$lib/health';
-import type { StatusTone } from '$lib/tokens';
+import type { OtherDomainPass } from '#lib/types/OtherDomainPass.ts';
+import type { SenderCheck } from '#lib/types/SenderCheck.ts';
+import type { SenderDomainRow } from '#lib/types/SenderDomainRow.ts';
+import type { SenderVerdictKind } from '#lib/types/SenderVerdictKind.ts';
+import type { DkimCoverage } from '#lib/types/DkimCoverage.ts';
+import { formatInt, formatPct, plural } from '#lib/format.ts';
+import { outcomeCounts } from '#lib/health.ts';
+import type { StatusTone } from '#lib/tokens.ts';
 
 export type SenderVerdict = { tone: StatusTone; label: string };
 

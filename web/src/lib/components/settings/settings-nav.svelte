@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { getDkimSelectors, getSenderNames } from '$lib/api';
-	import { plural } from '$lib/format';
-	import { MAILBOX_LABEL } from '$lib/pipeline';
-	import { SETTINGS_GROUPS, SETTINGS_PAGES, type SettingsPageId } from '$lib/settings-nav';
-	import { resource } from '$lib/state/resource.svelte';
-	import { scopeOptions } from '$lib/state/scope.svelte';
-	import { settings } from '$lib/state/settings.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
-	import { cn } from '$lib/utils.js';
+	import { getDkimSelectors, getSenderNames } from '#lib/api.ts';
+	import { plural } from '#lib/format.ts';
+	import { MAILBOX_LABEL } from '#lib/pipeline.ts';
+	import { SETTINGS_GROUPS, SETTINGS_PAGES, type SettingsPageId } from '#lib/settings-nav.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { scopeOptions } from '#lib/state/scope.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { countEntries } from './text-lines';
 
@@ -59,7 +59,7 @@
 					{@const line = lines[page.id]}
 					<li>
 						<a
-							href={resolve(`/settings/${page.id}`)}
+							href={resolve(`settings/${page.id}`)}
 							aria-current={active === page.id ? 'page' : undefined}
 							class={cn(
 								'text-foreground focus-visible:ring-ring flex min-w-0 cursor-pointer gap-3 text-sm outline-none transition-colors focus-visible:ring-2',

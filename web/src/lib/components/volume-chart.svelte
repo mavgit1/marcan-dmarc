@@ -1,14 +1,14 @@
 <script lang="ts">
-	import AreaChart from '$lib/components/charts/area-chart.svelte';
-	import { formatChartDate } from '$lib/components/charts/chart-model';
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import OutcomeLegend from '$lib/components/outcome-legend.svelte';
-	import type { OutcomeFigures } from '$lib/components/outcome-legend';
-	import { OUTCOMES } from '$lib/wording/outcome';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { formatInt } from '$lib/format';
-	import type { DailyPoint } from '$lib/series';
-	import { cn } from '$lib/utils.js';
+	import AreaChart from '#lib/components/charts/area-chart.svelte';
+	import { formatChartDate } from '#lib/components/charts/chart-model.ts';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import OutcomeLegend from '#lib/components/outcome-legend.svelte';
+	import type { OutcomeFigures } from '#lib/components/outcome-legend.ts';
+	import { OUTCOMES } from '#lib/wording/outcome.ts';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { formatInt } from '#lib/format.ts';
+	import type { DailyPoint } from '#lib/series.ts';
+	import { cn } from '#lib/utils.ts';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 
 	/**

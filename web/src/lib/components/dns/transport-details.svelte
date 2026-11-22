@@ -1,13 +1,13 @@
 <script module lang="ts">
-	import type { BimiCheckResult } from '$lib/types/BimiCheckResult';
-	import type { LookupStatus } from '$lib/types/LookupStatus';
-	import type { MtaStsCheckResult } from '$lib/types/MtaStsCheckResult';
-	import type { TlsRptCheckResult } from '$lib/types/TlsRptCheckResult';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
+	import type { BimiCheckResult } from '#lib/types/BimiCheckResult.ts';
+	import type { LookupStatus } from '#lib/types/LookupStatus.ts';
+	import type { MtaStsCheckResult } from '#lib/types/MtaStsCheckResult.ts';
+	import type { TlsRptCheckResult } from '#lib/types/TlsRptCheckResult.ts';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
 	import LookupBadge from './lookup-badge.svelte';
-	import { formatInt } from '$lib/format';
-	import { policyFetchLabel } from '$lib/dns';
-	import { cn } from '$lib/utils.js';
+	import { formatInt } from '#lib/format.ts';
+	import { policyFetchLabel } from '#lib/dns.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * The body of each transport check, exported so the DNS inspector draws the same facts in
@@ -18,9 +18,9 @@
 </script>
 
 <script lang="ts">
-	import type { DnsCheckResponse } from '$lib/types/DnsCheckResponse';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { bimiStatus, CHECK_FAILED, mtaStsStatus, recordStatus, type Verdict } from '$lib/dns';
+	import type { DnsCheckResponse } from '#lib/types/DnsCheckResponse.ts';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { bimiStatus, CHECK_FAILED, mtaStsStatus, recordStatus, type Verdict } from '#lib/dns.ts';
 	import type { Snippet } from 'svelte';
 	import DetailHeading from './detail-heading.svelte';
 

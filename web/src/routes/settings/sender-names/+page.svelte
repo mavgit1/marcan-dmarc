@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { ListDraft } from '$lib/components/settings/list-draft.svelte';
-	import ListEditor from '$lib/components/settings/list-editor.svelte';
-	import { SENDER_NAME_LIST } from '$lib/components/settings/lists';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
+	import { ListDraft } from '#lib/components/settings/list-draft.svelte.ts';
+	import ListEditor from '#lib/components/settings/list-editor.svelte';
+	import { SENDER_NAME_LIST } from '#lib/components/settings/lists.ts';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
 
 	const names = new ListDraft(SENDER_NAME_LIST);
 </script>

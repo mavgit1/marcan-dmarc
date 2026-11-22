@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { onFocusAnchor } from '$lib/state/anchor-focus.svelte';
+	import { onFocusAnchor } from '#lib/state/anchor-focus.svelte.ts';
 
 	/**
 	 * A section of a Settings page: the card surface, its title (left out where the page has one

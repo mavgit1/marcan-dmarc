@@ -1,8 +1,8 @@
 <script lang="ts">
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { formatPoints, worstVerdict, type PillarRow, type Verdict } from '$lib/dns';
-	import { statusBorderL, statusText, statusTextPlain } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { formatPoints, worstVerdict, type PillarRow, type Verdict } from '#lib/dns.ts';
+	import { statusBorderL, statusText, statusTextPlain } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 

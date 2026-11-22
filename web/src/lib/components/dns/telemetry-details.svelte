@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { WithIdentity } from '$lib/types/WithIdentity';
-	import type { DomainFailureRow } from '$lib/types/DomainFailureRow';
-	import AuthChecks from '$lib/components/auth-checks.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { formatInt } from '$lib/format';
+	import type { WithIdentity } from '#lib/types/WithIdentity.ts';
+	import type { DomainFailureRow } from '#lib/types/DomainFailureRow.ts';
+	import AuthChecks from '#lib/components/auth-checks.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { formatInt } from '#lib/format.ts';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import DetailHeading from './detail-heading.svelte';
 
@@ -51,7 +51,7 @@
 						<tr class="hover:bg-muted/10">
 							<td class="p-2.5">
 								<a
-									href={resolve(`/senders/${encodeURIComponent(item.source_ip)}`)}
+									href={resolve(`senders/${encodeURIComponent(item.source_ip)}`)}
 									class="text-foreground font-mono font-medium hover:underline"
 								>
 									{item.source_ip}

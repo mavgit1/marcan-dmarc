@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { Health } from '$lib/types/Health';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { HEALTH_LABEL } from '$lib/health';
+	import type { Health } from '#lib/types/Health.ts';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { HEALTH_LABEL } from '#lib/health.ts';
 
 	/** Is delivered mail authentic? The server's health verdict, worded. */
 	let { health, class: className }: { health: Health; class?: string } = $props();

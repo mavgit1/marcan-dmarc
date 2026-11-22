@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { RetentionModel } from '$lib/components/settings/retention-draft.svelte';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
-	import { settings } from '$lib/state/settings.svelte';
+	import { RetentionModel } from '#lib/components/settings/retention-draft.svelte.ts';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
+	import { settings } from '#lib/state/settings.svelte.ts';
 	import ActionsSection from './actions-section.svelte';
 	import RetentionSection from './retention-section.svelte';
 	import StoredDataSection from './stored-data-section.svelte';

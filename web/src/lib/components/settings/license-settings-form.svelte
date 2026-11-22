@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { DOCS_URL } from '$lib/nav';
-	import { meta } from '$lib/state/meta.svelte';
-	import { statusBorderL, statusDot, statusText } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import { DOCS_URL } from '#lib/nav.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { statusBorderL, statusDot, statusText } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 	import { LICENSE_STATE, type LicenseModel } from './license-draft.svelte';
 	import { joinPageForm } from './page-form.svelte';
 	import SecretField from './secret-field.svelte';

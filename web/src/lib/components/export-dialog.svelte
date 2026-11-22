@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import { type ExportDataset } from '$lib/api';
+	import { type ExportDataset } from '#lib/api.ts';
 
 	const DATASETS: Record<ExportDataset, { label: string; description: string }> = {
 		domains: {
@@ -22,13 +22,13 @@
 </script>
 
 <script lang="ts">
-	import { EXPORT_PARAMS, exportCsvUrl, type ExportScope } from '$lib/api';
-	import { failureKindsScope } from '$lib/wording/outcome';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Popover from '$lib/components/ui/popover/index.js';
-	import { sinceLabel } from '$lib/state/filters.svelte';
-	import { scopeOptions } from '$lib/state/scope.svelte';
-	import { cn } from '$lib/utils.js';
+	import { EXPORT_PARAMS, exportCsvUrl, type ExportScope } from '#lib/api.ts';
+	import { failureKindsScope } from '#lib/wording/outcome.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Popover from '#lib/components/ui/popover/index.ts';
+	import { sinceLabel } from '#lib/state/filters.svelte.ts';
+	import { scopeOptions } from '#lib/state/scope.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 
 	/**

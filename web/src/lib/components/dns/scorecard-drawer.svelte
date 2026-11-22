@@ -1,19 +1,19 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { DELIVERED_FAILURE_FILTER, outcomeParam } from '$lib/api';
-	import type { DnsCheckResponse } from '$lib/types/DnsCheckResponse';
-	import type { DomainFailureRow } from '$lib/types/DomainFailureRow';
-	import type { DomainOverview } from '$lib/types/DomainOverview';
-	import type { WithIdentity } from '$lib/types/WithIdentity';
-	import DkimDetails from '$lib/components/dns/dkim-details.svelte';
-	import DmarcDetails from '$lib/components/dns/dmarc-details.svelte';
-	import FindingsSection from '$lib/components/dns/findings-section.svelte';
-	import SpfDetails from '$lib/components/dns/spf-details.svelte';
-	import TelemetryDetails from '$lib/components/dns/telemetry-details.svelte';
-	import TransportDetails from '$lib/components/dns/transport-details.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { PILLAR_LABEL, type PillarId, type PillarModel } from '$lib/dns';
-	import { DOCS_URL } from '$lib/nav';
+	import { DELIVERED_FAILURE_FILTER, outcomeParam } from '#lib/api.ts';
+	import type { DnsCheckResponse } from '#lib/types/DnsCheckResponse.ts';
+	import type { DomainFailureRow } from '#lib/types/DomainFailureRow.ts';
+	import type { DomainOverview } from '#lib/types/DomainOverview.ts';
+	import type { WithIdentity } from '#lib/types/WithIdentity.ts';
+	import DkimDetails from '#lib/components/dns/dkim-details.svelte';
+	import DmarcDetails from '#lib/components/dns/dmarc-details.svelte';
+	import FindingsSection from '#lib/components/dns/findings-section.svelte';
+	import SpfDetails from '#lib/components/dns/spf-details.svelte';
+	import TelemetryDetails from '#lib/components/dns/telemetry-details.svelte';
+	import TransportDetails from '#lib/components/dns/transport-details.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { PILLAR_LABEL, type PillarId, type PillarModel } from '#lib/dns.ts';
+	import { DOCS_URL } from '#lib/nav.ts';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
@@ -92,7 +92,7 @@
 		<TransportDetails {dns} />
 	{:else}
 		<TelemetryDetails
-			failuresHref={`${resolve(`/domains/${overview.id}`)}?tab=failures&outcome=${outcomeParam(DELIVERED_FAILURE_FILTER.outcome)}`}
+			failuresHref={`${resolve(`domains/${overview.id}`)}?tab=failures&outcome=${outcomeParam(DELIVERED_FAILURE_FILTER.outcome)}`}
 			{failures}
 		/>
 	{/if}

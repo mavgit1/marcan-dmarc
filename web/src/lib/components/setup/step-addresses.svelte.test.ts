@@ -4,13 +4,13 @@
 // for each address domain that needs one, with the real names; nothing to type.
 import { render } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
-import '$lib/test/component-test.svelte';
-import type { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
-import type { AddressAuthorization } from '$lib/types/AddressAuthorization';
-import type { ReportingSetupResponse } from '$lib/types/ReportingSetupResponse';
+import '#lib/test/component-test.svelte.ts';
+import type { ReportingSetupState } from '#lib/components/reporting-setup/reporting-setup-state.svelte.ts';
+import type { AddressAuthorization } from '#lib/types/AddressAuthorization.ts';
+import type { ReportingSetupResponse } from '#lib/types/ReportingSetupResponse.ts';
 import StepAddresses from './step-addresses.svelte';
 
-vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
+vi.mock('$app/paths', () => ({ resolve: (path: string) => (path.startsWith('/') ? path : `/${path}`) }));
 
 const auth = (
 	domain: string,

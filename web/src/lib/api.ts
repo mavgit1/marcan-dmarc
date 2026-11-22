@@ -1,73 +1,73 @@
 // The request functions of the JSON API, one per endpoint. Response and request types are
-// generated from the Rust API by ts-rs into `$lib/types` (`cargo test` writes them; never edit
+// generated from the Rust API by ts-rs into `#lib/types` (`cargo test` writes them; never edit
 // them by hand) and imported from there, here and at every call site. The client, the query
-// serializer and the error classifiers live in `$lib/http`.
-import { api, searchParams } from '$lib/http';
-import type { DkimSelectorsSummary } from '$lib/types/DkimSelectorsSummary';
-import type { ListText } from '$lib/types/ListText';
-import type { MappingSummary } from '$lib/types/MappingSummary';
-import type { RecipientsSummary } from '$lib/types/RecipientsSummary';
-import type { SendClientReportEmailRequest } from '$lib/types/SendClientReportEmailRequest';
-import type { SenderNamesSummary } from '$lib/types/SenderNamesSummary';
-import type { AlertSettings } from '$lib/types/AlertSettings';
-import type { BrandingSettings } from '$lib/types/BrandingSettings';
-import type { ClientReportSettings } from '$lib/types/ClientReportSettings';
-import type { DnsSettings } from '$lib/types/DnsSettings';
-import type { UpdateSettings } from '$lib/types/UpdateSettings';
-import type { AlertItem } from '$lib/types/AlertItem';
-import type { BimiCheckResult } from '$lib/types/BimiCheckResult';
-import type { AccountTestRequest } from '$lib/types/AccountTestRequest';
-import type { AccountTestResponse } from '$lib/types/AccountTestResponse';
-import type { CertificateDraft } from '$lib/types/CertificateDraft';
-import type { GenerateCertificateRequest } from '$lib/types/GenerateCertificateRequest';
-import type { ClientReportEmail } from '$lib/types/ClientReportEmail';
-import type { BrandingPreviewRequest } from '$lib/types/BrandingPreviewRequest';
-import type { CreateDomainBody } from '$lib/types/CreateDomainBody';
-import type { CreatedDomain } from '$lib/types/CreatedDomain';
-import type { DkimCheckResult } from '$lib/types/DkimCheckResult';
-import type { DmarcCheckResult } from '$lib/types/DmarcCheckResult';
-import type { DnsCheckResponse } from '$lib/types/DnsCheckResponse';
-import type { DomainFailureRow } from '$lib/types/DomainFailureRow';
-import type { DomainOverview } from '$lib/types/DomainOverview';
-import type { DomainSummary } from '$lib/types/DomainSummary';
-import type { EmailPreview } from '$lib/types/EmailPreview';
-import type { FailureOutcome } from '$lib/types/FailureOutcome';
-import type { GuideResponse } from '$lib/types/GuideResponse';
-import type { Items } from '$lib/types/Items';
-import type { Meta } from '$lib/types/Meta';
-import type { MonitoringSettings } from '$lib/types/MonitoringSettings';
-import type { MtaStsCheckResult } from '$lib/types/MtaStsCheckResult';
-import type { OnboardingSettings } from '$lib/types/OnboardingSettings';
-import type { OnboardingState } from '$lib/types/OnboardingState';
-import type { OrganizationNameRequest } from '$lib/types/OrganizationNameRequest';
-import type { OrganizationRow } from '$lib/types/OrganizationRow';
-import type { OrganizationSummary } from '$lib/types/OrganizationSummary';
-import type { Page } from '$lib/types/Page';
-import type { PtrLookup } from '$lib/types/PtrLookup';
-import type { ReportDetailResponse } from '$lib/types/ReportDetailResponse';
-import type { ReportSummary } from '$lib/types/ReportSummary';
-import type { RetentionSettings } from '$lib/types/RetentionSettings';
-import type { ReportingSetupResponse } from '$lib/types/ReportingSetupResponse';
-import type { SaveLicenseRequest } from '$lib/types/SaveLicenseRequest';
-import type { ReceivingSettings } from '$lib/types/ReceivingSettings';
-import type { SaveAccountRequest } from '$lib/types/SaveAccountRequest';
-import type { SendingSettings } from '$lib/types/SendingSettings';
-import type { ScopeOptions } from '$lib/types/ScopeOptions';
-import type { SendTestAlertRequest } from '$lib/types/SendTestAlertRequest';
-import type { SendTestRequest } from '$lib/types/SendTestRequest';
-import type { SendTestResponse } from '$lib/types/SendTestResponse';
-import type { SenderDetailResponse } from '$lib/types/SenderDetailResponse';
-import type { SenderSummary } from '$lib/types/SenderSummary';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import type { SpfCheckResult } from '$lib/types/SpfCheckResult';
-import type { Statistics } from '$lib/types/Statistics';
-import type { SyncResponse } from '$lib/types/SyncResponse';
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
-import type { UpcomingClientReport } from '$lib/types/UpcomingClientReport';
-import type { TimeseriesPoint } from '$lib/types/TimeseriesPoint';
-import type { TlsRptCheckResult } from '$lib/types/TlsRptCheckResult';
-import type { UpdateDomainBody } from '$lib/types/UpdateDomainBody';
-import type { WithIdentity } from '$lib/types/WithIdentity';
+// serializer and the error classifiers live in `#lib/http.ts`.
+import { api, searchParams } from '#lib/http.ts';
+import type { DkimSelectorsSummary } from '#lib/types/DkimSelectorsSummary.ts';
+import type { ListText } from '#lib/types/ListText.ts';
+import type { MappingSummary } from '#lib/types/MappingSummary.ts';
+import type { RecipientsSummary } from '#lib/types/RecipientsSummary.ts';
+import type { SendClientReportEmailRequest } from '#lib/types/SendClientReportEmailRequest.ts';
+import type { SenderNamesSummary } from '#lib/types/SenderNamesSummary.ts';
+import type { AlertSettings } from '#lib/types/AlertSettings.ts';
+import type { BrandingSettings } from '#lib/types/BrandingSettings.ts';
+import type { ClientReportSettings } from '#lib/types/ClientReportSettings.ts';
+import type { DnsSettings } from '#lib/types/DnsSettings.ts';
+import type { UpdateSettings } from '#lib/types/UpdateSettings.ts';
+import type { AlertItem } from '#lib/types/AlertItem.ts';
+import type { BimiCheckResult } from '#lib/types/BimiCheckResult.ts';
+import type { AccountTestRequest } from '#lib/types/AccountTestRequest.ts';
+import type { AccountTestResponse } from '#lib/types/AccountTestResponse.ts';
+import type { CertificateDraft } from '#lib/types/CertificateDraft.ts';
+import type { GenerateCertificateRequest } from '#lib/types/GenerateCertificateRequest.ts';
+import type { ClientReportEmail } from '#lib/types/ClientReportEmail.ts';
+import type { BrandingPreviewRequest } from '#lib/types/BrandingPreviewRequest.ts';
+import type { CreateDomainBody } from '#lib/types/CreateDomainBody.ts';
+import type { CreatedDomain } from '#lib/types/CreatedDomain.ts';
+import type { DkimCheckResult } from '#lib/types/DkimCheckResult.ts';
+import type { DmarcCheckResult } from '#lib/types/DmarcCheckResult.ts';
+import type { DnsCheckResponse } from '#lib/types/DnsCheckResponse.ts';
+import type { DomainFailureRow } from '#lib/types/DomainFailureRow.ts';
+import type { DomainOverview } from '#lib/types/DomainOverview.ts';
+import type { DomainSummary } from '#lib/types/DomainSummary.ts';
+import type { EmailPreview } from '#lib/types/EmailPreview.ts';
+import type { FailureOutcome } from '#lib/types/FailureOutcome.ts';
+import type { GuideResponse } from '#lib/types/GuideResponse.ts';
+import type { Items } from '#lib/types/Items.ts';
+import type { Meta } from '#lib/types/Meta.ts';
+import type { MonitoringSettings } from '#lib/types/MonitoringSettings.ts';
+import type { MtaStsCheckResult } from '#lib/types/MtaStsCheckResult.ts';
+import type { OnboardingSettings } from '#lib/types/OnboardingSettings.ts';
+import type { OnboardingState } from '#lib/types/OnboardingState.ts';
+import type { OrganizationNameRequest } from '#lib/types/OrganizationNameRequest.ts';
+import type { OrganizationRow } from '#lib/types/OrganizationRow.ts';
+import type { OrganizationSummary } from '#lib/types/OrganizationSummary.ts';
+import type { Page } from '#lib/types/Page.ts';
+import type { PtrLookup } from '#lib/types/PtrLookup.ts';
+import type { ReportDetailResponse } from '#lib/types/ReportDetailResponse.ts';
+import type { ReportSummary } from '#lib/types/ReportSummary.ts';
+import type { RetentionSettings } from '#lib/types/RetentionSettings.ts';
+import type { ReportingSetupResponse } from '#lib/types/ReportingSetupResponse.ts';
+import type { SaveLicenseRequest } from '#lib/types/SaveLicenseRequest.ts';
+import type { ReceivingSettings } from '#lib/types/ReceivingSettings.ts';
+import type { SaveAccountRequest } from '#lib/types/SaveAccountRequest.ts';
+import type { SendingSettings } from '#lib/types/SendingSettings.ts';
+import type { ScopeOptions } from '#lib/types/ScopeOptions.ts';
+import type { SendTestAlertRequest } from '#lib/types/SendTestAlertRequest.ts';
+import type { SendTestRequest } from '#lib/types/SendTestRequest.ts';
+import type { SendTestResponse } from '#lib/types/SendTestResponse.ts';
+import type { SenderDetailResponse } from '#lib/types/SenderDetailResponse.ts';
+import type { SenderSummary } from '#lib/types/SenderSummary.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import type { SpfCheckResult } from '#lib/types/SpfCheckResult.ts';
+import type { Statistics } from '#lib/types/Statistics.ts';
+import type { SyncResponse } from '#lib/types/SyncResponse.ts';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
+import type { UpcomingClientReport } from '#lib/types/UpcomingClientReport.ts';
+import type { TimeseriesPoint } from '#lib/types/TimeseriesPoint.ts';
+import type { TlsRptCheckResult } from '#lib/types/TlsRptCheckResult.ts';
+import type { UpdateDomainBody } from '#lib/types/UpdateDomainBody.ts';
+import type { WithIdentity } from '#lib/types/WithIdentity.ts';
 
 /** Optional organization / domain / since filters shared by several endpoints. */
 export type ScopeParams = {
@@ -360,7 +360,7 @@ export function getSystemHealth(): Promise<SystemHealthResponse> {
 
 /**
  * Every setting by group, with the accounts (a password only as `has_password`). Read it through the
- * shared `settings` state (`$lib/state/settings.svelte`), which loads it once; each save below
+ * shared `settings` state (`#lib/state/settings.svelte.ts`), which loads it once; each save below
  * answers the whole of it again, for `settings.save()`.
  */
 export function getSettings(): Promise<SettingsResponse> {

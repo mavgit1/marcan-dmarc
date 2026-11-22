@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { settings } from '$lib/state/settings.svelte';
-	import { statusText } from '$lib/tokens';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import { statusText } from '#lib/tokens.ts';
 	import SettingsLink from './settings-link.svelte';
 
 	/**

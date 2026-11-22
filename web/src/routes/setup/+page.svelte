@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { saveOnboarding } from '$lib/api';
-	import type { OnboardingState } from '$lib/types/OnboardingState';
-	import { Action } from '$lib/components/action.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import FeedbackAlert from '$lib/components/settings/feedback-alert.svelte';
-	import SetupStepper from '$lib/components/setup/setup-stepper.svelte';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { settings } from '$lib/state/settings.svelte';
+	import { saveOnboarding } from '#lib/api.ts';
+	import type { OnboardingState } from '#lib/types/OnboardingState.ts';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import FeedbackAlert from '#lib/components/settings/feedback-alert.svelte';
+	import SetupStepper from '#lib/components/setup/setup-stepper.svelte';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
 
 	/**
 	 * The setup. The dashboard opens it until it is finished or skipped (the onboarding settings

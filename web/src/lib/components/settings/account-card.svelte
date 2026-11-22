@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { plural, relativeTime } from '$lib/format';
-	import { MAILBOX_LABEL } from '$lib/pipeline';
-	import { FORWARDED_NAMED } from '$lib/report-address';
-	import { joinAnd } from '$lib/text';
-	import { statusBorderL, statusDot, statusText, TONE_RANK, type StatusTone } from '$lib/tokens';
-	import type { AccountHealth } from '$lib/types/AccountHealth';
-	import type { AccountView } from '$lib/types/AccountView';
+	import { plural, relativeTime } from '#lib/format.ts';
+	import { MAILBOX_LABEL } from '#lib/pipeline.ts';
+	import { FORWARDED_NAMED } from '#lib/report-address.ts';
+	import { joinAnd } from '#lib/text.ts';
+	import { statusBorderL, statusDot, statusText, TONE_RANK, type StatusTone } from '#lib/tokens.ts';
+	import type { AccountHealth } from '#lib/types/AccountHealth.ts';
+	import type { AccountView } from '#lib/types/AccountView.ts';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 
 	/**
@@ -54,7 +54,7 @@
 </script>
 
 <a
-	href={resolve(`/settings/accounts/${a.id}`)}
+	href={resolve(`settings/accounts/${a.id}`)}
 	class={[
 		'bg-card ring-foreground/10 hover:bg-muted/40 flex min-w-0 items-start gap-3 rounded-xl border-l-4 px-4 py-3 ring-1 transition-colors',
 		statusBorderL[tone]

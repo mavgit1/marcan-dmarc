@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { accountCertificateUrl, draftCertificateUrl } from '$lib/api';
-	import { formatDay, plural, relativeTime } from '$lib/format';
-	import { DOCS_URL } from '$lib/nav';
-	import { MAILBOX_LABEL } from '$lib/pipeline';
-	import { meta } from '$lib/state/meta.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
-	import { statusDot, statusText } from '$lib/tokens';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { accountCertificateUrl, draftCertificateUrl } from '#lib/api.ts';
+	import { formatDay, plural, relativeTime } from '#lib/format.ts';
+	import { DOCS_URL } from '#lib/nav.ts';
+	import { MAILBOX_LABEL } from '#lib/pipeline.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
+	import { statusDot, statusText } from '#lib/tokens.ts';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { tick } from 'svelte';

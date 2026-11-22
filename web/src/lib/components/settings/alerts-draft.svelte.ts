@@ -1,11 +1,11 @@
-import { saveAlerts, sendTestAlert } from '$lib/api';
-import { looksLikeEmail } from '$lib/report-address';
-import { settings } from '$lib/state/settings.svelte';
-import { listTokens } from '$lib/text';
-import type { AlertSettings } from '$lib/types/AlertSettings';
-import type { DigestFrequency } from '$lib/types/DigestFrequency';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import type { Weekday } from '$lib/types/Weekday';
+import { saveAlerts, sendTestAlert } from '#lib/api.ts';
+import { looksLikeEmail } from '#lib/report-address.ts';
+import { settings } from '#lib/state/settings.svelte.ts';
+import { listTokens } from '#lib/text.ts';
+import type { AlertSettings } from '#lib/types/AlertSettings.ts';
+import type { DigestFrequency } from '#lib/types/DigestFrequency.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import type { Weekday } from '#lib/types/Weekday.ts';
 import {
 	invalid,
 	savedSendingBlocks,

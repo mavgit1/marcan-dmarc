@@ -1,11 +1,11 @@
 <script lang="ts">
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import { AccountModel } from '$lib/components/settings/account-draft.svelte';
-	import AccountForm from '$lib/components/settings/account-form.svelte';
-	import FeedbackAlert from '$lib/components/settings/feedback-alert.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { statusText } from '$lib/tokens';
-	import type { SettingsResponse } from '$lib/types/SettingsResponse';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import { AccountModel } from '#lib/components/settings/account-draft.svelte.ts';
+	import AccountForm from '#lib/components/settings/account-form.svelte';
+	import FeedbackAlert from '#lib/components/settings/feedback-alert.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { statusText } from '#lib/tokens.ts';
+	import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 
 	/**
 	 * A new account in the setup: the account form of Settings → Accounts over its own model.

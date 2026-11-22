@@ -1,17 +1,17 @@
-import type { BimiCheckResult } from '$lib/types/BimiCheckResult';
-import type { CheckKind } from '$lib/types/CheckKind';
-import type { DnsCheckResponse } from '$lib/types/DnsCheckResponse';
-import type { DomainOverview } from '$lib/types/DomainOverview';
-import type { IssueSeverity } from '$lib/types/IssueSeverity';
-import type { DkimSelectorResult } from '$lib/types/DkimSelectorResult';
-import type { DmarcCheckResult } from '$lib/types/DmarcCheckResult';
-import type { Finding } from '$lib/types/Finding';
-import type { LookupStatus } from '$lib/types/LookupStatus';
-import type { Severity } from '$lib/types/Severity';
-import type { MtaStsCheckResult } from '$lib/types/MtaStsCheckResult';
-import type { PolicyFetch } from '$lib/types/PolicyFetch';
-import type { SpfCheckResult } from '$lib/types/SpfCheckResult';
-import type { IncludeNode } from '$lib/types/IncludeNode';
+import type { BimiCheckResult } from '#lib/types/BimiCheckResult.ts';
+import type { CheckKind } from '#lib/types/CheckKind.ts';
+import type { DnsCheckResponse } from '#lib/types/DnsCheckResponse.ts';
+import type { DomainOverview } from '#lib/types/DomainOverview.ts';
+import type { IssueSeverity } from '#lib/types/IssueSeverity.ts';
+import type { DkimSelectorResult } from '#lib/types/DkimSelectorResult.ts';
+import type { DmarcCheckResult } from '#lib/types/DmarcCheckResult.ts';
+import type { Finding } from '#lib/types/Finding.ts';
+import type { LookupStatus } from '#lib/types/LookupStatus.ts';
+import type { Severity } from '#lib/types/Severity.ts';
+import type { MtaStsCheckResult } from '#lib/types/MtaStsCheckResult.ts';
+import type { PolicyFetch } from '#lib/types/PolicyFetch.ts';
+import type { SpfCheckResult } from '#lib/types/SpfCheckResult.ts';
+import type { IncludeNode } from '#lib/types/IncludeNode.ts';
 import type { AuthState } from './types/AuthState';
 import type { AuthVerdict } from './types/AuthVerdict';
 import type { IncludeError } from './types/IncludeError';
@@ -53,7 +53,7 @@ export function findingsWorstFirst<T extends Pick<Finding, 'severity'>>(findings
 }
 
 /**
- * One verdict for a set of findings: the worst severity, toned by `SEVERITY_TONE` (`$lib/tokens`).
+ * One verdict for a set of findings: the worst severity, toned by `SEVERITY_TONE` (`#lib/tokens.ts`).
  * No findings (or only `ok`) reads "No issues".
  */
 export function findingsVerdict(findings: readonly Pick<Finding, 'severity'>[]): Verdict {

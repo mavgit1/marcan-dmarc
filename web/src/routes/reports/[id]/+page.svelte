@@ -1,29 +1,29 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { getReport } from '$lib/api';
-	import { isNotFound } from '$lib/http';
-	import type { ReportRecord } from '$lib/types/ReportRecord';
-	import type { ReportDetailResponse } from '$lib/types/ReportDetailResponse';
-	import { outcomeDisplay } from '$lib/auth-display';
-	import AuthChecks from '$lib/components/auth-checks.svelte';
-	import DataTable from '$lib/components/data-table.svelte';
-	import { defaultCellText, type ColumnDef } from '$lib/components/data-table';
-	import HealthSummary from '$lib/components/health-summary.svelte';
-	import ErrorState from '$lib/components/error-state.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import NotFoundState from '$lib/components/not-found-state.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import PolicyBadge from '$lib/components/policy-badge.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import SenderCell from '$lib/components/sender-cell.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { formatDateRange, formatInt } from '$lib/format';
-	import { pageMeta } from '$lib/state/page-meta.svelte';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { resource } from '$lib/state/resource.svelte';
-	import { statusRow } from '$lib/tokens';
+	import { getReport } from '#lib/api.ts';
+	import { isNotFound } from '#lib/http.ts';
+	import type { ReportRecord } from '#lib/types/ReportRecord.ts';
+	import type { ReportDetailResponse } from '#lib/types/ReportDetailResponse.ts';
+	import { outcomeDisplay } from '#lib/auth-display.ts';
+	import AuthChecks from '#lib/components/auth-checks.svelte';
+	import DataTable from '#lib/components/data-table.svelte';
+	import { defaultCellText, type ColumnDef } from '#lib/components/data-table.ts';
+	import HealthSummary from '#lib/components/health-summary.svelte';
+	import ErrorState from '#lib/components/error-state.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import NotFoundState from '#lib/components/not-found-state.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import PolicyBadge from '#lib/components/policy-badge.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import SenderCell from '#lib/components/sender-cell.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { formatDateRange, formatInt } from '#lib/format.ts';
+	import { pageMeta } from '#lib/state/page-meta.svelte.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { statusRow } from '#lib/tokens.ts';
 	import { isAuthFailure, sortRecordsForensics } from '../record-utils';
 
 	type Row = ReportRecord;
@@ -173,7 +173,7 @@
 					<SenderCell
 						ip={row.source_ip}
 						identity={row.identity}
-						href={resolve(`/senders/${encodeURIComponent(row.source_ip)}`)}
+						href={resolve(`senders/${encodeURIComponent(row.source_ip)}`)}
 					>
 						{@const from = (row.header_from || report.domain).toLowerCase()}
 						{#if from !== report.domain.toLowerCase()}

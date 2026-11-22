@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { getAlerts } from '$lib/api';
-	import { relativeTime } from '$lib/format';
-	import { scopedHref } from '$lib/state/filters.svelte';
-	import { resource } from '$lib/state/resource.svelte';
+	import { getAlerts } from '#lib/api.ts';
+	import { relativeTime } from '#lib/format.ts';
+	import { scopedHref } from '#lib/state/filters.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
 	import AlertText from './alert-text.svelte';
 
 	/**

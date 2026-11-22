@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { ignoreDomain } from '$lib/api';
-	import { apiErrorMessage } from '$lib/http';
-	import { Action } from '$lib/components/action.svelte';
-	import type { ScopeDomain } from '$lib/types/ScopeDomain';
-	import AddDomains from '$lib/components/add-domains.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import { plural } from '$lib/format';
+	import { ignoreDomain } from '#lib/api.ts';
+	import { apiErrorMessage } from '#lib/http.ts';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import type { ScopeDomain } from '#lib/types/ScopeDomain.ts';
+	import AddDomains from '#lib/components/add-domains.svelte';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import { plural } from '#lib/format.ts';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { importing, type SetupData } from './setup-steps';
 	import StepNav from './step-nav.svelte';

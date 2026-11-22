@@ -1,6 +1,6 @@
-import type { AlertCatalogueItem } from '$lib/types/AlertCatalogueItem';
-import type { AlertGroup } from '$lib/types/AlertGroup';
-import type { AlertGroupTitle } from '$lib/types/AlertGroupTitle';
+import type { AlertCatalogueItem } from '#lib/types/AlertCatalogueItem.ts';
+import type { AlertGroup } from '#lib/types/AlertGroup.ts';
+import type { AlertGroupTitle } from '#lib/types/AlertGroupTitle.ts';
 
 /**
  * The server's alert catalogue (`meta.alert_catalogue`, its groups' headings in

@@ -6,17 +6,17 @@
 // of a failing account, and the note that credentials are not encrypted without MARCAN_SECRET_KEY.
 import { fireEvent } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatDay } from '$lib/format';
-import { owned, pendingFetch, renderPage, saveBar, settle } from '$lib/test/component-test.svelte';
-import { accountFixture, CONNECTED, settingsFixture } from '$lib/test/settings-fixture';
-import { meta } from '$lib/state/meta.svelte';
-import { systemHealth } from '$lib/state/system-health.svelte';
-import type { ProviderOption } from '$lib/types/ProviderOption';
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
-import type { AccountTestResponse } from '$lib/types/AccountTestResponse';
-import type { CertificateDraft } from '$lib/types/CertificateDraft';
-import type { Meta } from '$lib/types/Meta';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { formatDay } from '#lib/format.ts';
+import { owned, pendingFetch, renderPage, saveBar, settle } from '#lib/test/component-test.svelte.ts';
+import { accountFixture, CONNECTED, settingsFixture } from '#lib/test/settings-fixture.ts';
+import { meta } from '#lib/state/meta.svelte.ts';
+import { systemHealth } from '#lib/state/system-health.svelte.ts';
+import type { ProviderOption } from '#lib/types/ProviderOption.ts';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
+import type { AccountTestResponse } from '#lib/types/AccountTestResponse.ts';
+import type { CertificateDraft } from '#lib/types/CertificateDraft.ts';
+import type { Meta } from '#lib/types/Meta.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { ACCOUNT_TEXT, AccountModel, MS_TEXT, toRequest } from './account-draft.svelte';
 
 import AccountForm from './account-form.svelte';

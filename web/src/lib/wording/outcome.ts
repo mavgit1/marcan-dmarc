@@ -1,9 +1,9 @@
-import type { DomainOverview } from '$lib/types/DomainOverview';
-import type { FailureOutcome } from '$lib/types/FailureOutcome';
-import type { Outcome } from '$lib/types/Outcome';
-import { formatInt } from '$lib/format';
-import { outcomeCounts, type MailFigures, type OutcomeCounts } from '$lib/health';
-import { statusDot, type StatusTone } from '$lib/tokens';
+import type { DomainOverview } from '#lib/types/DomainOverview.ts';
+import type { FailureOutcome } from '#lib/types/FailureOutcome.ts';
+import type { Outcome } from '#lib/types/Outcome.ts';
+import { formatInt } from '#lib/format.ts';
+import { outcomeCounts, type MailFigures, type OutcomeCounts } from '#lib/health.ts';
+import { statusDot, type StatusTone } from '#lib/tokens.ts';
 
 /** The one colour of each outcome, as in every chart, tile and badge. */
 export const OUTCOME_STATUS = {

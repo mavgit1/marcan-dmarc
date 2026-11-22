@@ -3,13 +3,13 @@
 // id, how ports follow the security, which test answer counts, which reasons the Test row says
 // beside the field notes, and the refusals it holds client-side in the server's words.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { accountFixture, CONNECTED, settingsFixture } from '$lib/test/settings-fixture';
-import type { AccountTestResponse } from '$lib/types/AccountTestResponse';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import * as api from '$lib/api';
+import { accountFixture, CONNECTED, settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { AccountTestResponse } from '#lib/types/AccountTestResponse.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import * as api from '#lib/api.ts';
 import { ACCOUNT_TEXT, AccountModel, fromAccount, MS_TEXT } from './account-draft.svelte';
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
 	createAccount: vi.fn(),
 	updateAccount: vi.fn(),
 	testAccount: vi.fn(),

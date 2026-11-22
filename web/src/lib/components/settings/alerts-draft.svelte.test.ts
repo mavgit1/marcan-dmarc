@@ -1,13 +1,13 @@
 // The alerts draft behind the Alerts section: how the saved group becomes fields and back, what
 // counts as a change, why a draft cannot be saved, and what the save and the test alert send.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SENDING_ON, settingsFixture } from '$lib/test/settings-fixture';
-import type { AlertSettings } from '$lib/types/AlertSettings';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
-import * as api from '$lib/api';
+import { SENDING_ON, settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { AlertSettings } from '#lib/types/AlertSettings.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+import * as api from '#lib/api.ts';
 import { AlertsModel, recipientList, withMailed } from './alerts-draft.svelte';
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
 	getSettings: vi.fn(),
 	saveAlerts: vi.fn(),
 	sendTestAlert: vi.fn()

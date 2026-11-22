@@ -1,7 +1,7 @@
 // The account draft's rules: the stored password applies only to its own servers and username,
 // the request carries a password only when typed, and a Microsoft login carries no servers.
 import { describe, expect, it } from 'vitest';
-import { accountFixture, settingsFixture } from '$lib/test/settings-fixture';
+import { accountFixture, settingsFixture } from '#lib/test/settings-fixture.ts';
 import { fromAccount, loginKey, normalize, sameTargets, toRequest, withPorts } from './account-draft.svelte';
 
 const saved = fromAccount(accountFixture(), settingsFixture());

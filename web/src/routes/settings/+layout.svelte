@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import { focusUrlHash } from '$lib/state/anchor-focus.svelte';
-	import { holdForUnsaved } from '$lib/components/settings/settings-form.svelte';
-	import SettingsNav from '$lib/components/settings/settings-nav.svelte';
-	import { pageFromPath } from '$lib/settings-nav';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import { focusUrlHash } from '#lib/state/anchor-focus.svelte.ts';
+	import { holdForUnsaved } from '#lib/components/settings/settings-form.svelte.ts';
+	import SettingsNav from '#lib/components/settings/settings-nav.svelte';
+	import { pageFromPath } from '#lib/settings-nav.ts';
 	import type { Snippet } from 'svelte';
 
 	/**

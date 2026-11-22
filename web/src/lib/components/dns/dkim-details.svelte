@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { getDkimSelectors, previewDkimSelectors, saveDkimSelectors } from '$lib/api';
-	import type { DkimCheckResult } from '$lib/types/DkimCheckResult';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
-	import { Action } from '$lib/components/action.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import FeedbackAlert from '$lib/components/settings/feedback-alert.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { dkimKey, dkimSelectorOrigin, selectorVerdict } from '$lib/dns';
-	import { formatInt, plural } from '$lib/format';
-	import { meta } from '$lib/state/meta.svelte';
-	import { statusFg } from '$lib/tokens';
+	import { getDkimSelectors, previewDkimSelectors, saveDkimSelectors } from '#lib/api.ts';
+	import type { DkimCheckResult } from '#lib/types/DkimCheckResult.ts';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import FeedbackAlert from '#lib/components/settings/feedback-alert.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { dkimKey, dkimSelectorOrigin, selectorVerdict } from '#lib/dns.ts';
+	import { formatInt, plural } from '#lib/format.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { statusFg } from '#lib/tokens.ts';
 	import DetailHeading from './detail-heading.svelte';
 
 	let {

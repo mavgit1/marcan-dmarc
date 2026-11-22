@@ -13,6 +13,12 @@ description: Release notes for every Marcan version, with the changes to the app
 
 Newest first. Each release is tagged `vX.Y.Z` and the image `ghcr.io/mavgit1/marcan` carries the same tag; how to move to a new one is in [Upgrade](./upgrade). An entry says what changed and what, if anything, to do before upgrading.
 
+## 0.4.2
+
+Nothing to do before upgrading: the database does not change, and nothing looks or works differently.
+
+- **Maintenance**: the tools that build the interface and the docs are updated (SvelteKit 3, Vite 6 for the docs, newer lint packages), which clears every open advisory against them. None of these packages runs inside Marcan: the image contains only the finished interface files, so no instance was exposed. The update is for people who build Marcan from source or audit its dependencies.
+
 ## 0.4.1
 
 Nothing to do before upgrading: the database does not change, so going back to 0.4.0 needs no backup.

@@ -1,10 +1,10 @@
-import { saveClientReports, sendClientReportEmail } from '$lib/api';
-import { looksLikeEmail } from '$lib/report-address';
-import { meta } from '$lib/state/meta.svelte';
-import { settings } from '$lib/state/settings.svelte';
-import type { ClientReportSettings } from '$lib/types/ClientReportSettings';
-import type { Meta } from '$lib/types/Meta';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { saveClientReports, sendClientReportEmail } from '#lib/api.ts';
+import { looksLikeEmail } from '#lib/report-address.ts';
+import { meta } from '#lib/state/meta.svelte.ts';
+import { settings } from '#lib/state/settings.svelte.ts';
+import type { ClientReportSettings } from '#lib/types/ClientReportSettings.ts';
+import type { Meta } from '#lib/types/Meta.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import {
 	invalid,
 	savedSendingBlocks,

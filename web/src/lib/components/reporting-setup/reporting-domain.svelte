@@ -1,17 +1,17 @@
 <script lang="ts">
-	import InlineCode from '$lib/components/inline-code.svelte';
-	import { apiErrorMessage } from '$lib/http';
-	import type { ReportingDomain } from '$lib/types/ReportingDomain';
-	import CopyButton from '$lib/components/copy-button.svelte';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
-	import PolicyBadge from '$lib/components/policy-badge.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { relativeTime } from '$lib/format';
-	import { emailDomain, FIRST_REPORT_ETA, REPORTING_STATUS_LABEL } from '$lib/report-address';
-	import { joinAnd, unique } from '$lib/text';
+	import InlineCode from '#lib/components/inline-code.svelte';
+	import { apiErrorMessage } from '#lib/http.ts';
+	import type { ReportingDomain } from '#lib/types/ReportingDomain.ts';
+	import CopyButton from '#lib/components/copy-button.svelte';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
+	import PolicyBadge from '#lib/components/policy-badge.svelte';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { relativeTime } from '#lib/format.ts';
+	import { emailDomain, FIRST_REPORT_ETA, REPORTING_STATUS_LABEL } from '#lib/report-address.ts';
+	import { joinAnd, unique } from '#lib/text.ts';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { ReportingSetupState } from './reporting-setup-state.svelte';
 

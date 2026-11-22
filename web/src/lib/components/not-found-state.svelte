@@ -1,6 +1,6 @@
 <script lang="ts">
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
 	import FileQuestionIcon from '@lucide/svelte/icons/file-question';
 
 	/**

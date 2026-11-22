@@ -1,7 +1,7 @@
 // The alert catalogue's groups: in the server's order, every entry once, under the server's headings.
 import { describe, expect, it } from 'vitest';
-import type { AlertCatalogueItem } from '$lib/types/AlertCatalogueItem';
-import type { AlertGroupTitle } from '$lib/types/AlertGroupTitle';
+import type { AlertCatalogueItem } from '#lib/types/AlertCatalogueItem.ts';
+import type { AlertGroupTitle } from '#lib/types/AlertGroupTitle.ts';
 import { catalogueEntry, catalogueSummary, catalogueTrigger, groupCatalogue } from './alert-catalogue';
 
 const entry = (id: string, group: AlertCatalogueItem['group']): AlertCatalogueItem => ({

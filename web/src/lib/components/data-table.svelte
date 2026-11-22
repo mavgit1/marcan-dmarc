@@ -5,10 +5,10 @@
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Table from '$lib/components/ui/table/index.js';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Table from '#lib/components/ui/table/index.ts';
 	import {
 		columnAlign,
 		defaultCellText,
@@ -17,9 +17,9 @@
 		type ColumnDef,
 		type DataTableCellSnippet,
 		type ServerTable
-	} from '$lib/components/data-table';
-	import { formatInt } from '$lib/format';
-	import { cn } from '$lib/utils.js';
+	} from '#lib/components/data-table.ts';
+	import { formatInt } from '#lib/format.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Table built on shadcn Table primitives, with empty/loading states; pass a `cell`

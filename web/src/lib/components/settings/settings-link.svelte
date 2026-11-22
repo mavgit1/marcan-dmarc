@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { settingsAnchor, settingsHref, settingsTitle, type SettingsTarget } from '$lib/settings-nav';
-	import { cn } from '$lib/utils.js';
+	import { settingsAnchor, settingsHref, settingsTitle, type SettingsTarget } from '#lib/settings-nav.ts';
+	import { cn } from '#lib/utils.ts';
 	import type { Snippet } from 'svelte';
-	import { focusAnchor } from '$lib/state/anchor-focus.svelte';
+	import { focusAnchor } from '#lib/state/anchor-focus.svelte.ts';
 
 	/**
 	 * A link to a Settings page or to a section on one (its title, or `children`): opens the page

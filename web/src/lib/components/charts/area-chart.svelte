@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { scaleUtc } from 'd3-scale';
 	import { AreaChart as LayerAreaChart } from 'layerchart';
-	import * as Chart from '$lib/components/ui/chart/index.js';
+	import * as Chart from '#lib/components/ui/chart/index.ts';
 	import { formatChartDate, toChartConfig, type ChartDatum, type ChartSeries } from './chart-model.js';
-	import { cn } from '$lib/utils.js';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Theme-aware area chart. Pages should not import layerchart directly.

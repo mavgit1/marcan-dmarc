@@ -1,9 +1,9 @@
 <script lang="ts">
-	import ErrorState from '$lib/components/error-state.svelte';
-	import InlineCode from '$lib/components/inline-code.svelte';
-	import AddressAuthorizations from '$lib/components/reporting-setup/address-authorizations.svelte';
-	import type { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
+	import ErrorState from '#lib/components/error-state.svelte';
+	import InlineCode from '#lib/components/inline-code.svelte';
+	import AddressAuthorizations from '#lib/components/reporting-setup/address-authorizations.svelte';
+	import type { ReportingSetupState } from '#lib/components/reporting-setup/reporting-setup-state.svelte.ts';
+	import Skeleton from '#lib/components/skeleton.svelte';
 	import StepNav from './step-nav.svelte';
 
 	/**

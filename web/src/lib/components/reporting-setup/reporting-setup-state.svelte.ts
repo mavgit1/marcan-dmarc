@@ -1,6 +1,6 @@
-import { getReportingSetup } from '$lib/api';
-import type { ReportingSetupResponse } from '$lib/types/ReportingSetupResponse';
-import { resource, type Resource } from '$lib/state/resource.svelte';
+import { getReportingSetup } from '#lib/api.ts';
+import type { ReportingSetupResponse } from '#lib/types/ReportingSetupResponse.ts';
+import { resource, type Resource } from '#lib/state/resource.svelte.ts';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 /**

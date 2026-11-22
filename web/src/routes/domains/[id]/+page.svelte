@@ -2,28 +2,28 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { getDomain, ignoreDomain, updateDomain, type DomainFailureFilters } from '$lib/api';
-	import { isNotFound } from '$lib/http';
-	import type { DomainOverview } from '$lib/types/DomainOverview';
-	import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
-	import ErrorState from '$lib/components/error-state.svelte';
-	import ExportDialog from '$lib/components/export-dialog.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import NotFoundState from '$lib/components/not-found-state.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import PolicyBadge from '$lib/components/policy-badge.svelte';
-	import SendersTable from '$lib/components/senders-table.svelte';
-	import { Action } from '$lib/components/action.svelte';
-	import FeedbackAlert from '$lib/components/settings/feedback-alert.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { buttonVariants } from '$lib/components/ui/button/index.js';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { filters } from '$lib/state/filters.svelte';
-	import { statusTextStrong } from '$lib/tokens';
-	import { pageMeta } from '$lib/state/page-meta.svelte';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { resource } from '$lib/state/resource.svelte';
+	import { getDomain, ignoreDomain, updateDomain, type DomainFailureFilters } from '#lib/api.ts';
+	import { isNotFound } from '#lib/http.ts';
+	import type { DomainOverview } from '#lib/types/DomainOverview.ts';
+	import ConfirmDialog from '#lib/components/confirm-dialog.svelte';
+	import ErrorState from '#lib/components/error-state.svelte';
+	import ExportDialog from '#lib/components/export-dialog.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import NotFoundState from '#lib/components/not-found-state.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import PolicyBadge from '#lib/components/policy-badge.svelte';
+	import SendersTable from '#lib/components/senders-table.svelte';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import FeedbackAlert from '#lib/components/settings/feedback-alert.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { buttonVariants } from '#lib/components/ui/button/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { statusTextStrong } from '#lib/tokens.ts';
+	import { pageMeta } from '#lib/state/page-meta.svelte.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
 	import ArrowRightLeftIcon from '@lucide/svelte/icons/arrow-right-left';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import BanIcon from '@lucide/svelte/icons/ban';
@@ -35,7 +35,7 @@
 	import FailuresTab from './failures-tab.svelte';
 	import MoveDomainForm from './move-domain-form.svelte';
 	import OverviewTab from './overview-tab.svelte';
-	import SectionTabs from '$lib/components/section-tabs.svelte';
+	import SectionTabs from '#lib/components/section-tabs.svelte';
 
 	const TABS = [
 		{ id: 'overview', label: 'Overview' },
@@ -66,7 +66,7 @@
 	function onIgnore(organizationId: number) {
 		void ignore.run(async () => {
 			await ignoreDomain(domainId);
-			await goto(resolve(`/organizations/${organizationId}`));
+			await goto(resolve(`organizations/${organizationId}`));
 			refresh.refresh();
 		});
 	}
@@ -103,7 +103,7 @@
 
 	/** This page with tab `id` open, the other parameters kept. */
 	function tabHref(id: TabId): string {
-		const url = new URL(page.url);
+		const url = new URL(page.url.href);
 		if (id === 'overview') {
 			url.searchParams.delete('tab');
 		} else {
@@ -113,7 +113,7 @@
 	}
 
 	function setTab(id: TabId) {
-		void goto(tabHref(id), { keepFocus: true, noScroll: true });
+		void goto(tabHref(id), { reset: false });
 	}
 </script>
 

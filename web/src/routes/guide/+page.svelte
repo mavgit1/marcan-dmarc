@@ -1,30 +1,30 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { getGuide } from '$lib/api';
-	import type { SettingsResponse } from '$lib/types/SettingsResponse';
-	import type { Status } from '$lib/types/Status';
+	import { getGuide } from '#lib/api.ts';
+	import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
+	import type { Status } from '#lib/types/Status.ts';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
-	import DocsLink from '$lib/components/guide/docs-link.svelte';
-	import GuideBlock from '$lib/components/guide/guide-block.svelte';
-	import GuideReporting from '$lib/components/guide/guide-reporting.svelte';
-	import InlineCode from '$lib/components/inline-code.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import SettingsLink from '$lib/components/settings/settings-link.svelte';
-	import { settingsTitle } from '$lib/settings-nav';
-	import { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { formatDay, plural } from '$lib/format';
-	import { DOCS_URL } from '$lib/nav';
-	import { pipelineStatus } from '$lib/pipeline';
-	import { reportAddressKey } from '$lib/report-address';
-	import { meta } from '$lib/state/meta.svelte';
-	import { resource } from '$lib/state/resource.svelte';
-	import { settings } from '$lib/state/settings.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
-	import { statusDot } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import DocsLink from '#lib/components/guide/docs-link.svelte';
+	import GuideBlock from '#lib/components/guide/guide-block.svelte';
+	import GuideReporting from '#lib/components/guide/guide-reporting.svelte';
+	import InlineCode from '#lib/components/inline-code.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import SettingsLink from '#lib/components/settings/settings-link.svelte';
+	import { settingsTitle } from '#lib/settings-nav.ts';
+	import { ReportingSetupState } from '#lib/components/reporting-setup/reporting-setup-state.svelte.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { formatDay, plural } from '#lib/format.ts';
+	import { DOCS_URL } from '#lib/nav.ts';
+	import { pipelineStatus } from '#lib/pipeline.ts';
+	import { reportAddressKey } from '#lib/report-address.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
+	import { statusDot } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * Tools → Guide: how Marcan works, block by block, with this installation's values and where

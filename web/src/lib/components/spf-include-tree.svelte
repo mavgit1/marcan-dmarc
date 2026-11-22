@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { IncludeNode } from '$lib/types/IncludeNode';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
-	import { spfErrorExplanation, spfSubtreeLookups } from '$lib/dns';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { statusRow } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import type { IncludeNode } from '#lib/types/IncludeNode.ts';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
+	import { spfErrorExplanation, spfSubtreeLookups } from '#lib/dns.ts';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { statusRow } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 	import SpfIncludeTree from './spf-include-tree.svelte';
 
 	/**

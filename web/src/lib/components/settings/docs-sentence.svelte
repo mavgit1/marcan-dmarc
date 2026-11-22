@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { DOCS_URL } from '$lib/nav';
+	import { DOCS_URL } from '#lib/nav.ts';
 
 	/**
 	 * A server sentence that ends with a "(docs)" link to the docs section showing the fix (`docs`,

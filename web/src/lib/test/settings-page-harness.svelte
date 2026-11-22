@@ -1,8 +1,8 @@
 <script lang="ts" generics="P extends Record<string, unknown>">
 	import type { Component } from 'svelte';
-	import type { SettingsPageId } from '$lib/settings-nav';
-	import type { Feature } from '$lib/components/settings/settings-form.svelte';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
+	import type { SettingsPageId } from '#lib/settings-nav.ts';
+	import type { Feature } from '#lib/components/settings/settings-form.svelte.ts';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
 
 	/**
 	 * A Settings page around one form, for the component tests: the page form, its save bar and,

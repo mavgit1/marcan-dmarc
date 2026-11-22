@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import type { AlertItem } from '$lib/types/AlertItem';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import type { AlertItem } from '#lib/types/AlertItem.ts';
 
 	/**
 	 * One event: its colour as a badge (the row's verdict) and its sentence, both worded by the
@@ -26,10 +26,10 @@
 	{/if}
 	<span class="min-w-0"
 		>{#if senderLink && item.sender_ip}{senderLink.head}<a
-				href={resolve(`/senders/${encodeURIComponent(item.sender_ip)}`)}
+				href={resolve(`senders/${encodeURIComponent(item.sender_ip)}`)}
 				class="underline underline-offset-2">{senderLink.words}</a
 			>.{:else}{item.text}{#if item.sender_ip}{' '}<a
-					href={resolve(`/senders/${encodeURIComponent(item.sender_ip)}`)}
+					href={resolve(`senders/${encodeURIComponent(item.sender_ip)}`)}
 					class="underline underline-offset-2">Sender page</a
 				>{:else if item.release_notes}{' '}<a
 					href={item.release_notes}

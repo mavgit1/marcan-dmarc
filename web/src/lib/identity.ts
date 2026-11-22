@@ -1,5 +1,5 @@
-import type { IdentitySource } from '$lib/types/IdentitySource';
-import type { SenderIdentity } from '$lib/types/SenderIdentity';
+import type { IdentitySource } from '#lib/types/IdentitySource.ts';
+import type { SenderIdentity } from '#lib/types/SenderIdentity.ts';
 
 /** Fallback when no evidence names the sender. */
 const UNKNOWN_SENDER_NAME = 'Unknown';

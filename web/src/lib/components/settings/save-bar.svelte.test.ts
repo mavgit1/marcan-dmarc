@@ -3,7 +3,7 @@
 // stands beside it in the warn tone, and a refused save's sentence kept above that reason.
 import { render } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
-import { saveBar } from '$lib/test/component-test.svelte';
+import { saveBar } from '#lib/test/component-test.svelte.ts';
 import { Action } from '../action.svelte';
 import SaveBar from './save-bar.svelte';
 

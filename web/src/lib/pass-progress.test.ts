@@ -1,7 +1,7 @@
 // What a running mailbox pass says it is doing.
 import { describe, expect, it } from 'vitest';
-import type { PassProgressResponse } from '$lib/types/PassProgressResponse';
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
+import type { PassProgressResponse } from '#lib/types/PassProgressResponse.ts';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
 import { importActivityLabel, importSummary, progressLabel } from './pass-progress';
 
 const progress = (over: Partial<PassProgressResponse>): PassProgressResponse =>

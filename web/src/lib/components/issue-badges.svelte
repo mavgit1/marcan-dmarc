@@ -1,7 +1,7 @@
 <script lang="ts">
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { meta } from '$lib/state/meta.svelte';
-	import type { WordedIssue } from '$lib/types/WordedIssue';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import type { WordedIssue } from '#lib/types/WordedIssue.ts';
 
 	/**
 	 * A domain's open issues as badges, each in its colour with what it means as the tooltip, in

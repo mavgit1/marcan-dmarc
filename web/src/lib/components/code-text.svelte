@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { codeSpans } from '$lib/text';
-	import InlineCode from '$lib/components/inline-code.svelte';
+	import { codeSpans } from '#lib/text.ts';
+	import InlineCode from '#lib/components/inline-code.svelte';
 
 	/**
 	 * A server sentence whose backtick spans are literal record text (DNS findings and their

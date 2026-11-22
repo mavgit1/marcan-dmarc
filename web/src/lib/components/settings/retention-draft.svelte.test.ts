@@ -1,10 +1,10 @@
 // The Retention section: the stored months as its draft, which months can be saved, and the save.
 import { describe, expect, it, vi } from 'vitest';
-import { settingsFixture } from '$lib/test/settings-fixture';
-import * as api from '$lib/api';
+import { settingsFixture } from '#lib/test/settings-fixture.ts';
+import * as api from '#lib/api.ts';
 import { RetentionModel, retentionProblem } from './retention-draft.svelte';
 
-vi.mock('$lib/api', () => ({ getSettings: vi.fn(), getMeta: vi.fn(), saveRetention: vi.fn() }));
+vi.mock('#lib/api.ts', () => ({ getSettings: vi.fn(), getMeta: vi.fn(), saveRetention: vi.fn() }));
 
 const settle = () => new Promise<void>((done) => setTimeout(done));
 

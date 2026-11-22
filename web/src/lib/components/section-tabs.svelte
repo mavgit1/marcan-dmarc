@@ -1,6 +1,6 @@
 <script lang="ts" generics="Id extends string">
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { cn } from '$lib/utils.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/** Underline tabs for a page's sections (the domain page), the active one kept in the URL (`?tab=`). */
 	let {

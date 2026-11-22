@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { LicenseModel } from '$lib/components/settings/license-draft.svelte';
-	import LicenseSettingsForm from '$lib/components/settings/license-settings-form.svelte';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
-	import { UpdatesModel } from '$lib/components/settings/updates-draft.svelte';
-	import { settings } from '$lib/state/settings.svelte';
+	import { LicenseModel } from '#lib/components/settings/license-draft.svelte.ts';
+	import LicenseSettingsForm from '#lib/components/settings/license-settings-form.svelte';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
+	import { UpdatesModel } from '#lib/components/settings/updates-draft.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
 	import AboutSection from './about-section.svelte';
 	import ClientEmailsSection from './client-emails-section.svelte';
 

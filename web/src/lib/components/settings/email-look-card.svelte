@@ -1,6 +1,6 @@
 <script lang="ts">
-	import LogoMark from '$lib/components/logo-mark.svelte';
-	import type { EmailLook } from '$lib/types/EmailLook';
+	import LogoMark from '#lib/components/logo-mark.svelte';
+	import type { EmailLook } from '#lib/types/EmailLook.ts';
 
 	/**
 	 * One email as a client receives it, small: "From:" and the sender name, the top (Marcan's

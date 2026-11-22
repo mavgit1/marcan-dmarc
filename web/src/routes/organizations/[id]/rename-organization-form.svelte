@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { updateOrganization } from '$lib/api';
-	import { Action } from '$lib/components/action.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import type { OrganizationSummary } from '$lib/types/OrganizationSummary';
+	import { updateOrganization } from '#lib/api.ts';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import type { OrganizationSummary } from '#lib/types/OrganizationSummary.ts';
 	import { untrack } from 'svelte';
 
 	/** The header's inline rename; an unchanged name just closes it. */

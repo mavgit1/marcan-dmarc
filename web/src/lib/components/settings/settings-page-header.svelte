@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { DOCS_URL } from '$lib/nav';
-	import { settingsPage, type SettingsPageId } from '$lib/settings-nav';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { DOCS_URL } from '#lib/nav.ts';
+	import { settingsPage, type SettingsPageId } from '#lib/settings-nav.ts';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 

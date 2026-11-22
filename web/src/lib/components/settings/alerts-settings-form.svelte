@@ -1,15 +1,15 @@
 <script lang="ts">
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { meta } from '$lib/state/meta.svelte';
-	import { catalogueSummary, groupCatalogue } from '$lib/wording/alert-catalogue';
-	import { statusText } from '$lib/tokens';
-	import type { DigestFrequency } from '$lib/types/DigestFrequency';
-	import type { Weekday } from '$lib/types/Weekday';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
+	import { catalogueSummary, groupCatalogue } from '#lib/wording/alert-catalogue.ts';
+	import { statusText } from '#lib/tokens.ts';
+	import type { DigestFrequency } from '#lib/types/DigestFrequency.ts';
+	import type { Weekday } from '#lib/types/Weekday.ts';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import BusyButton from '../busy-button.svelte';
 	import { AlertsModel, DIGEST_LABEL, WEEKDAY_LABEL } from './alerts-draft.svelte';
-	import { onFocusAnchor } from '$lib/state/anchor-focus.svelte';
+	import { onFocusAnchor } from '#lib/state/anchor-focus.svelte.ts';
 	import FeedbackAlert from './feedback-alert.svelte';
 	import HourInput from './hour-input.svelte';
 	import { joinPageForm } from './page-form.svelte';

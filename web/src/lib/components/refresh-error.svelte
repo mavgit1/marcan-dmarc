@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { apiErrorMessage } from '$lib/http';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { refresh } from '$lib/state/refresh.svelte';
-	import { cn } from '$lib/utils.js';
+	import { apiErrorMessage } from '#lib/http.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	/**

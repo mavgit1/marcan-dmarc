@@ -1,7 +1,7 @@
 // A sender row's verdict and check lines, worded from the server's counts and verdicts.
 import { describe, expect, it } from 'vitest';
-import type { DkimCoverage } from '$lib/types/DkimCoverage';
-import type { SenderDomainRow } from '$lib/types/SenderDomainRow';
+import type { DkimCoverage } from '#lib/types/DkimCoverage.ts';
+import type { SenderDomainRow } from '#lib/types/SenderDomainRow.ts';
 import { dkimCoverageLabel, rowVerdict, SENDER_VERDICT_LABEL, spfLine } from './sender';
 
 const row = {

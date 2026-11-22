@@ -1,6 +1,6 @@
 import ky, { HTTPError, TimeoutError, isNetworkError, isTimeoutError } from 'ky';
-import type { ErrorBody } from '$lib/types/ErrorBody';
-import type { LineError } from '$lib/types/LineError';
+import type { ErrorBody } from '#lib/types/ErrorBody.ts';
+import type { LineError } from '#lib/types/LineError.ts';
 
 /** Shared ky client. The UI is served same-origin with the API; `pnpm dev` proxies `/api` via Vite. */
 export const api = ky.create({

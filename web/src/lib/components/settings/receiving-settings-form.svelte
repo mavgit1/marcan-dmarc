@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { plural, pluralNoun } from '$lib/format';
-	import { statusText } from '$lib/tokens';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { plural, pluralNoun } from '#lib/format.ts';
+	import { statusText } from '#lib/tokens.ts';
 	import { joinPageForm } from './page-form.svelte';
 	import { STOPPED_DAYS, WARN_HOURS, type ReceivingModel } from './receiving-draft.svelte';
 	import SettingRow from './setting-row.svelte';

@@ -3,13 +3,13 @@
 // only when it changed, and a disabled Save that says why and marks the field.
 import { fireEvent } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { owned, pendingFetch, renderPage, saveBar, settle } from '$lib/test/component-test.svelte';
-import { CONNECTED, settingsFixture } from '$lib/test/settings-fixture';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { owned, pendingFetch, renderPage, saveBar, settle } from '#lib/test/component-test.svelte.ts';
+import { CONNECTED, settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { ReceivingModel } from './receiving-draft.svelte';
 import ReceivingSettingsForm from './receiving-settings-form.svelte';
 
-vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
+vi.mock('$app/paths', () => ({ resolve: (path: string) => (path.startsWith('/') ? path : `/${path}`) }));
 
 beforeEach(pendingFetch);
 

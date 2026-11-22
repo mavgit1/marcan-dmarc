@@ -7,16 +7,16 @@
  * mail authentic?", enforcement "if someone spoofs me, is anything stopping them?".
  */
 
-import type { Enforcement } from '$lib/types/Enforcement';
-import type { EnforcementState } from '$lib/types/EnforcementState';
-import type { MailCounts } from '$lib/types/MailCounts';
-import type { MailVerdicts } from '$lib/types/MailVerdicts';
-import type { HealthState } from '$lib/types/HealthState';
-import type { Rate } from '$lib/types/Rate';
-import type { Trend } from '$lib/types/Trend';
-import type { TrendDirection } from '$lib/types/TrendDirection';
-import { formatPct } from '$lib/format';
-import type { StatusTone } from '$lib/tokens';
+import type { Enforcement } from '#lib/types/Enforcement.ts';
+import type { EnforcementState } from '#lib/types/EnforcementState.ts';
+import type { MailCounts } from '#lib/types/MailCounts.ts';
+import type { MailVerdicts } from '#lib/types/MailVerdicts.ts';
+import type { HealthState } from '#lib/types/HealthState.ts';
+import type { Rate } from '#lib/types/Rate.ts';
+import type { Trend } from '#lib/types/Trend.ts';
+import type { TrendDirection } from '#lib/types/TrendDirection.ts';
+import { formatPct } from '#lib/format.ts';
+import type { StatusTone } from '#lib/tokens.ts';
 
 /** Is the delivered mail authentic? The server's state, as a word. */
 export const HEALTH_LABEL = {
@@ -92,7 +92,7 @@ export function formatRate(rate: Rate): string {
 /** A scope's message figures as every response names them; `blocked_messages` is the server's. */
 export type MailFigures = MailCounts & Pick<MailVerdicts, 'blocked_messages'>;
 
-/** The four outcome counts of `mail`, keyed like `OUTCOMES` (`$lib/wording/outcome`). */
+/** The four outcome counts of `mail`, keyed like `OUTCOMES` (`#lib/wording/outcome.ts`). */
 export function outcomeCounts(mail: MailFigures): OutcomeCounts {
 	return {
 		compliant: mail.compliant_messages,

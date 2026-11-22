@@ -1,7 +1,7 @@
 <script lang="ts">
 	import EyeIcon from '@lucide/svelte/icons/eye';
 	import EyeOffIcon from '@lucide/svelte/icons/eye-off';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { Input } from '#lib/components/ui/input/index.ts';
 	import type { HTMLInputAttributes } from 'svelte/elements';
 
 	/**

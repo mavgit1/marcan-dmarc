@@ -3,12 +3,12 @@
 // domain page, whose one re-check is the DNS scorecard's (it stores the check the row reads).
 import { render } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
-import '$lib/test/component-test.svelte';
+import '#lib/test/component-test.svelte.ts';
 import type { ReportingSetupState } from './reporting-setup-state.svelte';
-import type { ReportingDomain } from '$lib/types/ReportingDomain';
+import type { ReportingDomain } from '#lib/types/ReportingDomain.ts';
 import ReportingDomainRow from './reporting-domain.svelte';
 
-vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
+vi.mock('$app/paths', () => ({ resolve: (path: string) => (path.startsWith('/') ? path : `/${path}`) }));
 
 const ROW: ReportingDomain = {
 	id: 7,

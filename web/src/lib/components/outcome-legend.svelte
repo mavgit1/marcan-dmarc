@@ -1,8 +1,8 @@
 <script lang="ts">
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import TrendLine from '$lib/components/trend-line.svelte';
-	import { cn } from '$lib/utils.js';
-	import { OUTCOMES } from '$lib/wording/outcome';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import TrendLine from '#lib/components/trend-line.svelte';
+	import { cn } from '#lib/utils.ts';
+	import { OUTCOMES } from '#lib/wording/outcome.ts';
 	import { legendCells, legendTotal, type OutcomeFigures } from './outcome-legend';
 
 	/**

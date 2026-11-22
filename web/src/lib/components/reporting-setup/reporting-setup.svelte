@@ -1,10 +1,10 @@
 <script lang="ts">
-	import InlineCode from '$lib/components/inline-code.svelte';
+	import InlineCode from '#lib/components/inline-code.svelte';
 	import { resolve } from '$app/paths';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
-	import ErrorState from '$lib/components/error-state.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
+	import ErrorState from '#lib/components/error-state.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
 	import type { Snippet } from 'svelte';
 	import ReportingDomain from './reporting-domain.svelte';
 	import type { ReportingSetupState } from './reporting-setup-state.svelte';

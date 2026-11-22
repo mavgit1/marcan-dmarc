@@ -1,7 +1,7 @@
 <script lang="ts">
-	import MailboxSync from '$lib/components/settings/mailbox-sync.svelte';
-	import { plural } from '$lib/format';
-	import { FIRST_REPORT_ETA } from '$lib/report-address';
+	import MailboxSync from '#lib/components/settings/mailbox-sync.svelte';
+	import { plural } from '#lib/format.ts';
+	import { FIRST_REPORT_ETA } from '#lib/report-address.ts';
 	import NextSteps from './next-steps.svelte';
 	import { accountReady, importing, type SetupData } from './setup-steps';
 	import StepNav from './step-nav.svelte';

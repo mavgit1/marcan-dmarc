@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { plural } from '$lib/format';
-	import type { AccountTestResponse } from '$lib/types/AccountTestResponse';
-	import type { LoginKind } from '$lib/types/LoginKind';
+	import { plural } from '#lib/format.ts';
+	import type { AccountTestResponse } from '#lib/types/AccountTestResponse.ts';
+	import type { LoginKind } from '#lib/types/LoginKind.ts';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import DocsSentence from './docs-sentence.svelte';

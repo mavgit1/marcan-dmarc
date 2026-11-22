@@ -1,21 +1,21 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { getReports } from '$lib/api';
-	import type { Page } from '$lib/types/Page';
-	import type { ReportSummary } from '$lib/types/ReportSummary';
-	import DataTable from '$lib/components/data-table.svelte';
-	import { defaultCellText, type ColumnDef } from '$lib/components/data-table';
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import PolicyBadge from '$lib/components/policy-badge.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { formatDateRange, formatInt } from '$lib/format';
-	import { formatRate } from '$lib/health';
-	import { filters } from '$lib/state/filters.svelte';
-	import { resource } from '$lib/state/resource.svelte';
-	import { ServerList } from '$lib/state/server-list.svelte';
-	import { STATUS_WORD, statusFg } from '$lib/tokens';
+	import { getReports } from '#lib/api.ts';
+	import type { Page } from '#lib/types/Page.ts';
+	import type { ReportSummary } from '#lib/types/ReportSummary.ts';
+	import DataTable from '#lib/components/data-table.svelte';
+	import { defaultCellText, type ColumnDef } from '#lib/components/data-table.ts';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import PolicyBadge from '#lib/components/policy-badge.svelte';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { formatDateRange, formatInt } from '#lib/format.ts';
+	import { formatRate } from '#lib/health.ts';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { ServerList } from '#lib/state/server-list.svelte.ts';
+	import { STATUS_WORD, statusFg } from '#lib/tokens.ts';
 	import FileBarChartIcon from '@lucide/svelte/icons/file-bar-chart';
 	import SearchIcon from '@lucide/svelte/icons/search';
 
@@ -131,7 +131,7 @@
 	>
 		{#snippet cell({ column, row })}
 			{#if column.id === 'domain'}
-				<a href={resolve(`/domains/${row.domain_id}`)} class="hover:underline" onclick={(e) => e.stopPropagation()}>
+				<a href={resolve(`domains/${row.domain_id}`)} class="hover:underline" onclick={(e) => e.stopPropagation()}>
 					{row.domain}
 				</a>
 			{:else if column.id === 'policy'}

@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { previewBranding } from '$lib/api';
-	import EmailLookCard from '$lib/components/settings/email-look-card.svelte';
-	import SettingsLink from '$lib/components/settings/settings-link.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { storedLogo } from '$lib/state/logo.svelte';
-	import { settings } from '$lib/state/settings.svelte';
-	import type { EmailPreview } from '$lib/types/EmailPreview';
+	import { previewBranding } from '#lib/api.ts';
+	import EmailLookCard from '#lib/components/settings/email-look-card.svelte';
+	import SettingsLink from '#lib/components/settings/settings-link.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { storedLogo } from '#lib/state/logo.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import type { EmailPreview } from '#lib/types/EmailPreview.ts';
 
 	/**
 	 * "What your clients see" on the License page, where an operator decides: the same email

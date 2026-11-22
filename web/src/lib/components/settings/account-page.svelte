@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { deleteAccount } from '$lib/api';
-	import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
-	import NotFoundState from '$lib/components/not-found-state.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { pageMeta } from '$lib/state/page-meta.svelte';
-	import { settings } from '$lib/state/settings.svelte';
+	import { deleteAccount } from '#lib/api.ts';
+	import ConfirmDialog from '#lib/components/confirm-dialog.svelte';
+	import NotFoundState from '#lib/components/not-found-state.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { pageMeta } from '#lib/state/page-meta.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
 	import { Action } from '../action.svelte';
 	import { AccountModel } from './account-draft.svelte';
 	import AccountForm from './account-form.svelte';

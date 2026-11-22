@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { statusText } from '$lib/tokens';
+	import { statusText } from '#lib/tokens.ts';
 	import SettingsLink from './settings-link.svelte';
 
 	/**

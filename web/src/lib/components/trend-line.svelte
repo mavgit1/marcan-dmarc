@@ -2,9 +2,9 @@
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import TrendingDownIcon from '@lucide/svelte/icons/trending-down';
 	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
-	import type { StatTrend } from '$lib/health';
-	import { statusText } from '$lib/tokens';
-	import { cn } from '$lib/utils.js';
+	import type { StatTrend } from '#lib/health.ts';
+	import { statusText } from '#lib/tokens.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/**
 	 * A figure's trend against the previous window (`trendWords`), as `StatCard` and

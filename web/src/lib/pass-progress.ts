@@ -1,7 +1,7 @@
-import type { PassPhase } from '$lib/types/PassPhase';
-import type { PassProgressResponse } from '$lib/types/PassProgressResponse';
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
-import { formatInt, percent, plural } from '$lib/format';
+import type { PassPhase } from '#lib/types/PassPhase.ts';
+import type { PassProgressResponse } from '#lib/types/PassProgressResponse.ts';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
+import { formatInt, percent, plural } from '#lib/format.ts';
 
 /**
  * Completion 0–100 of a running mailbox pass, by bytes (messages vary a lot in size),

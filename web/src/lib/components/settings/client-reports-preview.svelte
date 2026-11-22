@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { scopeOptions } from '$lib/state/scope.svelte';
+	import { scopeOptions } from '#lib/state/scope.svelte.ts';
 	import BusyButton from '../busy-button.svelte';
 	import ClientReportPreview from '../client-report-preview.svelte';
 	import type { ClientReportsModel } from './client-reports-draft.svelte';

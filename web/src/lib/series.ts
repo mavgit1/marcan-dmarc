@@ -1,4 +1,4 @@
-import type { TimeseriesPoint } from '$lib/types/TimeseriesPoint';
+import type { TimeseriesPoint } from '#lib/types/TimeseriesPoint.ts';
 
 export type DailyPoint = {
 	dateObj: Date;

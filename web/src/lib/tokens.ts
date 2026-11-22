@@ -1,7 +1,7 @@
 /** Semantic status class helpers; tokens and usage rules are in `src/lib/components/DESIGN.md`. */
 
-import type { Severity } from '$lib/types/Severity';
-import type { Status } from '$lib/types/Status';
+import type { Severity } from '#lib/types/Severity.ts';
+import type { Status } from '#lib/types/Status.ts';
 
 /**
  * A verdict colour, as the server decides it (`Status`). `info` is blue = blocked by policy

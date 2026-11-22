@@ -1,9 +1,9 @@
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card/index.js';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import TrendLine from '$lib/components/trend-line.svelte';
-	import type { StatTrend } from '$lib/health';
-	import { cn } from '$lib/utils.js';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import TrendLine from '#lib/components/trend-line.svelte';
+	import type { StatTrend } from '#lib/health.ts';
+	import { cn } from '#lib/utils.ts';
 	import type { Component, Snippet } from 'svelte';
 
 	/**

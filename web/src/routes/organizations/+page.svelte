@@ -1,26 +1,26 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { createOrganization, getOrganizations } from '$lib/api';
-	import type { Items } from '$lib/types/Items';
-	import type { OrganizationRow } from '$lib/types/OrganizationRow';
-	import OutcomeBar from '$lib/components/outcome-bar.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { filters } from '$lib/state/filters.svelte';
-	import { formatInt, plural } from '$lib/format';
-	import { resource } from '$lib/state/resource.svelte';
-	import { statusFg } from '$lib/tokens';
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { Action } from '$lib/components/action.svelte';
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import SettingsLink from '$lib/components/settings/settings-link.svelte';
-	import FeedbackAlert from '$lib/components/settings/feedback-alert.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { refresh } from '$lib/state/refresh.svelte';
+	import { createOrganization, getOrganizations } from '#lib/api.ts';
+	import type { Items } from '#lib/types/Items.ts';
+	import type { OrganizationRow } from '#lib/types/OrganizationRow.ts';
+	import OutcomeBar from '#lib/components/outcome-bar.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { formatInt, plural } from '#lib/format.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { statusFg } from '#lib/tokens.ts';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { Action } from '#lib/components/action.svelte.ts';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import SettingsLink from '#lib/components/settings/settings-link.svelte';
+	import FeedbackAlert from '#lib/components/settings/feedback-alert.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { refresh } from '#lib/state/refresh.svelte.ts';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
@@ -42,7 +42,7 @@
 			organizationName = '';
 			showForm = false;
 			refresh.refresh();
-			await goto(resolve(`/organizations/${created.id}`));
+			await goto(resolve(`organizations/${created.id}`));
 		});
 	}
 </script>
@@ -131,7 +131,7 @@
 				{@const attention = c.attention}
 				<li>
 					<a
-						href={resolve(`/organizations/${c.id}`)}
+						href={resolve(`organizations/${c.id}`)}
 						class="hover:bg-muted/50 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5 transition-colors @xl:grid @xl:grid-cols-[minmax(0,1fr)_9.5rem_7rem_6rem] @xl:gap-x-3 @4xl:grid-cols-[minmax(0,1fr)_9.5rem_7rem_8rem_18rem]"
 					>
 						<span class="flex w-full min-w-0 items-center gap-2 @xl:w-auto">

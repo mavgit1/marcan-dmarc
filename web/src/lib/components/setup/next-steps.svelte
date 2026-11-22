@@ -1,6 +1,6 @@
 <script lang="ts">
-	import SettingsLink from '$lib/components/settings/settings-link.svelte';
-	import { DOCS_URL } from '$lib/nav';
+	import SettingsLink from '#lib/components/settings/settings-link.svelte';
+	import { DOCS_URL } from '#lib/nav.ts';
 
 	/**
 	 * "Optional next steps" after the setup: alerts, monthly client reports, and what the license

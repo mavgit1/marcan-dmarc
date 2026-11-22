@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { PassProgressResponse } from '$lib/types/PassProgressResponse';
-	import { formatInt } from '$lib/format';
-	import { progressLabel, progressPercent } from '$lib/pass-progress';
-	import { cn } from '$lib/utils.js';
+	import type { PassProgressResponse } from '#lib/types/PassProgressResponse.ts';
+	import { formatInt } from '#lib/format.ts';
+	import { progressLabel, progressPercent } from '#lib/pass-progress.ts';
+	import { cn } from '#lib/utils.ts';
 
 	/** A slim bar with "processed / total" beside it; before importing, the phase in place of the count. */
 	let { progress, class: className }: { progress: PassProgressResponse; class?: string } = $props();

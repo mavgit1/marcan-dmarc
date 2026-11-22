@@ -1,29 +1,29 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { getAllDomains, getAttentionDomains, getStatistics, getTimeseries } from '$lib/api';
-	import type { DomainSummary } from '$lib/types/DomainSummary';
-	import type { OnboardingState } from '$lib/types/OnboardingState';
-	import type { Statistics } from '$lib/types/Statistics';
-	import AttentionList from '$lib/components/attention-list.svelte';
-	import BackgroundActivity from '$lib/components/background-activity.svelte';
-	import VolumeChart from '$lib/components/volume-chart.svelte';
-	import EmptyState from '$lib/components/empty-state.svelte';
-	import Loaded from '$lib/components/loaded.svelte';
-	import WaitingBanner from '$lib/components/setup/waiting-banner.svelte';
-	import StatCard from '$lib/components/stat-card.svelte';
-	import { statisticsTrends } from '$lib/components/outcome-legend';
+	import { getAllDomains, getAttentionDomains, getStatistics, getTimeseries } from '#lib/api.ts';
+	import type { DomainSummary } from '#lib/types/DomainSummary.ts';
+	import type { OnboardingState } from '#lib/types/OnboardingState.ts';
+	import type { Statistics } from '#lib/types/Statistics.ts';
+	import AttentionList from '#lib/components/attention-list.svelte';
+	import BackgroundActivity from '#lib/components/background-activity.svelte';
+	import VolumeChart from '#lib/components/volume-chart.svelte';
+	import EmptyState from '#lib/components/empty-state.svelte';
+	import Loaded from '#lib/components/loaded.svelte';
+	import WaitingBanner from '#lib/components/setup/waiting-banner.svelte';
+	import StatCard from '#lib/components/stat-card.svelte';
+	import { statisticsTrends } from '#lib/components/outcome-legend.ts';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import MailsIcon from '@lucide/svelte/icons/mails';
 	import ServerIcon from '@lucide/svelte/icons/server';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
-	import { formatRate, trendWords } from '$lib/health';
-	import { formatInt, plural } from '$lib/format';
-	import { resource } from '$lib/state/resource.svelte';
-	import { seriesFromTimeseries, type DailyPoint } from '$lib/series';
-	import { filters } from '$lib/state/filters.svelte';
-	import { settings } from '$lib/state/settings.svelte';
-	import { systemHealth } from '$lib/state/system-health.svelte';
+	import { formatRate, trendWords } from '#lib/health.ts';
+	import { formatInt, plural } from '#lib/format.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { seriesFromTimeseries, type DailyPoint } from '#lib/series.ts';
+	import { filters } from '#lib/state/filters.svelte.ts';
+	import { settings } from '#lib/state/settings.svelte.ts';
+	import { systemHealth } from '#lib/state/system-health.svelte.ts';
 
 	/**
 	 * Until the setup is finished or skipped (the shared settings' onboarding flag), the app opens
@@ -39,7 +39,7 @@
 	const onboarding = $derived<OnboardingState | null | undefined>(settings.current?.onboarding.state);
 	const setupOpen = $derived(onboarding === null);
 	$effect(() => {
-		if (setupOpen) void goto(resolve('/setup'), { replaceState: true });
+		if (setupOpen) void goto(resolve('/setup'), { replace: true });
 	});
 
 	const health = $derived(systemHealth.current);
@@ -129,7 +129,7 @@
 						{#each data.domains as d (d.id)}
 							<li>
 								<a
-									href={resolve(`/domains/${d.id}`)}
+									href={resolve(`domains/${d.id}`)}
 									class="hover:bg-muted/50 flex items-center justify-between gap-4 px-3 py-2.5 transition-colors"
 								>
 									<span class="font-medium">{d.domain}</span>

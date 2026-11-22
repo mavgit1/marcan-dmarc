@@ -1,6 +1,6 @@
 <script lang="ts" generics="T">
-	import ErrorState from '$lib/components/error-state.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
+	import ErrorState from '#lib/components/error-state.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
 	import type { Snippet } from 'svelte';
 
 	/**

@@ -1,12 +1,12 @@
 // A list edited as text: the preview once typing pauses, the line errors it shows, and the save
 // with its read-back.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LineError } from '$lib/types/LineError';
+import type { LineError } from '#lib/types/LineError.ts';
 import { LIST_PREVIEW_DELAY_MS, ListDraft, type ListSpec } from './list-draft.svelte';
 
 // A refused save carries its line errors; here as a plain field on the thrown error.
-vi.mock('$lib/http', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/http')>()),
+vi.mock('#lib/http.ts', async (importOriginal) => ({
+	...(await importOriginal<typeof import('#lib/http.ts')>()),
 	apiLineErrors: (err: unknown) => (err as { lines?: LineError[] }).lines ?? []
 }));
 

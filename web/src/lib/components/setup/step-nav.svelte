@@ -1,6 +1,6 @@
 <script lang="ts">
-	import BusyButton from '$lib/components/busy-button.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import BusyButton from '#lib/components/busy-button.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import type { Snippet } from 'svelte';
 

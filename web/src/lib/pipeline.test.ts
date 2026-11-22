@@ -1,8 +1,8 @@
 // The pipeline's labels while an import is unfinished.
 import { describe, expect, it } from 'vitest';
-import type { PassProgressResponse } from '$lib/types/PassProgressResponse';
-import type { Pipeline } from '$lib/types/Pipeline';
-import type { SystemHealthResponse } from '$lib/types/SystemHealthResponse';
+import type { PassProgressResponse } from '#lib/types/PassProgressResponse.ts';
+import type { Pipeline } from '#lib/types/Pipeline.ts';
+import type { SystemHealthResponse } from '#lib/types/SystemHealthResponse.ts';
 import { pipelineStatus } from './pipeline';
 
 const importing: Pipeline = {

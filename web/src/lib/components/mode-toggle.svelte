@@ -3,9 +3,9 @@
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MonitorIcon from '@lucide/svelte/icons/monitor';
 	import { resetMode, setMode, userPrefersMode } from 'mode-watcher';
-	import { buttonVariants } from '$lib/components/ui/button/index.js';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { cn } from '$lib/utils.js';
+	import { buttonVariants } from '#lib/components/ui/button/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
+	import { cn } from '#lib/utils.ts';
 
 	const preference = $derived(userPrefersMode.current);
 </script>

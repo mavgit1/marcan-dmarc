@@ -1,11 +1,11 @@
 <script lang="ts">
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { getDnsCheck } from '$lib/api';
-	import { CHECK_FAILED, dmarcPolicyVerdict, spfAllVerdict, type Verdict } from '$lib/dns';
-	import { looksLikeEmail } from '$lib/report-address';
-	import { resource } from '$lib/state/resource.svelte';
-	import { statusText, statusTextPlain } from '$lib/tokens';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { getDnsCheck } from '#lib/api.ts';
+	import { CHECK_FAILED, dmarcPolicyVerdict, spfAllVerdict, type Verdict } from '#lib/dns.ts';
+	import { looksLikeEmail } from '#lib/report-address.ts';
+	import { resource } from '#lib/state/resource.svelte.ts';
+	import { statusText, statusTextPlain } from '#lib/tokens.ts';
 	import BusyButton from '../busy-button.svelte';
 	import FeedbackAlert from './feedback-alert.svelte';
 	import { joinPageForm } from './page-form.svelte';

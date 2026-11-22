@@ -1,7 +1,7 @@
-import { saveDns } from '$lib/api';
-import { settings } from '$lib/state/settings.svelte';
-import type { DnsSettingsResponse } from '$lib/types/DnsSettingsResponse';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { saveDns } from '#lib/api.ts';
+import { settings } from '#lib/state/settings.svelte.ts';
+import type { DnsSettingsResponse } from '#lib/types/DnsSettingsResponse.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { SettingsForm, type SettingsFormSource, type Writes } from './settings-form.svelte';
 
 /** The DNS checks page's two resolver fields. */

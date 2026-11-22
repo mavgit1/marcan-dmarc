@@ -4,8 +4,8 @@
 // the count while there are any.
 import { fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { owned, pendingFetch, renderPage, saveBar } from '$lib/test/component-test.svelte';
-import type { LineError } from '$lib/types/LineError';
+import { owned, pendingFetch, renderPage, saveBar } from '#lib/test/component-test.svelte.ts';
+import type { LineError } from '#lib/types/LineError.ts';
 import { ListDraft, type ListSpec } from './list-draft.svelte';
 import ListEditor from './list-editor.svelte';
 

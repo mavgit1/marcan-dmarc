@@ -4,9 +4,9 @@
 // rows disabled while the switch is off, and a disabled Save that says why and marks the select.
 import { fireEvent } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { owned, pendingFetch, renderPage, saveBar, settle } from '$lib/test/component-test.svelte';
-import { accountFixture, CONNECTED, SENDING_ON, settingsFixture } from '$lib/test/settings-fixture';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { owned, pendingFetch, renderPage, saveBar, settle } from '#lib/test/component-test.svelte.ts';
+import { accountFixture, CONNECTED, SENDING_ON, settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { SendingModel } from './sending-draft.svelte';
 import SendingSettingsForm from './sending-settings-form.svelte';
 

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { ListDraft } from '$lib/components/settings/list-draft.svelte';
-	import ListEditor from '$lib/components/settings/list-editor.svelte';
-	import { DOMAIN_LIST } from '$lib/components/settings/lists';
-	import SettingsPage from '$lib/components/settings/settings-page.svelte';
-	import { statusText } from '$lib/tokens';
+	import { ListDraft } from '#lib/components/settings/list-draft.svelte.ts';
+	import ListEditor from '#lib/components/settings/list-editor.svelte';
+	import { DOMAIN_LIST } from '#lib/components/settings/lists.ts';
+	import SettingsPage from '#lib/components/settings/settings-page.svelte';
+	import { statusText } from '#lib/tokens.ts';
 
 	const domains = new ListDraft(DOMAIN_LIST);
 </script>

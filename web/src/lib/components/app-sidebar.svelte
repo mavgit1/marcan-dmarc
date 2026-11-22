@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import LogoMark from '$lib/components/logo-mark.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { DOCS_URL, NAV_FOOTER, NAV_GROUPS, isNavActive, type NavItem } from '$lib/nav';
-	import { meta } from '$lib/state/meta.svelte';
+	import LogoMark from '#lib/components/logo-mark.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import * as Sidebar from '#lib/components/ui/sidebar/index.ts';
+	import { DOCS_URL, NAV_FOOTER, NAV_GROUPS, isNavActive, type NavItem } from '#lib/nav.ts';
+	import { meta } from '#lib/state/meta.svelte.ts';
 
 	const pathname = $derived(page.url.pathname);
 

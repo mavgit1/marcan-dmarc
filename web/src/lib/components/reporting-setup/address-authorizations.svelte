@@ -1,11 +1,11 @@
 <script lang="ts">
-	import InlineCode from '$lib/components/inline-code.svelte';
-	import DnsRawRecord from '$lib/components/dns-raw-record.svelte';
-	import StatusBadge from '$lib/components/status-badge.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { MAILBOX_AUTHORIZATION_LABEL } from '$lib/report-address';
-	import { joinAnd } from '$lib/text';
-	import type { AddressAuthorization } from '$lib/types/AddressAuthorization';
+	import InlineCode from '#lib/components/inline-code.svelte';
+	import DnsRawRecord from '#lib/components/dns-raw-record.svelte';
+	import StatusBadge from '#lib/components/status-badge.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { MAILBOX_AUTHORIZATION_LABEL } from '#lib/report-address.ts';
+	import { joinAnd } from '#lib/text.ts';
+	import type { AddressAuthorization } from '#lib/types/AddressAuthorization.ts';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { ReportingSetupState } from './reporting-setup-state.svelte';
 

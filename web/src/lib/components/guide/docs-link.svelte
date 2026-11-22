@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { DOCS_URL } from '$lib/nav';
+	import { DOCS_URL } from '#lib/nav.ts';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 
 	/** A Guide block's link to a docs page (`path` under the docs site), opening in a new tab. */

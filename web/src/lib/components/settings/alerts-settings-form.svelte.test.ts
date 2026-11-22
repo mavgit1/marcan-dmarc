@@ -3,9 +3,9 @@
 // switch is off, and Save held with its reason while switched on without a recipient.
 import { fireEvent } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { owned, pendingFetch, renderPage, saveBar } from '$lib/test/component-test.svelte';
-import { CONNECTED, settingsFixture } from '$lib/test/settings-fixture';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import { owned, pendingFetch, renderPage, saveBar } from '#lib/test/component-test.svelte.ts';
+import { CONNECTED, settingsFixture } from '#lib/test/settings-fixture.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 import { AlertsModel } from './alerts-draft.svelte';
 import AlertsSettingsForm from './alerts-settings-form.svelte';
 

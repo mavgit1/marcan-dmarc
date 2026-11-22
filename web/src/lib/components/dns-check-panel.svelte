@@ -1,7 +1,7 @@
 <script lang="ts">
-	import ErrorState from '$lib/components/error-state.svelte';
-	import Skeleton from '$lib/components/skeleton.svelte';
-	import { cn } from '$lib/utils.js';
+	import ErrorState from '#lib/components/error-state.svelte';
+	import Skeleton from '#lib/components/skeleton.svelte';
+	import { cn } from '#lib/utils.ts';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import type { Snippet } from 'svelte';
 

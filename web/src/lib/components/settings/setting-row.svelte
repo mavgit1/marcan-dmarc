@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { cn } from '$lib/utils.js';
+	import { cn } from '#lib/utils.ts';
 	import type { Snippet } from 'svelte';
-	import { onFocusAnchor } from '$lib/state/anchor-focus.svelte';
+	import { onFocusAnchor } from '#lib/state/anchor-focus.svelte.ts';
 
 	/**
 	 * One setting: its name beside the control, and a hint (only where the name is not enough)

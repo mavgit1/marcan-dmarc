@@ -4,14 +4,14 @@
 // that none does and where to add one; then every receiving domain's permission.
 import { render } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
-import '$lib/test/component-test.svelte';
-import type { ReportingSetupState } from '$lib/components/reporting-setup/reporting-setup-state.svelte';
-import type { AddressAuthorization } from '$lib/types/AddressAuthorization';
-import type { ReportingDomain } from '$lib/types/ReportingDomain';
-import type { ReportingSetupResponse } from '$lib/types/ReportingSetupResponse';
+import '#lib/test/component-test.svelte.ts';
+import type { ReportingSetupState } from '#lib/components/reporting-setup/reporting-setup-state.svelte.ts';
+import type { AddressAuthorization } from '#lib/types/AddressAuthorization.ts';
+import type { ReportingDomain } from '#lib/types/ReportingDomain.ts';
+import type { ReportingSetupResponse } from '#lib/types/ReportingSetupResponse.ts';
 import GuideReporting from './guide-reporting.svelte';
 
-vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
+vi.mock('$app/paths', () => ({ resolve: (path: string) => (path.startsWith('/') ? path : `/${path}`) }));
 
 const auth = (
 	domain: string,

@@ -1,4 +1,4 @@
-import type { ServerTable } from '$lib/components/data-table';
+import type { ServerTable } from '#lib/components/data-table.ts';
 
 /**
  * Sort and page of one server-paginated list. The page resets to the first whenever

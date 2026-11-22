@@ -5,10 +5,10 @@
  * steps carry theirs too). No DMARC record text is parsed or edited here.
  */
 
-import type { DomainAssessment } from '$lib/types/DomainAssessment';
-import type { MailboxAuthorization } from '$lib/types/MailboxAuthorization';
-import type { ReportingStatus } from '$lib/types/ReportingStatus';
-import type { SettingsResponse } from '$lib/types/SettingsResponse';
+import type { DomainAssessment } from '#lib/types/DomainAssessment.ts';
+import type { MailboxAuthorization } from '#lib/types/MailboxAuthorization.ts';
+import type { ReportingStatus } from '#lib/types/ReportingStatus.ts';
+import type { SettingsResponse } from '#lib/types/SettingsResponse.ts';
 
 /** How long receivers usually take to send the first aggregate report. */
 export const FIRST_REPORT_ETA = '24–48 h';
