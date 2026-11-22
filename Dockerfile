@@ -2,16 +2,16 @@
 # Stage 1: Build SvelteKit static SPA
 # ==============================================================================
 # Base images pinned by digest (the multi-arch index); Dependabot proposes updates.
-FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS web-builder
-
-# pnpm version comes from the packageManager field in web/package.json
-RUN corepack enable
+FROM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS web-builder
 
 WORKDIR /app/web
 
 # Install dependencies with locked versions, under the workspace settings (the
 # build scripts allowed, the minimum release age) and .npmrc
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.npmrc ./
+# pnpm in the version of the packageManager field in web/package.json (Node 25
+# and later ship without corepack, which used to read that field)
+RUN npm install --global "$(node -p "require('./package.json').packageManager")"
 RUN pnpm install --frozen-lockfile
 
 # Copy frontend source and compile static SPA to web/build/
@@ -22,7 +22,7 @@ RUN pnpm build
 # Stage 2: Build Rust backend with embedded SPA
 # ==============================================================================
 # Keep equal to rust-toolchain.toml
-FROM rust:1.98-alpine@sha256:7cc1c22d77d9432f7fe012a70e6d3e555af54c2a6832700ed7d553f1769ae89f AS rust-builder
+FROM rust:1.99-alpine@sha256:44819b27be4c97b0e4d7203bd2e02c4820f97700211b6a37fb4c246a2de59383 AS rust-builder
 
 RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static build-base
 
